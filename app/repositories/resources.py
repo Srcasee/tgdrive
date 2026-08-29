@@ -1,8 +1,8 @@
 from database_pool import connection, transaction
 
 
-def build_legacy_identity_key(filename, size, mime_type):
-    return f"legacy:{filename.strip().casefold()}|{int(size or 0)}|{mime_type or ''}"
+def build_index_identity_key(filename, size, mime_type):
+    return f"index:{filename.strip().casefold()}|{int(size or 0)}|{mime_type or ''}"
 
 
 def build_content_identity_key(content_hash):
@@ -36,7 +36,7 @@ class ResourceRepository:
                     )
                     return cursor.fetchone()["id"]
 
-        identity_key = build_legacy_identity_key(filename, size, mime_type)
+        identity_key = build_index_identity_key(filename, size, mime_type)
         with transaction() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
@@ -71,7 +71,42 @@ class ResourceRepository:
         with connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
-                    "SELECT id, identity_key, content_hash, filename, size, mime_type, status FROM resources WHERE content_hash=%s",
+                    """
+                    SELECT id, identity_key, content_hash, filename, size, mime_type, status
+                    FROM resources WHERE content_hash=%s
+                    """,
                     (content_hash.lower(),),
                 )
                 return cursor.fetchone()
+
+    def verify(self, resource_id, content_hash):
+        identity_key = build_content_identity_key(content_hash)
+        digest = content_hash.lower()
+        with transaction() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("SELECT id, content_hash FROM resources WHERE id=%s FOR UPDATE", (resource_id,))
+                current = cursor.fetchone()
+                if current is None:
+                    raise ValueError("resource not found")
+                if current["content_hash"] == digest:
+                    return resource_id
+
+                cursor.execute("SELECT id FROM resources WHERE content_hash=%s FOR UPDATE", (digest,))
+                target = cursor.fetchone()
+                if target and target["id"] != resource_id:
+                    target_id = target["id"]
+                    cursor.execute(
+                        "INSERT INTO resource_categories(resource_id, category_id) SELECT %s, category_id FROM resource_categories WHERE resource_id=%s ON CONFLICT DO NOTHING",
+                        (target_id, resource_id),
+                    )
+                    cursor.execute("UPDATE files SET resource_id=%s WHERE resource_id=%s", (target_id, resource_id))
+                    cursor.execute("DELETE FROM resource_categories WHERE resource_id=%s", (resource_id,))
+                    cursor.execute("DELETE FROM resources WHERE id=%s", (resource_id,))
+                    return target_id
+
+                cursor.execute(
+                    "UPDATE resources SET identity_key=%s, content_hash=%s, updated_at=EXTRACT(EPOCH FROM NOW())::BIGINT WHERE id=%s",
+                    (identity_key, digest, resource_id),
+                )
+                cursor.execute("UPDATE files SET content_hash=%s WHERE resource_id=%s", (digest, resource_id))
+                return resource_id
