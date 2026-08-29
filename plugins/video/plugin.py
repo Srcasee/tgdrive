@@ -11,7 +11,6 @@ class VideoCachePlugin:
     def __init__(self):
         self.root = Path(os.getenv("TGDRIVE_VIDEO_CACHE_ROOT", "/data/cache/video"))
         self.chunk_size = int(os.getenv("TGDRIVE_VIDEO_CHUNK_SIZE", str(4 * 1024 * 1024)))
-        self.root.mkdir(parents=True, exist_ok=True)
 
     def _dir(self, resource_id):
         path = self.root / str(resource_id)
