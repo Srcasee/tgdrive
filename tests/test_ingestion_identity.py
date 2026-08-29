@@ -12,4 +12,4 @@ class FakeDownloader:
 
 def test_hash_telegram_file_is_content_based():
     result = asyncio.run(hash_telegram_file(FakeDownloader(), object()))
-    assert result == "a591a6d40bf420404a011733cfb7b190d62c65bf0bcda32b5b4c4b6e8e1c5d3a" or len(result) == 64
+    assert result == "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9"
