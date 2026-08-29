@@ -7,7 +7,7 @@ PLUGIN_ROOT = Path(__file__).resolve().parents[1] / "plugins"
 
 
 def runtime():
-    return PluginRuntime([PLUGIN_ROOT])
+    return PluginRuntime(str(PLUGIN_ROOT))
 
 
 def test_proxy_capability_is_optional(monkeypatch):
