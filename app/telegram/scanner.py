@@ -1,10 +1,11 @@
 import asyncio
+import os
 
 from repositories.files import FileRepository
 from repositories.sources import SourceRepository
 
 
-SCAN_INTERVAL = 300
+SCAN_INTERVAL = int(os.getenv("SCAN_INTERVAL", "300"))
 
 file_repository = FileRepository()
 source_repository = SourceRepository()
