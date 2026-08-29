@@ -1,19 +1,14 @@
-import os
 from contextlib import contextmanager
 
 import psycopg
 from psycopg.rows import dict_row
 
-
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://tgdrive:tgdrive@postgres:5432/tgdrive",
-)
+from config import settings
 
 
 @contextmanager
 def get_connection():
-    conn = psycopg.connect(DATABASE_URL, row_factory=dict_row)
+    conn = psycopg.connect(settings.DATABASE_URL, row_factory=dict_row)
     try:
         yield conn
     finally:
@@ -99,9 +94,7 @@ def init_database():
                     CREATE INDEX IF NOT EXISTS idx_files_filename ON files(filename);
                     """
                 )
-                cursor.execute(
-                    "INSERT INTO schema_migrations(version) VALUES (1)"
-                )
+                cursor.execute("INSERT INTO schema_migrations(version) VALUES (1)")
 
             conn.commit()
             print("[DB] PostgreSQL database initialized", flush=True)
