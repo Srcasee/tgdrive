@@ -22,7 +22,7 @@ async def scan_dialogs(client, account_id):
     count = 0
     source_rows = source_repository.list_enabled_for_account(account_id)
     sources = {row["telegram_chat_id"]: row for row in source_rows}
-    for dialog in _iter_dialogs(client):
+    async for dialog in _iter_dialogs(client):
         if dialog.id not in sources:
             continue
         count += await _scan_source(client, account_id, dialog, sources[dialog.id])
