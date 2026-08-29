@@ -2,19 +2,65 @@
 
 ## Current real deployment status
 
-The staged deployment on a Debian 12 server has reached a healthy Core runtime:
+The staged deployment on a Debian 12 server has reached a healthy real Telegram integration baseline:
 
 - PostgreSQL 16 container: healthy.
 - Database schema initialization: successful.
 - Core container: running and serving port 8000 internally / 8080 on the host.
-- Core startup succeeds without Telegram credentials; the log reports that the Telegram runtime is disabled when Telegram is not configured.
-- Telegram and proxy runtime testing remain separate stages and have not yet been enabled.
+- Telegram session file `default.session` is present and the account is authorized.
+- Telegram dialog discovery succeeds through `/api/telegram/accounts/1/dialogs`.
+- A configured source (`telegram_chat_id=-1004413553797`) was scanned successfully.
+- The source scan indexed 9 files and reports `scan_status=success`.
+- JPG download returns HTTP 200 and a valid image.
+- MP4 Range streaming returns HTTP 206 with correct byte ranges.
+- SOCKS5 TCP/TLS connectivity was validated from the Core container.
+- Telethon successfully connects and authorizes through the configured proxy.
+
+## Download performance status
+
+The HTTP transport is functionally working, but download-speed optimization is not complete.
+
+Real-server benchmark against a 276,027,608-byte MP4:
+
+- 1 MiB first range: 6.60 s / 0.16 MB/s.
+- 8 MiB first range: 4.23 s / 1.98 MB/s.
+- 8 MiB middle range: 149.57 s / 0.056 MB/s.
+- Five repeated 8 MiB ranges: 0.77–0.91 MB/s.
+
+This variability is now the Phase 2 baseline. Do not interpret it as proof that Telegram itself is imposing a fixed limit. The next step is controlled direct-vs-proxy and offset/cold-cache profiling before changing concurrency or transport architecture.
+
+Real video-player simulation is intentionally deferred until the final Phase 2 validation stage.
+
+## Migration / staged rollout checklist
+
+1. Validate host/runtime compatibility without replacing the system Python.
+2. Start PostgreSQL and verify schema initialization.
+3. Start Core and verify HTTP health.
+4. Configure authentication secrets through deployment environment only.
+5. Enable proxy runtime only after independent proxy connectivity is verified.
+6. Verify Telegram account authorization and dialog discovery.
+7. Add only the intended Telegram source by its exact chat ID.
+8. Run an incremental scan and verify PostgreSQL `telegram_sources.scan_status=success`.
+9. Verify indexed file count and metadata.
+10. Verify one complete file download.
+11. Verify one MP4 HTTP Range request.
+12. Run the Phase 2 throughput benchmark matrix.
+13. Optimize transport only after the baseline is recorded.
+14. Run realistic browser/video-player simulation last.
+
+## Source selection warning
+
+Telegram dialog names are not unique. Two dialogs may have the same display name but different Telegram chat IDs. Source configuration must therefore use the exact `telegram_chat_id`, not a name-only match. The scanner only scans sources explicitly present in `telegram_sources`; dialog discovery itself does not mean every dialog is being indexed.
 
 ## Known non-blocking issues
 
 ### FastAPI lifecycle deprecation
 
 `app/core/app.py` still uses FastAPI `on_event()` startup/shutdown handlers. FastAPI reports these APIs as deprecated and recommends lifespan event handlers. This currently does not block startup or tests, but should be migrated during a later Core cleanup for forward compatibility.
+
+### PostgreSQL connection messages
+
+The deployment log can contain repeated `Server closed the connection: 0 bytes read on a total of 8 expected bytes` messages. The Core remains healthy and scans continue successfully, so this is currently tracked as an infrastructure/connection-pool investigation rather than a Telegram authorization failure.
 
 ### Python version coverage
 
@@ -37,8 +83,6 @@ Therefore:
 - Core/database commands executed inside `telegram-drive` should use the Compose URL with host `postgres`.
 - Host-side Python commands must not assume that `postgres` is resolvable.
 - Do not expose PostgreSQL publicly or change the application URL merely to make host-side commands work.
-
-Schema initialization in the staged deployment is therefore performed from the Core container when using the Compose database URL.
 
 ### Host Python and container Python are different runtimes
 
