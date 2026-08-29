@@ -1,10 +1,17 @@
 import os
 
 
+def _optional_int(name: str):
+    value = os.getenv(name)
+    if value in (None, ""):
+        return None
+    return int(value)
+
+
 class Settings:
-    TG_API_ID = int(os.getenv("TG_API_ID", "0"))
-    TG_API_HASH = os.getenv("TG_API_HASH")
-    TG_PHONE = os.getenv("TG_PHONE")
+    TG_API_ID = _optional_int("TG_API_ID")
+    TG_API_HASH = os.getenv("TG_API_HASH") or None
+    TG_PHONE = os.getenv("TG_PHONE") or None
     TG_SESSION_DIR = os.getenv("TG_SESSION_DIR", "/data/accounts")
     TG_SESSION = os.getenv("TG_SESSION", "/data/accounts/default")
     TG_CONNECT_TIMEOUT = int(os.getenv("TG_CONNECT_TIMEOUT", "60"))
@@ -24,3 +31,18 @@ class Settings:
 
 
 settings = Settings()
+
+
+def validate_telegram_credentials():
+    """Validate Telegram API credentials only when Telegram functionality is used."""
+    missing = []
+    if settings.TG_API_ID is None:
+        missing.append("TG_API_ID")
+    if not settings.TG_API_HASH:
+        missing.append("TG_API_HASH")
+    if missing:
+        raise RuntimeError(
+            "Telegram is not configured; missing: " + ", ".join(missing)
+        )
+    if settings.TG_API_ID <= 0:
+        raise RuntimeError("TG_API_ID must be a positive integer")
