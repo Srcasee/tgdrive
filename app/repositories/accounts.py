@@ -7,7 +7,7 @@ class AccountRepository:
             with conn.cursor() as cursor:
                 cursor.execute(
                     """
-                    SELECT id, name, username, session, enabled
+                    SELECT id, name, username, enabled
                     FROM accounts
                     ORDER BY id
                     """
@@ -33,6 +33,12 @@ class AccountRepository:
                 )
                 row = cursor.fetchone()
                 return row["session"] if row else None
+
+    def exists(self, account_id):
+        with connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("SELECT 1 FROM accounts WHERE id=%s", (account_id,))
+                return cursor.fetchone() is not None
 
     def upsert_session(self, session, name=None):
         with transaction() as conn:
