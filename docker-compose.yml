@@ -51,7 +51,7 @@ services:
     profiles:
       - proxy
     volumes:
-      - ./sing-box/config.json:/etc/sing-box/config.json:ro
+      - ./plugins/tgdrive-proxy-socks5/sing-box/config.json:/etc/sing-box/config.json:ro
     command:
       - run
       - -c
