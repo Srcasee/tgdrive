@@ -32,6 +32,9 @@ class SourceRepository:
                     (last_message_id, source_id),
                 )
 
+    def mark_failed(self, source_id):
+        self._update_status(source_id, "failed")
+
     def add(self, account_id, chat_id, name):
         with transaction() as conn:
             with conn.cursor() as cursor:
