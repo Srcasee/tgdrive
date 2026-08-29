@@ -2,7 +2,7 @@ import asyncio
 
 from auth.repository import UserRepository
 from auth.security import hash_password
-from config import settings
+from config import settings, validate_telegram_credentials
 from database_pool import close_pool, open_pool, initialize
 from repositories.accounts import AccountRepository
 from telegram.client import get_clients
@@ -12,6 +12,7 @@ from telegram.scanner import scanner_loop
 class ApplicationLifecycle:
     def __init__(self):
         self.scanner_task = None
+        self.telegram_enabled = False
         self.account_repository = AccountRepository()
         self.user_repository = UserRepository()
 
@@ -19,10 +20,16 @@ class ApplicationLifecycle:
         open_pool()
         initialize()
         self._bootstrap_admin()
+
+        if not self._telegram_configured():
+            print("[TG] Telegram is not configured; Telegram runtime disabled", flush=True)
+            return
+
         clients = get_clients()
+        self.telegram_enabled = True
         if not clients:
-            close_pool()
-            raise RuntimeError("No Telegram sessions found")
+            print("[TG] No Telegram sessions found; Telegram runtime idle", flush=True)
+            return
 
         for name, client in clients.items():
             print(f"[TG] connecting: {name}", flush=True)
@@ -39,6 +46,14 @@ class ApplicationLifecycle:
 
         self.scanner_task = asyncio.create_task(self._run_scanners())
         print("[SCAN] background scanner started", flush=True)
+
+    @staticmethod
+    def _telegram_configured():
+        try:
+            validate_telegram_credentials()
+        except RuntimeError:
+            return False
+        return True
 
     def _bootstrap_admin(self):
         if not settings.AUTH_SECRET:
@@ -79,8 +94,9 @@ class ApplicationLifecycle:
             except asyncio.CancelledError:
                 pass
 
-        for name, client in get_clients().items():
-            if client.is_connected():
-                await client.disconnect()
-                print(f"[TG] disconnected: {name}", flush=True)
+        if self.telegram_enabled:
+            for name, client in get_clients().items():
+                if client.is_connected():
+                    await client.disconnect()
+                    print(f"[TG] disconnected: {name}", flush=True)
         close_pool()
