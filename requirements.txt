@@ -1,6 +1,7 @@
 fastapi
 uvicorn
 telethon
+cryptg>=0.5,<1
 python-socks[asyncio]
 httpx
 psycopg[binary]>=3.2,<4
