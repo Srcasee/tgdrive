@@ -6,19 +6,21 @@ from fastapi.responses import StreamingResponse
 
 from auth.dependencies import require_user
 from auth.models import Principal
-from common.response import api_error, api_success
+from common.response import api_error
 from delivery.range import InvalidRange, parse_single_range
 from delivery.source_selector import TelegramSourceSelector
-from delivery.streaming import VideoStreamService
+from delivery.streaming import StreamService
+from plugins.runtime import PluginRuntime
 from repositories.files import FileRepository
 from repositories.resources import ResourceRepository
-from cache.video import CHUNK_SIZE
 
 router = APIRouter(prefix="/resources", tags=["delivery"])
 file_repository = FileRepository()
 resource_repository = ResourceRepository()
 source_selector = TelegramSourceSelector(file_repository)
-stream_service = VideoStreamService(source_selector)
+_plugin_runtime = PluginRuntime()
+_cache_plugin = _plugin_runtime.get_capability("delivery.chunk-cache")
+stream_service = StreamService(source_selector, _cache_plugin)
 
 
 def _parse_range_or_416(value, size):
@@ -90,20 +92,19 @@ async def stream_resource(resource_id: int, range_header: str | None = Header(No
     length = end - start + 1
 
     async def generator():
-        first_chunk = start // CHUNK_SIZE
-        last_chunk = end // CHUNK_SIZE
+        first_chunk = start // stream_service.chunk_size
+        last_chunk = end // stream_service.chunk_size
         try:
             for index in range(first_chunk, last_chunk + 1):
                 data = await stream_service.get_chunk(resource_id, index)
                 if not data:
                     break
-                chunk_start = index * CHUNK_SIZE
+                chunk_start = index * stream_service.chunk_size
                 offset_start = max(0, start - chunk_start)
                 offset_end = min(len(data), end - chunk_start + 1)
                 if offset_start < offset_end:
                     yield data[offset_start:offset_end]
         except asyncio.CancelledError:
-            print("[VIDEO STREAM] client disconnected", "resource=", resource_id, "range=", f"{start}-{end}", flush=True)
             raise
 
     headers = {"Accept-Ranges": "bytes", "Content-Length": str(length), "Content-Disposition": "inline"}
