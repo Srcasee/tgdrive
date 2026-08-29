@@ -1,6 +1,8 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from auth.dependencies import require_admin
+from auth.models import Principal
 from repositories.accounts import AccountRepository
 from repositories.sources import SourceRepository
 from telegram.client import get_client
@@ -12,12 +14,12 @@ source_repository = SourceRepository()
 
 
 @router.get("/accounts")
-def list_accounts():
+def list_accounts(_: Principal = Depends(require_admin)):
     return account_repository.list_all()
 
 
 @router.get("/accounts/{account_id}/dialogs")
-async def list_dialogs(account_id: int):
+async def list_dialogs(account_id: int, _: Principal = Depends(require_admin)):
     try:
         client = get_client(account_id)
     except Exception as exc:
@@ -47,6 +49,11 @@ class SourceCreate(BaseModel):
 
 
 @router.post("/sources")
-def add_source(data: SourceCreate):
-    source_repository.add(data.account_id, data.telegram_chat_id, data.name)
+def add_source(data: SourceCreate, _: Principal = Depends(require_admin)):
+    if not account_repository.exists(data.account_id):
+        raise HTTPException(status_code=404, detail="account not found")
+    try:
+        source_repository.add(data.account_id, data.telegram_chat_id, data.name)
+    except Exception as exc:
+        raise HTTPException(status_code=409, detail="source already exists or is invalid") from exc
     return {"status": "ok"}
