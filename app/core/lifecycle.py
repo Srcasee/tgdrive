@@ -26,11 +26,11 @@ class ApplicationLifecycle:
             return
 
         clients = get_clients()
-        self.telegram_enabled = True
         if not clients:
             print("[TG] No Telegram sessions found; Telegram runtime idle", flush=True)
             return
 
+        connected = False
         for name, client in clients.items():
             print(f"[TG] connecting: {name}", flush=True)
             await client.connect()
@@ -38,14 +38,17 @@ class ApplicationLifecycle:
                 print(f"[TG] session not authorized: {name}", flush=True)
                 await client.disconnect()
                 continue
+            connected = True
             me = await client.get_me()
             print(
                 f"[TG] authorized: {name} / {me.username or me.first_name or me.id}",
                 flush=True,
             )
 
-        self.scanner_task = asyncio.create_task(self._run_scanners())
-        print("[SCAN] background scanner started", flush=True)
+        self.telegram_enabled = connected
+        if connected:
+            self.scanner_task = asyncio.create_task(self._run_scanners())
+            print("[SCAN] background scanner started", flush=True)
 
     @staticmethod
     def _telegram_configured():

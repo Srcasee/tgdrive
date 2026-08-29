@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
 
@@ -8,10 +10,19 @@ from files.api import router as files_router
 from telegram.api import router as telegram_router
 
 
-def create_app():
-    app = FastAPI(title="tgdrive")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     lifecycle = ApplicationLifecycle()
+    app.state.lifecycle = lifecycle
+    await lifecycle.startup()
+    try:
+        yield
+    finally:
+        await lifecycle.shutdown()
 
+
+def create_app():
+    app = FastAPI(title="tgdrive", lifespan=lifespan)
     app.include_router(auth_router)
     app.include_router(files_router)
     app.include_router(telegram_router)
@@ -25,13 +36,4 @@ def create_app():
     async def web():
         return FileResponse("/app/web/index.html")
 
-    @app.on_event("startup")
-    async def startup():
-        await lifecycle.startup()
-
-    @app.on_event("shutdown")
-    async def shutdown():
-        await lifecycle.shutdown()
-
-    app.state.lifecycle = lifecycle
     return app

@@ -1,4 +1,4 @@
 from .interface import ProxyPlugin
-from .manager import ProxyManager
+from .runtime import ProxyRuntime
 
-__all__ = ["ProxyPlugin", "ProxyManager"]
+__all__ = ["ProxyPlugin", "ProxyRuntime"]

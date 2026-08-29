@@ -1,120 +1,25 @@
-import os
 import asyncio
+import os
 
 from telethon import TelegramClient
 
-
-# =====================================================
-# 环境变量
-# =====================================================
-
-TG_API_ID = int(
-    os.getenv("TG_API_ID")
-)
-
-TG_API_HASH = os.getenv(
-    "TG_API_HASH"
-)
-
-TG_PHONE = os.getenv(
-    "TG_PHONE"
-)
-
-
-TG_SESSION = os.getenv(
-    "TG_SESSION",
-    "/data/accounts/default"
-)
-
-TG_SESSION = os.path.abspath(TG_SESSION)
-
-
-
-# =====================================================
-# 代理配置
-# =====================================================
-
-ENABLE_PROXY = (
-    os.getenv(
-        "ENABLE_PROXY",
-        "false"
-    ).lower()
-    == "true"
-)
-
-
-proxy = None
-
-
-if ENABLE_PROXY:
-
-    proxy = {
-        "proxy_type": "socks5",
-        "addr": os.getenv(
-            "PROXY_HOST",
-            "proxy"
-        ),
-        "port": int(
-            os.getenv(
-                "PROXY_PORT",
-                "1080"
-            )
-        ),
-        "rdns": True
-    }
-
-
-    print(
-        "[LOGIN] proxy enabled",
-        flush=True
-    )
-
-
-else:
-
-    print(
-        "[LOGIN] proxy disabled",
-        flush=True
-    )
-
-
-# =====================================================
-# 登录
-# =====================================================
-
-client = TelegramClient(
-    TG_SESSION,
-    TG_API_ID,
-    TG_API_HASH,
-    proxy=proxy
-)
+from plugins.proxy.runtime import ProxyRuntime
 
 
 async def main():
+    api_id = int(os.environ["TG_API_ID"])
+    api_hash = os.environ["TG_API_HASH"]
+    phone = os.environ["TG_PHONE"]
+    session = os.getenv("TG_SESSION", "/data/accounts/default")
 
-    print(
-        "开始登录 Telegram",
-        flush=True
-    )
+    proxy = ProxyRuntime().resolve("default")
+    client = TelegramClient(session, api_id, api_hash, proxy=proxy)
 
-
-    await client.start(
-        phone=TG_PHONE
-    )
-
-
+    print("[LOGIN] starting Telegram login", flush=True)
+    await client.start(phone=phone)
     me = await client.get_me()
-
-
-    print(
-        "登录成功:",
-        me.username or me.first_name,
-        flush=True
-    )
-
-
+    print(f"[LOGIN] authorized: {me.username or me.first_name}", flush=True)
     await client.disconnect()
-
 
 
 if __name__ == "__main__":
