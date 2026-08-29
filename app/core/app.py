@@ -5,6 +5,7 @@ from fastapi.responses import FileResponse
 
 from admin.api import router as admin_router
 from auth.api import router as auth_router
+from catalog.api import router as catalog_router
 from core.lifecycle import ApplicationLifecycle
 from files.api import router as files_router
 from telegram.api import router as telegram_router
@@ -24,6 +25,7 @@ async def lifespan(app: FastAPI):
 def create_app():
     app = FastAPI(title="tgdrive", lifespan=lifespan)
     app.include_router(auth_router)
+    app.include_router(catalog_router)
     app.include_router(files_router)
     app.include_router(telegram_router)
     app.include_router(admin_router)
