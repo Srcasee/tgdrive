@@ -96,5 +96,22 @@ def init_database():
                 )
                 cursor.execute("INSERT INTO schema_migrations(version) VALUES (1)")
 
+            if 2 not in applied:
+                cursor.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS users (
+                        id BIGSERIAL PRIMARY KEY,
+                        username TEXT UNIQUE NOT NULL,
+                        password_hash TEXT NOT NULL,
+                        role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'admin')),
+                        enabled BOOLEAN NOT NULL DEFAULT TRUE,
+                        created_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW())::BIGINT
+                    );
+                    CREATE UNIQUE INDEX IF NOT EXISTS idx_source_unique
+                        ON telegram_sources(account_id, telegram_chat_id);
+                    """
+                )
+                cursor.execute("INSERT INTO schema_migrations(version) VALUES (2)")
+
             conn.commit()
             print("[DB] PostgreSQL database initialized", flush=True)
