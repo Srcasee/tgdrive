@@ -25,7 +25,7 @@ jobs:
 
     env:
       DATABASE_URL: postgresql://tgdrive:tgdrive@localhost:5432/tgdrive_test
-      PYTHONPATH: .:app
+      PYTHONPATH: app:.
       AUTH_SECRET: ci-test-secret
       AUTH_COOKIE_SECURE: "false"
       AUTH_TOKEN_TTL: "3600"
