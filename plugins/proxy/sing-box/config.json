@@ -1,0 +1,33 @@
+{
+  "log": {
+    "level": "info"
+  },
+  "inbounds": [
+    {
+      "type": "socks",
+      "tag": "socks-in",
+      "listen": "0.0.0.0",
+      "listen_port": 1080
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "vless",
+      "tag": "vless-out",
+      "server": "${TG_PROXY_VLESS_SERVER}",
+      "server_port": ${TG_PROXY_VLESS_PORT},
+      "uuid": "${TG_PROXY_VLESS_UUID}",
+      "tls": {
+        "enabled": true,
+        "server_name": "${TG_PROXY_VLESS_SERVER_NAME}"
+      },
+      "transport": {
+        "type": "ws",
+        "path": "${TG_PROXY_VLESS_WS_PATH}",
+        "headers": {
+          "Host": "${TG_PROXY_VLESS_WS_HOST}"
+        }
+      }
+    }
+  ]
+}
