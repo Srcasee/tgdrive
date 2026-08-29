@@ -2,31 +2,6 @@ from database_pool import connection, transaction
 
 
 class FileRepository:
-    def list_available(self, limit, offset):
-        with connection() as conn:
-            with conn.cursor() as cursor:
-                cursor.execute("SELECT COUNT(*) AS total FROM files WHERE is_available=TRUE")
-                total = cursor.fetchone()["total"]
-                cursor.execute("""
-                    SELECT id, resource_id, filename, size, mime_type, telegram_chat_id,
-                           message_id, category_id
-                    FROM files WHERE is_available=TRUE
-                    ORDER BY id DESC LIMIT %s OFFSET %s
-                """, (limit, offset))
-                return total, cursor.fetchall()
-
-    def search(self, query, limit=100):
-        with connection() as conn:
-            with conn.cursor() as cursor:
-                cursor.execute("""
-                    SELECT id, resource_id, filename, size, mime_type, telegram_chat_id,
-                           message_id, category_id
-                    FROM files
-                    WHERE filename ILIKE %s AND is_available=TRUE
-                    ORDER BY id DESC LIMIT %s
-                """, (f"%{query}%", limit))
-                return cursor.fetchall()
-
     def get_by_telegram_location(self, account_id, chat_id, message_id):
         with connection() as conn:
             with conn.cursor() as cursor:
@@ -89,10 +64,6 @@ class FileRepository:
                         mime_type=EXCLUDED.mime_type, upload_time=EXCLUDED.upload_time,
                         status='active', scan_status='indexed', is_available=TRUE
                 """, (filename, size, mime_type, chat_id, message_id, upload_time, account_id, resource_id, content_hash.lower() if content_hash else None))
-
-    # Backward-compatible repository API for callers/tests not yet migrated.
-    def upsert_verified_message(self, **kwargs):
-        return self.upsert_indexed_message(**kwargs)
 
     def mark_checking(self, account_id, chat_id):
         with transaction() as conn:
