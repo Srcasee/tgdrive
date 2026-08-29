@@ -2,7 +2,7 @@
 
 ## Status
 
-**Phase 1 is complete.** The Core business path is now authenticated, authorized, administrable and covered by the full CI test suite.
+**Phase 1 is complete.** The Core business path is authenticated, authorized, administrable, performance-bounded and covered by the full CI test suite.
 
 ## Completed scope
 
@@ -21,6 +21,8 @@
 - HTTP Range parsing and 416 handling hardened
 - Integration coverage for auth/admin/category/file permissions
 - Full CI suite (`pytest -q`) passing
+- Telegram transport request sizing constrained to Telethon's 512 KiB request limit
+- `cryptg` added for faster Telegram media decryption
 
 ## Video decision
 
@@ -48,11 +50,13 @@ Browser
 
 Video playback additionally has `VideoStreamService` and a 4 MiB application cache chunk. Normal downloads currently stream directly from Telegram and do not use the video cache.
 
-Before Phase 2, download performance should be benchmarked and optimized at the Telegram transport boundary rather than coupling performance work to future Media Plugins. The optimization must preserve the Core interface so proxy selection can remain an independent plugin concern.
+Stage 1 now applies two transport-level safeguards: Telegram request size is bounded to 512 KiB, and `cryptg` is installed for C-accelerated media decryption. These changes stay inside the Telegram transport layer and do not couple download performance to Proxy or Media plugins.
+
+A real-world throughput benchmark still needs to be run against the deployment's Telegram DC/network/proxy path. The dominant runtime limiter may be Telegram DC throughput, proxy bandwidth/latency, or CPU decryption; code inspection alone cannot assign a Mbps ceiling.
 
 ## Phase 2 boundary
 
-Phase 2 starts only after the Core path above is stable. It focuses on infrastructure extensibility, especially account-scoped proxy selection and controlled proxy lifecycle/reload. Media Plugin extraction remains a later phase.
+Phase 2 starts only after the Core path above is stable and CI is green after the transport changes. It focuses on infrastructure extensibility, especially account-scoped proxy selection and controlled proxy lifecycle/reload. Media Plugin extraction remains a later phase.
 
 ## Architectural constraint
 
