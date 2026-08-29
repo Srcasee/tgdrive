@@ -1,9 +1,9 @@
-from database import get_connection
+from database_pool import connection, transaction
 
 
 class FileRepository:
     def list_available(self, limit, offset):
-        with get_connection() as conn:
+        with connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute("SELECT COUNT(*) AS total FROM files WHERE is_available=TRUE")
                 total = cursor.fetchone()["total"]
@@ -21,7 +21,7 @@ class FileRepository:
                 return total, cursor.fetchall()
 
     def search(self, query, limit=100):
-        with get_connection() as conn:
+        with connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     """
@@ -37,7 +37,7 @@ class FileRepository:
                 return cursor.fetchall()
 
     def get_download_info(self, file_id):
-        with get_connection() as conn:
+        with connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     """
@@ -50,7 +50,7 @@ class FileRepository:
                 return cursor.fetchone()
 
     def get_stream_info(self, file_id):
-        with get_connection() as conn:
+        with connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     """
@@ -63,7 +63,7 @@ class FileRepository:
                 return cursor.fetchone()
 
     def get_head_info(self, file_id):
-        with get_connection() as conn:
+        with connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "SELECT size, mime_type FROM files WHERE id=%s",
@@ -72,7 +72,7 @@ class FileRepository:
                 return cursor.fetchone()
 
     def mark_verified(self, account_id, chat_id, message_id):
-        with get_connection() as conn:
+        with transaction() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     """
@@ -82,11 +82,10 @@ class FileRepository:
                     """,
                     (account_id, chat_id, message_id),
                 )
-            conn.commit()
 
     def upsert_message(self, *, filename, size, mime_type, chat_id,
                        message_id, upload_time, account_id):
-        with get_connection() as conn:
+        with transaction() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     """
@@ -99,10 +98,9 @@ class FileRepository:
                     (filename, size, mime_type, chat_id, message_id,
                      upload_time, account_id),
                 )
-            conn.commit()
 
     def mark_checking(self, account_id, chat_id):
-        with get_connection() as conn:
+        with transaction() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     """
@@ -112,10 +110,9 @@ class FileRepository:
                     """,
                     (account_id, chat_id),
                 )
-            conn.commit()
 
     def mark_unverified_deleted(self, account_id, chat_id):
-        with get_connection() as conn:
+        with transaction() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     """
@@ -126,4 +123,3 @@ class FileRepository:
                     """,
                     (account_id, chat_id),
                 )
-            conn.commit()
