@@ -2,18 +2,13 @@ import os
 
 import socks
 
-from app.plugins.interface import Plugin
 
-
-class ProxyPlugin(Plugin):
+class ProxyPlugin:
     """Optional network proxy capability for Telegram clients."""
 
-    def __init__(self):
-        super().__init__(
-            name="proxy",
-            version="0.2.0",
-            capabilities=frozenset({"telegram.proxy"}),
-        )
+    name = "proxy"
+    version = "0.2.0"
+    capabilities = frozenset({"telegram.proxy"})
 
     def get_proxy(self, account_name=None):
         if os.getenv("TG_PROXY_ENABLED", "false").lower() != "true":
