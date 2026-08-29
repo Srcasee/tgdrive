@@ -71,6 +71,9 @@ class FakeResources:
     def search(self, query, limit=100):
         return [x for x in self.available.values() if query.lower() in x["filename"].lower()]
 
+    def get(self, resource_id):
+        return self.available.get(resource_id)
+
     def get_download_info(self, resource_id):
         return self.available.get(resource_id)
 
@@ -134,16 +137,16 @@ def test_category_admin_crud(monkeypatch):
     assert client.delete(f"/api/admin/categories/{category_id}").status_code == 200
 
 
-def test_protected_delivery_apis(monkeypatch):
+def test_protected_catalog_and_delivery_apis(monkeypatch):
     client, _ = make_client(monkeypatch)
-    assert client.get("/resources").status_code == 401
-    assert client.get("/resources/search?q=video").status_code == 401
+    assert client.get("/catalog").status_code == 401
+    assert client.get("/catalog/search?q=video").status_code == 401
     assert client.get("/resources/1/download").status_code == 401
     assert client.get("/resources/1/stream").status_code == 401
 
     client.post("/auth/login", json={"username": "user", "password": "user-pass"})
-    assert client.get("/resources").status_code == 200
-    assert client.get("/resources/search?q=video").status_code == 200
+    assert client.get("/catalog").status_code == 200
+    assert client.get("/catalog/search?q=video").status_code == 200
     assert client.get("/resources/999/download").status_code == 404
     assert client.get("/resources/999/stream").status_code == 404
 
