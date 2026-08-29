@@ -3,6 +3,7 @@ from fastapi.responses import FileResponse
 
 from core.lifecycle import ApplicationLifecycle
 from files.api import router as files_router
+from telegram.api import router as telegram_router
 
 
 def create_app():
@@ -10,6 +11,7 @@ def create_app():
     lifecycle = ApplicationLifecycle()
 
     app.include_router(files_router)
+    app.include_router(telegram_router)
 
     @app.get("/")
     async def home():
