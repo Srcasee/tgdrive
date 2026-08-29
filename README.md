@@ -18,20 +18,34 @@ The deployment should not require manual PostgreSQL SQL, manual account-row crea
 docker compose exec telegram-drive python -m telegram.login
 ```
 
-The login command and runtime use the same proxy runtime. No separate legacy login proxy settings are used.
+The Telegram client asks the generic plugin runtime for the `telegram.proxy` capability. When the optional proxy plugin is disabled, the client connects directly.
 
-## Proxy
+## Optional proxy plugin
 
-Proxy support is built into `app/plugins/proxy`. The default is direct connectivity. To enable SOCKS5:
+Proxy support is an optional plugin under `plugins/proxy`. Core does not depend on a concrete proxy protocol. The plugin currently supports SOCKS5/SOCKS5H and HTTP endpoints.
 
-```text
+Direct connectivity (default):
+
+```env
+TG_PROXY_ENABLED=false
+```
+
+Using a local SOCKS5 endpoint supplied by the optional Compose `proxy` profile:
+
+```env
 TG_PROXY_ENABLED=true
-TG_PROXY_PLUGIN=socks5
+TG_PROXY_TYPE=socks5
 TG_PROXY_HOST=proxy
 TG_PROXY_PORT=1080
 ```
 
 Optional username/password are supported with `TG_PROXY_USERNAME` and `TG_PROXY_PASSWORD`.
+
+The Compose `proxy` profile runs sing-box and keeps its configuration inside the proxy plugin. Enable it only on deployments that need it:
+
+```bash
+docker compose --profile proxy up -d --build
+```
 
 ## Development
 
