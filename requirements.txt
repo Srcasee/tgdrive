@@ -5,3 +5,4 @@ python-socks[asyncio]
 httpx
 psycopg[binary]>=3.2,<4
 psycopg-pool>=3.2,<4
+pytest>=8,<9
