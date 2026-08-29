@@ -9,6 +9,10 @@ class Settings:
     TG_SESSION = os.getenv("TG_SESSION", "/data/accounts/default")
     TG_CONNECT_TIMEOUT = int(os.getenv("TG_CONNECT_TIMEOUT", "60"))
     DOWNLOAD_CHUNK_SIZE = int(os.getenv("DOWNLOAD_CHUNK_SIZE", "1048576"))
+    DATABASE_URL = os.getenv(
+        "DATABASE_URL",
+        "postgresql://tgdrive:tgdrive@postgres:5432/tgdrive",
+    )
 
 
 settings = Settings()
