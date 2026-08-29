@@ -2,7 +2,7 @@ from .recognizer import TelegramMessageRecognizer
 
 
 class IngestionService:
-    """Own recognition, content identity, and persistence semantics."""
+    """Own recognition, resource identity state, and persistence semantics."""
 
     def __init__(self, source_repository, file_repository, resource_repository):
         self.source_repository = source_repository
@@ -16,15 +16,17 @@ class IngestionService:
             self.file_repository.mark_checking(account_id, chat_id)
         return full_sync
 
-    def ingest(self, observation, content_hash):
+    def ingest(self, observation):
+        # Scanning is metadata-only. A Resource may have an unverified identity
+        # until its full payload is explicitly delivered/verified later.
         resource_id = self.resource_repository.get_or_create(
             **observation.resource_metadata,
-            content_hash=content_hash,
+            content_hash=None,
         )
         self.file_repository.upsert_verified_message(
             **observation.file_metadata,
             resource_id=resource_id,
-            content_hash=content_hash,
+            content_hash=None,
         )
         return resource_id
 
