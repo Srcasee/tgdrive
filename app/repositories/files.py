@@ -54,7 +54,15 @@ class FileRepository:
                 return cursor.fetchone()
 
     def upsert_verified_message(self, *, filename, size, mime_type, chat_id, message_id, upload_time, account_id):
-        """Atomically index a Telegram message and mark it verified."""
+        """Atomically index a verified Telegram message.
+
+        Filename is required at the repository boundary because the files schema
+        intentionally does not allow nameless records. Telegram-specific callers
+        must normalize missing metadata before calling this method.
+        """
+        if not isinstance(filename, str) or not filename.strip():
+            raise ValueError("filename is required for indexed files")
+
         with transaction() as conn:
             with conn.cursor() as cursor:
                 cursor.execute("""
