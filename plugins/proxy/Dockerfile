@@ -1,6 +1,6 @@
 FROM python:3.12-slim
 
-ARG SING_BOX_VERSION=1.12.0
+ARG SING_BOX_VERSION=1.13.19
 ARG TARGETARCH
 
 RUN apt-get update \
