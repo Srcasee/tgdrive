@@ -79,16 +79,28 @@ class ResourceRepository:
                 )
                 return cursor.fetchone()
 
-    def verify(self, resource_id, content_hash):
+    def verify_file(self, file_id, content_hash):
         identity_key = build_content_identity_key(content_hash)
         digest = content_hash.lower()
         with transaction() as conn:
             with conn.cursor() as cursor:
-                cursor.execute("SELECT id, content_hash FROM resources WHERE id=%s FOR UPDATE", (resource_id,))
+                cursor.execute(
+                    "SELECT resource_id FROM files WHERE id=%s FOR UPDATE", (file_id,)
+                )
+                file_row = cursor.fetchone()
+                if file_row is None:
+                    raise ValueError("file not found")
+                resource_id = file_row["resource_id"]
+
+                cursor.execute(
+                    "SELECT id, content_hash FROM resources WHERE id=%s FOR UPDATE", (resource_id,)
+                )
                 current = cursor.fetchone()
                 if current is None:
                     raise ValueError("resource not found")
+
                 if current["content_hash"] == digest:
+                    cursor.execute("UPDATE files SET content_hash=%s WHERE id=%s", (digest, file_id))
                     return resource_id
 
                 cursor.execute("SELECT id FROM resources WHERE content_hash=%s FOR UPDATE", (digest,))
@@ -99,14 +111,18 @@ class ResourceRepository:
                         "INSERT INTO resource_categories(resource_id, category_id) SELECT %s, category_id FROM resource_categories WHERE resource_id=%s ON CONFLICT DO NOTHING",
                         (target_id, resource_id),
                     )
-                    cursor.execute("UPDATE files SET resource_id=%s WHERE resource_id=%s", (target_id, resource_id))
+                    cursor.execute("UPDATE files SET resource_id=%s, content_hash=%s WHERE id=%s", (target_id, digest, file_id))
                     cursor.execute("DELETE FROM resource_categories WHERE resource_id=%s", (resource_id,))
-                    cursor.execute("DELETE FROM resources WHERE id=%s", (resource_id,))
+                    cursor.execute(
+                        "SELECT COUNT(*) AS count FROM files WHERE resource_id=%s", (resource_id,)
+                    )
+                    if cursor.fetchone()["count"] == 0:
+                        cursor.execute("DELETE FROM resources WHERE id=%s", (resource_id,))
                     return target_id
 
                 cursor.execute(
                     "UPDATE resources SET identity_key=%s, content_hash=%s, updated_at=EXTRACT(EPOCH FROM NOW())::BIGINT WHERE id=%s",
                     (identity_key, digest, resource_id),
                 )
-                cursor.execute("UPDATE files SET content_hash=%s WHERE resource_id=%s", (digest, resource_id))
+                cursor.execute("UPDATE files SET content_hash=%s WHERE id=%s", (digest, file_id))
                 return resource_id
