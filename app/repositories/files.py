@@ -27,6 +27,15 @@ class FileRepository:
                 """, (f"%{query}%", limit))
                 return cursor.fetchall()
 
+    def get_by_telegram_location(self, account_id, chat_id, message_id):
+        with connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "SELECT id, content_hash, resource_id, filename, size, mime_type FROM files WHERE account_id=%s AND telegram_chat_id=%s AND message_id=%s",
+                    (account_id, chat_id, message_id),
+                )
+                return cursor.fetchone()
+
     def get_download_info(self, file_id):
         with connection() as conn:
             with conn.cursor() as cursor:
@@ -59,24 +68,27 @@ class FileRepository:
                 cursor.execute("SELECT size, mime_type, is_available FROM files WHERE id=%s", (file_id,))
                 return cursor.fetchone()
 
-    def upsert_verified_message(self, *, filename, size, mime_type, chat_id, message_id, upload_time, account_id, resource_id):
+    def upsert_verified_message(self, *, filename, size, mime_type, chat_id, message_id, upload_time, account_id, resource_id, content_hash):
         if not isinstance(filename, str) or not filename.strip():
             raise ValueError("filename is required for indexed files")
         if resource_id is None:
             raise ValueError("resource_id is required for indexed files")
+        if not isinstance(content_hash, str) or len(content_hash) != 64:
+            raise ValueError("content_hash is required for indexed files")
         with transaction() as conn:
             with conn.cursor() as cursor:
                 cursor.execute("""
                     INSERT INTO files
                     (filename, size, mime_type, telegram_chat_id, message_id,
-                     upload_time, account_id, resource_id, status, scan_status, is_available)
-                    VALUES(%s,%s,%s,%s,%s,%s,%s,%s,'active','verified',TRUE)
+                     upload_time, account_id, resource_id, content_hash, status, scan_status, is_available)
+                    VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,'active','verified',TRUE)
                     ON CONFLICT (account_id, telegram_chat_id, message_id)
                     DO UPDATE SET resource_id=EXCLUDED.resource_id,
+                        content_hash=EXCLUDED.content_hash,
                         filename=EXCLUDED.filename, size=EXCLUDED.size,
                         mime_type=EXCLUDED.mime_type, upload_time=EXCLUDED.upload_time,
                         status='active', scan_status='verified', is_available=TRUE
-                """, (filename, size, mime_type, chat_id, message_id, upload_time, account_id, resource_id))
+                """, (filename, size, mime_type, chat_id, message_id, upload_time, account_id, resource_id, content_hash.lower()))
 
     def mark_checking(self, account_id, chat_id):
         with transaction() as conn:
