@@ -71,3 +71,6 @@ def run_proxy():
 
 
 PLUGIN = ProxyPlugin()
+
+if __name__ == "__main__":
+    raise SystemExit(run_proxy())
