@@ -3,6 +3,7 @@ uvicorn
 telethon
 cryptg>=0.5,<1
 python-socks[asyncio]
+PySocks>=1.7,<2
 httpx
 psycopg[binary]>=3.2,<4
 psycopg-pool>=3.2,<4
