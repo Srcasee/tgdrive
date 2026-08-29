@@ -75,13 +75,19 @@ def test_schema_and_repositories_are_transactional():
             )
             assert cur.fetchone()[0] == 0
 
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError, match="filename is required"):
         files.upsert_verified_message(
             filename=None, size=1, mime_type="application/octet-stream",
             chat_id=10001, message_id=8, upload_time=1700000002, account_id=account_id,
         )
 
+    with pytest.raises(ValueError, match="filename is required"):
+        files.upsert_verified_message(
+            filename="", size=1, mime_type="application/octet-stream",
+            chat_id=10001, message_id=9, upload_time=1700000003, account_id=account_id,
+        )
+
     with psycopg.connect(DATABASE_URL) as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT COUNT(*) FROM files WHERE message_id=8")
+            cur.execute("SELECT COUNT(*) FROM files WHERE message_id IN (8, 9)")
             assert cur.fetchone()[0] == 0
