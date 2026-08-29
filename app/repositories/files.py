@@ -68,27 +68,31 @@ class FileRepository:
                 cursor.execute("SELECT size, mime_type, is_available FROM files WHERE id=%s", (file_id,))
                 return cursor.fetchone()
 
-    def upsert_verified_message(self, *, filename, size, mime_type, chat_id, message_id, upload_time, account_id, resource_id, content_hash):
+    def upsert_indexed_message(self, *, filename, size, mime_type, chat_id, message_id, upload_time, account_id, resource_id, content_hash=None):
         if not isinstance(filename, str) or not filename.strip():
             raise ValueError("filename is required for indexed files")
         if resource_id is None:
             raise ValueError("resource_id is required for indexed files")
-        if not isinstance(content_hash, str) or len(content_hash) != 64:
-            raise ValueError("content_hash is required for indexed files")
+        if content_hash is not None and (not isinstance(content_hash, str) or len(content_hash) != 64):
+            raise ValueError("content_hash must be a SHA-256 hex digest when provided")
         with transaction() as conn:
             with conn.cursor() as cursor:
                 cursor.execute("""
                     INSERT INTO files
                     (filename, size, mime_type, telegram_chat_id, message_id,
                      upload_time, account_id, resource_id, content_hash, status, scan_status, is_available)
-                    VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,'active','verified',TRUE)
+                    VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,'active','indexed',TRUE)
                     ON CONFLICT (account_id, telegram_chat_id, message_id)
                     DO UPDATE SET resource_id=EXCLUDED.resource_id,
-                        content_hash=EXCLUDED.content_hash,
+                        content_hash=COALESCE(EXCLUDED.content_hash, files.content_hash),
                         filename=EXCLUDED.filename, size=EXCLUDED.size,
                         mime_type=EXCLUDED.mime_type, upload_time=EXCLUDED.upload_time,
-                        status='active', scan_status='verified', is_available=TRUE
-                """, (filename, size, mime_type, chat_id, message_id, upload_time, account_id, resource_id, content_hash.lower()))
+                        status='active', scan_status='indexed', is_available=TRUE
+                """, (filename, size, mime_type, chat_id, message_id, upload_time, account_id, resource_id, content_hash.lower() if content_hash else None))
+
+    # Backward-compatible repository API for callers/tests not yet migrated.
+    def upsert_verified_message(self, **kwargs):
+        return self.upsert_indexed_message(**kwargs)
 
     def mark_checking(self, account_id, chat_id):
         with transaction() as conn:
@@ -103,4 +107,4 @@ class FileRepository:
     def reset_checking(self, account_id, chat_id):
         with transaction() as conn:
             with conn.cursor() as cursor:
-                cursor.execute("UPDATE files SET scan_status='verified', is_available=TRUE WHERE account_id=%s AND telegram_chat_id=%s AND scan_status='checking'", (account_id, chat_id))
+                cursor.execute("UPDATE files SET scan_status='indexed', is_available=TRUE WHERE account_id=%s AND telegram_chat_id=%s AND scan_status='checking'", (account_id, chat_id))
