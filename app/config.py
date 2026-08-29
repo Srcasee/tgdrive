@@ -16,6 +16,11 @@ class Settings:
     DB_POOL_MIN_SIZE = int(os.getenv("DB_POOL_MIN_SIZE", "2"))
     DB_POOL_MAX_SIZE = int(os.getenv("DB_POOL_MAX_SIZE", "10"))
     DB_POOL_TIMEOUT = float(os.getenv("DB_POOL_TIMEOUT", "30"))
+    AUTH_SECRET = os.getenv("AUTH_SECRET", "")
+    AUTH_TOKEN_TTL = int(os.getenv("AUTH_TOKEN_TTL", "86400"))
+    AUTH_COOKIE_SECURE = os.getenv("AUTH_COOKIE_SECURE", "true").lower() == "true"
+    ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "")
+    ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
 
 
 settings = Settings()
