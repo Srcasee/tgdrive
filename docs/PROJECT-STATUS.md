@@ -1,52 +1,161 @@
 # Project Status and Target Alignment
 
-Updated after the first real-server Telegram integration and download transport benchmark on 2026-08-29.
+Updated 2026-08-30 after the architecture reset and repository-wide code mapping.
 
-## Current implemented capabilities
+## Product definition
 
-### Core ingestion and indexing
+tgdrive is a **Telegram-only** file catalog and delivery system.
 
-- Telegram session discovery and account synchronization.
-- Real Telegram account authorization validated on the deployment server.
-- Configured private Telegram source scanning.
-- PostgreSQL file metadata/index.
-- Incremental scanning plus hardened full-sync reconciliation.
-- Explicit scanner failure state and failure-safe recovery.
+The primary product flow is:
 
-### Web access
+```text
+Telegram storage
+      |
+      v
+System recognition / ingestion
+      |
+      v
+Resource catalog + classification
+      |
+      +----> Web search / browse
+      |
+      +----> Download / streaming
+```
 
-- Web authentication with user/admin roles.
-- Expiring, signed HttpOnly web sessions.
-- User authorization for file APIs.
-- Admin-only Telegram account/source administration.
-- File listing and filename search.
-- Protected download and video stream endpoints.
-- HTTP Range support with single-range/open-ended/suffix handling and 416 responses.
-- Video streaming with application-level chunk cache/prefetch.
+No generic storage-provider abstraction is required or planned.
 
-### Administration and Telegram integration
+## Domain priorities
 
-- Category persistence.
-- Category CRUD API/UI.
-- File-to-category assignment.
-- Telegram source validation and uniqueness.
-- Telegram session credentials are kept server-side and are not returned by account APIs.
-- Real account/dialog discovery validated through the API.
-- A configured source was scanned successfully and indexed 9 files.
+1. Ingestion / system recognition.
+2. Catalog / classification / search.
+3. Delivery / download / streaming.
+4. Telegram account redundancy and alternative delivery paths.
+5. Deployment connectivity / optional proxy plugin.
+6. Web authentication / authorization as a cross-cutting concern.
 
-### Infrastructure extensibility
+## Current implementation status
 
-- Proxy plugin interface and Python entry-point discovery.
-- Independent SOCKS5 proxy plugin.
-- Proxy selection is deployment configuration, not geographic logic embedded in Core.
-- SOCKS5 TCP/TLS connectivity to Telegram's HTTPS endpoint was validated from the Core container.
-- Telethon successfully connected and authorized through the configured proxy on the real deployment server.
+### Telegram ingestion
 
-## Current performance finding
+- Telegram session discovery and account synchronization: implemented.
+- Real Telegram authorization: validated on the deployment server.
+- Explicit source configuration by account + Telegram chat ID: implemented.
+- Incremental scanning: implemented.
+- Full-sync failure-safe reconciliation: implemented.
+- Scanner failure state: implemented.
 
-The HTTP Range/streaming path is functionally working, but high-speed download optimization is **not complete**.
+### Catalog
 
-A real 276,027,608-byte MP4 was used for range tests through `/files/9/stream`:
+- File metadata persistence: implemented.
+- Filename search: implemented.
+- Category persistence: implemented.
+- Category CRUD and file-to-category assignment: implemented.
+
+However, the logical `Resource` model is not implemented. Current rows are physical Telegram message/file locations. Search and classification therefore remain physical-file-oriented.
+
+### Delivery
+
+- Authenticated file listing: implemented.
+- Filename search: implemented.
+- Complete download: implemented and real-server validated.
+- HTTP Range: implemented with 416 handling, suffix and open-ended ranges.
+- Video streaming: implemented with application-level cache/prefetch.
+
+The Delivery path currently uses the one `account_id` stored on each physical file row. There is no Resource-level source selection or failover across Telegram accounts.
+
+### Telegram accounts
+
+Multiple accounts are currently loaded from session files and synchronized to the `accounts` table.
+
+Product intent:
+
+- primary purpose: redundancy so one restricted account does not invalidate a resource;
+- secondary purpose: provide alternative download paths for delivery optimization.
+
+Current implementation does not model multiple Telegram locations as copies of one logical Resource, and account lifecycle controls are incomplete.
+
+### Proxy / connectivity
+
+- Generic plugin runtime: implemented.
+- External proxy plugin boundary: implemented.
+- Direct connection fallback: implemented.
+- Deployment-controlled proxy enablement: supported.
+- Real SOCKS5 connectivity and Telegram authorization: validated.
+
+Runtime registry refresh does not recreate already-instantiated Telegram clients, so proxy changes require an explicit reconnect/rebuild operation. Account-scoped proxy policy is not a product requirement.
+
+### Web Auth
+
+- User/admin authentication: implemented.
+- Signed expiring HttpOnly session: implemented.
+- Protected file endpoints: implemented.
+- Admin authorization: implemented.
+
+Auth is intentionally treated as a cross-cutting layer rather than the product's domain center.
+
+## Current data model
+
+```text
+accounts
+    |
+    +-- telegram_sources
+    |
+    +-- files ----> categories
+```
+
+`files` is currently uniquely identified by `(account_id, telegram_chat_id, message_id)`. This correctly identifies a physical Telegram message/file location but cannot express:
+
+```text
+Resource #123
+   +-- TG Account A / message X
+   +-- TG Account B / message Y
+```
+
+That logical relationship is the highest-priority missing domain model.
+
+## Verified gaps / bugs
+
+### P0 — logical Resource model missing
+
+No logical Resource entity exists above physical Telegram file/message rows. This prevents cross-account backup relationships and source failover.
+
+### P0 — account deletion cascades physical file metadata
+
+`files.account_id` uses `ON DELETE CASCADE`. Deleting an account deletes its indexed file rows, which conflicts with the requirement to preserve resource metadata and redundancy across account failures/removal.
+
+### P1 — Delivery is bound to one physical account
+
+Download and stream resolve the Telegram client from the physical row's `account_id`. No alternate backed-up Telegram location can be selected.
+
+### P1 — ingestion/recognition is not a distinct domain service
+
+The Telegram scanner performs Telegram traversal, metadata extraction, normalization, reconciliation and direct persistence in one module. Recognition and deduplication need an explicit boundary.
+
+### P1 — Catalog is physical-file-centric
+
+Search is filename-only `ILIKE`; category is a nullable foreign key on `files`. Resource-level classification and richer search semantics are not yet modeled.
+
+### P1 — account enabled flag is not enforced by runtime startup
+
+The database contains `accounts.enabled`, but the current client discovery and scanner startup paths do not filter clients by this flag. Admin account lifecycle operations are also incomplete.
+
+### P1 — proxy reload is not a live client reconfiguration
+
+Plugin refresh changes the registry but existing Telegram clients retain their original proxy. A controlled reconnect/rebuild operation is required for runtime proxy changes.
+
+### P2 — top-level `telegram` package namespace is fragile
+
+The internal package name can collide with unrelated third-party packages. Keep this as a packaging/refactor concern, not a reason to introduce a generic Telegram abstraction.
+
+### P2 — download throughput remains variable
+
+The real-server benchmark showed substantial variance for Telegram ranges, including a very slow middle-range request. Optimization should follow Resource source selection so multiple valid Telegram paths can be measured before adding concurrency.
+
+## Real-server baseline
+
+The 2026-08-29 deployment validated PostgreSQL health, Telegram authorization, dialog discovery, configured source scanning, indexed file search/listing, JPG download, MP4 Range streaming, and SOCKS5 proxy connectivity.
+
+The real-server benchmark for a 276,027,608-byte MP4 remains the baseline:
 
 | Test | Result |
 |---|---:|
@@ -59,74 +168,64 @@ A real 276,027,608-byte MP4 was used for range tests through `/files/9/stream`:
 | 8 MiB range, repeated #4 | 10.25 s / 0.82 MB/s |
 | 8 MiB range, repeated #5 | 10.85 s / 0.77 MB/s |
 
-The benchmark proves that Range responses and streaming work, but also shows severe and variable throughput for non-initial Telegram ranges. This is evidence for Phase 2 transport optimization, not evidence of a single root cause. Telegram, proxy/network path, Telethon request behavior, cache state, and single-range serialization still need to be isolated by controlled benchmarks.
+## Target architecture
 
-A normal JPG download was also verified end-to-end: `/files/1/download` returned HTTP 200 and a valid 1800x2700 JPEG.
+```text
+                         +------------------+
+                         |    Web User      |
+                         +--------+---------+
+                                  |
+                           Search / Download
+                                  |
+                                  v
+                       +----------------------+
+                       |       Catalog        |
+                       | Resource / Category  |
+                       | Search / metadata    |
+                       +----------+-----------+
+                                  ^
+                                  |
+                           System recognition
+                                  |
+                       +----------+-----------+
+                       |      Ingestion       |
+                       | Scanner / Parser     |
+                       | Normalize / Identify |
+                       +----------+-----------+
+                                  |
+                           Telegram messages
+                                  |
+                +-----------------+-----------------+
+                |                 |                 |
+                v                 v                 v
+            TG Account A      TG Account B      TG Account C
+                |                 |                 |
+                +-----------------+-----------------+
+                                  |
+                           Telegram API
+                                  |
+                           Connectivity
+                                  |
+                         +--------+--------+
+                         |                 |
+                      Direct         Proxy plugin
+```
 
-## Not yet implemented / not yet complete
+## Work order
 
-- Production-grade runtime proxy hot-plug/reload.
-- Account-scoped proxy selection and routing policy.
-- High-speed Download Manager with parallel chunk scheduling/reassembly.
-- Shared local/object cache for popular files.
-- Controlled direct-vs-proxy transport benchmark matrix.
-- Real video-player simulation and playback-behavior validation (intentionally deferred until the end).
-- Image online viewer.
-- Generic Media Plugin manager.
-- Audio/media plugin implementations.
+1. Introduce logical Resource + Telegram backing-location model.
+2. Separate recognition/normalization/deduplication from Telegram transport.
+3. Make Catalog classification/search Resource-centric.
+4. Correct Telegram account lifecycle and health state.
+5. Add Delivery source selection and safe failover.
+6. Finish deployment-level proxy reconnect/reload semantics.
+7. Profile and optimize download transport across valid Telegram paths.
+8. Keep Auth stable unless a concrete security defect is found.
 
-## Alignment with the original goal
+## Explicit non-goals
 
-The project is **functionally integrated end-to-end on the real deployment server**, but performance work remains open.
-
-| Original goal | Current state | Alignment |
-|---|---|---|
-| Files uploaded to private TG groups are scanned/indexed | Implemented and real-server validated | Yes |
-| Users search files on Web | Implemented | Yes |
-| Users download files | Implemented and real-server validated | Yes |
-| Admin classifies files | Implemented | Yes |
-| Deploy in different regions | Supported by configuration/proxy plugin boundary | Yes |
-| Proxy is hot-pluggable | Plugin discovery exists; production runtime hot-plug still needs hardening | Partial |
-| Video playback | Streaming endpoint works; player simulation intentionally deferred | Partial |
-| Image online browsing | Not implemented | Future |
-| Other media features are extensible plugins | Generic media plugin boundary not implemented | Future |
-| Download speed should not be unnecessarily limited by tgdrive | Range/stream transport works, but benchmark shows substantial throughput variance | Phase 2 open |
-
-## Phase 1 status
-
-**Phase 1 is considered complete for the current Core scope and real-server baseline.** The application authenticates to Telegram, discovers dialogs, accepts a configured source, scans it successfully, indexes files, and serves authenticated file download/stream requests. Existing GitHub issues that cover future hardening or broader architectural work remain open and are not treated as regressions against this baseline.
-
-The historical Run #53 collection failure exposed a source-tree import collision involving the generic top-level package name `telegram`; the current test bootstrap explicitly prioritizes tgdrive's `app/telegram` package. Proxy Runtime and its optional SOCKS5 dependency were subsequently validated by CI, and the real deployment also validated SOCKS5 TCP/TLS plus Telethon authorization.
-
-## Download speed optimization status
-
-**Not complete.** The first benchmark is complete and is now the baseline for Phase 2. The next work is controlled transport profiling followed by bounded parallel chunk retrieval/reassembly and, if justified by measurements, shared caching. The goal is to remove unnecessary tgdrive bottlenecks; it is not to claim that Telegram service-side limits can be bypassed.
-
-## Deployment portability requirements
-
-TGDrive **must not bind deployment to Python 3.12**.
-
-The supported deployment model is:
-
-1. Detect the Python version actually available on the target server.
-2. Check that the detected version satisfies TGDrive's declared compatibility range.
-3. Create an isolated virtual environment using that server's compatible Python interpreter.
-4. Install dependencies compatible with that interpreter.
-5. Fail early with a clear compatibility error when the server's Python version is unsupported.
-6. Do not replace or modify the operating system's default Python merely to satisfy TGDrive.
-
-CI may use a newer Python version than a production server. CI's interpreter version is a test environment choice; it must not become an implicit production deployment requirement.
-
-## Architectural rules going forward
-
-1. Core business domains do not import concrete proxy or media implementations.
-2. Download transport is a Core capability shared by all file types; it is not a Media Plugin.
-3. Video remains frozen until the final Media Plugin phase unless benchmark evidence shows an abstraction is required earlier.
-4. Proxy implementations remain optional infrastructure plugins.
-5. Whether a deployment uses a proxy is determined by deployment configuration and server/network requirements, not by country or region checks in application code.
-6. Before changing concurrency, establish repeatable benchmarks for direct and proxied Telegram paths where the deployment environment permits both.
-7. Do not claim that Telegram-side limits can be bypassed; optimize the system so tgdrive, proxy, CPU and single-connection design are not unnecessary bottlenecks.
-
-## Real-server deployment status
-
-The Debian 12 real-server deployment is running successfully. PostgreSQL is healthy, the Core service is up, Telegram authorization succeeds, the configured source is scanned, and the file HTTP path has been verified. The deployment remains in the performance-optimization stage rather than being declared production-grade.
+- Generic storage-provider abstraction.
+- Generic media-plugin architecture.
+- Country/region detection in application logic.
+- Account-scoped proxy policy as a default requirement.
+- Treating Telegram accounts as Web Auth identities.
