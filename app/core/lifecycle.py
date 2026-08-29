@@ -1,5 +1,8 @@
 import asyncio
 
+from auth.repository import UserRepository
+from auth.security import hash_password
+from config import settings
 from database_pool import close_pool, open_pool, initialize
 from repositories.accounts import AccountRepository
 from telegram.client import get_clients
@@ -10,10 +13,12 @@ class ApplicationLifecycle:
     def __init__(self):
         self.scanner_task = None
         self.account_repository = AccountRepository()
+        self.user_repository = UserRepository()
 
     async def startup(self):
         open_pool()
         initialize()
+        self._bootstrap_admin()
         clients = get_clients()
         if not clients:
             close_pool()
@@ -34,6 +39,15 @@ class ApplicationLifecycle:
 
         self.scanner_task = asyncio.create_task(self._run_scanners())
         print("[SCAN] background scanner started", flush=True)
+
+    def _bootstrap_admin(self):
+        if not settings.AUTH_SECRET:
+            raise RuntimeError("AUTH_SECRET must be configured")
+        if settings.ADMIN_USERNAME and settings.ADMIN_PASSWORD:
+            self.user_repository.ensure_admin(
+                settings.ADMIN_USERNAME,
+                hash_password(settings.ADMIN_PASSWORD),
+            )
 
     async def _run_scanners(self):
         tasks = []
