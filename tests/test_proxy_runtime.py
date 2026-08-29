@@ -24,8 +24,9 @@ def test_proxy_plugin_supports_socks5(monkeypatch):
     monkeypatch.setenv("TG_PROXY_PORT", "1080")
     proxy_plugin = runtime().get_capability("telegram.proxy")
     proxy = proxy_plugin.get_proxy()
-    assert proxy[1] == "127.0.0.1"
-    assert proxy[2] == 1080
+    assert proxy["type"] == "socks5"
+    assert proxy["host"] == "127.0.0.1"
+    assert proxy["port"] == 1080
 
 
 def test_proxy_plugin_supports_http(monkeypatch):
@@ -33,9 +34,10 @@ def test_proxy_plugin_supports_http(monkeypatch):
     monkeypatch.setenv("TG_PROXY_TYPE", "http")
     monkeypatch.setenv("TG_PROXY_HOST", "127.0.0.1")
     monkeypatch.setenv("TG_PROXY_PORT", "8080")
-    proxy_plugin = runtime().get_capability("telegram.proxy").get_proxy()
-    assert proxy_plugin[1] == "127.0.0.1"
-    assert proxy_plugin[2] == 8080
+    proxy = runtime().get_capability("telegram.proxy").get_proxy()
+    assert proxy["type"] == "http"
+    assert proxy["host"] == "127.0.0.1"
+    assert proxy["port"] == 8080
 
 
 def test_refresh_increments_generation():
