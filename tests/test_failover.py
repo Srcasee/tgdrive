@@ -1,6 +1,6 @@
 import asyncio
 
-from files.source_selector import TelegramSourceSelector
+from delivery.source_selector import TelegramSourceSelector
 
 
 class FakeRepo:
@@ -26,7 +26,7 @@ class FakeDownloader:
         yield b"ok"
 
 
-def test_get_file_info_fails_over(monkeypatch):
+def test_get_file_info_fails_over():
     clients = {1: "bad", 2: "good"}
     selector = TelegramSourceSelector(FakeRepo(), clients.__getitem__, FakeDownloader)
     row, _, info = asyncio.run(selector.get_file_info(1))
@@ -34,7 +34,7 @@ def test_get_file_info_fails_over(monkeypatch):
     assert info == (20, 200)
 
 
-def test_stream_fails_over(monkeypatch):
+def test_stream_fails_over():
     clients = {1: "bad", 2: "good"}
     selector = TelegramSourceSelector(FakeRepo(), clients.__getitem__, FakeDownloader)
 
