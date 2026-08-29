@@ -127,8 +127,7 @@ def init_database():
                         updated_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW())::BIGINT
                     );
 
-                    ALTER TABLE files
-                        ADD COLUMN IF NOT EXISTS resource_id BIGINT;
+                    ALTER TABLE files ADD COLUMN IF NOT EXISTS resource_id BIGINT;
 
                     INSERT INTO resources(identity_key, filename, size, mime_type)
                     SELECT md5(lower(trim(filename)) || '|' || size::TEXT || '|' || COALESCE(mime_type, '')),
@@ -143,26 +142,46 @@ def init_database():
                     WHERE r.identity_key = md5(lower(trim(f.filename)) || '|' || f.size::TEXT || '|' || COALESCE(f.mime_type, ''))
                       AND f.resource_id IS NULL;
 
-                    ALTER TABLE files
-                        DROP CONSTRAINT IF EXISTS files_account_id_fkey;
-                    ALTER TABLE files
-                        ADD CONSTRAINT files_account_id_fkey
+                    ALTER TABLE files DROP CONSTRAINT IF EXISTS files_account_id_fkey;
+                    ALTER TABLE files ADD CONSTRAINT files_account_id_fkey
                         FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE SET NULL;
-
-                    ALTER TABLE files
-                        DROP CONSTRAINT IF EXISTS files_resource_id_fkey;
-                    ALTER TABLE files
-                        ADD CONSTRAINT files_resource_id_fkey
+                    ALTER TABLE files DROP CONSTRAINT IF EXISTS files_resource_id_fkey;
+                    ALTER TABLE files ADD CONSTRAINT files_resource_id_fkey
                         FOREIGN KEY (resource_id) REFERENCES resources(id) ON DELETE RESTRICT;
-
-                    ALTER TABLE files
-                        ALTER COLUMN resource_id SET NOT NULL;
+                    ALTER TABLE files ALTER COLUMN resource_id SET NOT NULL;
 
                     CREATE INDEX IF NOT EXISTS idx_files_resource ON files(resource_id);
                     CREATE INDEX IF NOT EXISTS idx_resources_filename ON resources(filename);
                     """
                 )
                 cursor.execute("INSERT INTO schema_migrations(version) VALUES (3)")
+
+            if 4 not in applied:
+                cursor.execute(
+                    """
+                    ALTER TABLE resources ADD COLUMN IF NOT EXISTS content_hash TEXT;
+                    ALTER TABLE files ADD COLUMN IF NOT EXISTS content_hash TEXT;
+                    CREATE UNIQUE INDEX IF NOT EXISTS idx_resources_content_hash
+                        ON resources(content_hash) WHERE content_hash IS NOT NULL;
+                    CREATE INDEX IF NOT EXISTS idx_files_content_hash ON files(content_hash);
+
+                    CREATE TABLE IF NOT EXISTS resource_categories (
+                        resource_id BIGINT NOT NULL REFERENCES resources(id) ON DELETE CASCADE,
+                        category_id BIGINT NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+                        created_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW())::BIGINT,
+                        PRIMARY KEY (resource_id, category_id)
+                    );
+                    CREATE INDEX IF NOT EXISTS idx_resource_categories_category
+                        ON resource_categories(category_id);
+
+                    INSERT INTO resource_categories(resource_id, category_id)
+                    SELECT DISTINCT f.resource_id, f.category_id
+                    FROM files f
+                    WHERE f.resource_id IS NOT NULL AND f.category_id IS NOT NULL
+                    ON CONFLICT DO NOTHING;
+                    """
+                )
+                cursor.execute("INSERT INTO schema_migrations(version) VALUES (4)")
 
             conn.commit()
             print("[DB] PostgreSQL database initialized", flush=True)
