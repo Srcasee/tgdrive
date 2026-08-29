@@ -6,7 +6,8 @@ from fastapi.responses import StreamingResponse
 
 from auth.dependencies import require_user
 from auth.models import Principal
-from common.response import api_success
+from common.response import api_error, api_success
+from files.range import InvalidRange, parse_single_range
 from files.stream_service import VideoStreamService
 from repositories.files import FileRepository
 from telegram.client import get_client
@@ -18,66 +19,48 @@ file_repository = FileRepository()
 
 
 @router.get("")
-def list_files(
-    page: int = Query(1, ge=1),
-    size: int = Query(50, ge=1, le=200),
-    _: Principal = Depends(require_user),
-):
+def list_files(page: int = Query(1, ge=1), size: int = Query(50, ge=1, le=200), _: Principal = Depends(require_user)):
     total, rows = file_repository.list_available(size, (page - 1) * size)
-    return api_success({
-        "total": total,
-        "page": page,
-        "size": size,
-        "items": rows,
-    })
+    return api_success({"total": total, "page": page, "size": size, "items": rows})
 
 
 @router.get("/search")
 def search_files(q: str = Query("", min_length=1), _: Principal = Depends(require_user)):
-    return file_repository.search(q)
+    return api_success(file_repository.search(q))
+
+
+def _parse_range_or_416(value, size):
+    try:
+        return parse_single_range(value, size)
+    except InvalidRange:
+        return None
 
 
 @router.get("/{file_id}/download")
-async def download_file(
-    file_id: int,
-    range_header: str | None = Header(default=None, alias="Range"),
-    _: Principal = Depends(require_user),
-):
+async def download_file(file_id: int, range_header: str | None = Header(default=None, alias="Range"), _: Principal = Depends(require_user)):
     row = file_repository.get_download_info(file_id)
     if not row:
-        return {"error": "file not found"}
+        return api_error("not_found", "file not found", 404)
     if not row["is_available"]:
-        return {"error": "file unavailable"}
+        return api_error("unavailable", "file unavailable", 404)
 
-    filename = row["filename"]
-    file_size = row["size"]
-    mime = row["mime_type"] or "application/octet-stream"
+    parsed = _parse_range_or_416(range_header, row["size"])
+    if parsed is None:
+        return Response(status_code=416, headers={"Content-Range": f"bytes */{row['size']}"})
+    start, end, partial = parsed
+
     tg_client = get_client(row["account_id"])
     downloader = TelegramDownloader(tg_client)
     file_info = await downloader.get_file_info(row["telegram_chat_id"], row["message_id"])
-
-    start, end = 0, file_size - 1
-    if range_header:
-        value = range_header.removeprefix("bytes=")
-        parts = value.split("-", 1)
-        try:
-            if parts[0]:
-                start = int(parts[0])
-            if len(parts) > 1 and parts[1]:
-                end = int(parts[1])
-        except ValueError:
-            return Response(status_code=416, headers={"Content-Range": f"bytes */{file_size}"})
-
-    if start < 0 or end < start or end >= file_size:
-        return Response(status_code=416, headers={"Content-Range": f"bytes */{file_size}"})
-
     content_length = end - start + 1
 
     async def stream():
         downloaded = 0
         async for chunk in downloader.stream(file_info, offset=start):
-            if downloaded + len(chunk) > content_length:
-                chunk = chunk[:content_length - downloaded]
+            remaining = content_length - downloaded
+            if remaining <= 0:
+                break
+            chunk = chunk[:remaining]
             downloaded += len(chunk)
             yield chunk
             if downloaded >= content_length:
@@ -85,15 +68,12 @@ async def download_file(
 
     headers = {
         "Accept-Ranges": "bytes",
-        "Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}",
+        "Content-Disposition": f"attachment; filename*=UTF-8''{quote(row['filename'])}",
         "Content-Length": str(content_length),
     }
-    status_code = 200
-    if range_header:
-        headers["Content-Range"] = f"bytes {start}-{end}/{file_size}"
-        status_code = 206
-
-    return StreamingResponse(stream(), status_code=status_code, media_type=mime, headers=headers)
+    if partial:
+        headers["Content-Range"] = f"bytes {start}-{end}/{row['size']}"
+    return StreamingResponse(stream(), status_code=206 if partial else 200, media_type=row["mime_type"] or "application/octet-stream", headers=headers)
 
 
 @router.head("/{file_id}/download")
@@ -101,51 +81,25 @@ async def download_head(file_id: int, _: Principal = Depends(require_user)):
     row = file_repository.get_head_info(file_id)
     if not row or not row["is_available"]:
         return Response(status_code=404)
-    return Response(
-        headers={
-            "Accept-Ranges": "bytes",
-            "Content-Length": str(row["size"]),
-            "Content-Disposition": "inline",
-        }
-    )
+    return Response(headers={"Accept-Ranges": "bytes", "Content-Length": str(row["size"]), "Content-Disposition": "inline"})
 
 
 @router.get("/{file_id}/stream")
-@router.head("/{file_id}/stream")
-async def stream_file(
-    file_id: int,
-    range_header: str | None = Header(None, alias="Range"),
-    _: Principal = Depends(require_user),
-):
+async def stream_file(file_id: int, range_header: str | None = Header(None, alias="Range"), _: Principal = Depends(require_user)):
     row = file_repository.get_stream_info(file_id)
     if not row:
-        return {"error": "file not found"}
+        return api_error("not_found", "file not found", 404)
     if not row["is_available"]:
         return Response(status_code=404)
+
+    parsed = _parse_range_or_416(range_header, row["size"])
+    if parsed is None:
+        return Response(status_code=416, headers={"Content-Range": f"bytes */{row['size']}"})
+    start, end, partial = parsed
 
     tg_client = get_client(row["account_id"])
     downloader = TelegramDownloader(tg_client)
     file_info = await downloader.get_file_info(row["telegram_chat_id"], row["message_id"])
-
-    size = row["size"]
-    start, end = 0, size - 1
-    if range_header:
-        value = range_header.removeprefix("bytes=")
-        parts = value.split("-", 1)
-        try:
-            if parts[0]:
-                start = int(parts[0])
-            if len(parts) > 1 and parts[1]:
-                end = int(parts[1])
-        except ValueError:
-            return Response(status_code=416, headers={"Content-Range": f"bytes */{size}"})
-
-    from cache.video import CHUNK_SIZE
-    if end - start + 1 > CHUNK_SIZE:
-        end = min(start + CHUNK_SIZE - 1, size - 1)
-    if start < 0 or end < start or start >= size or end >= size:
-        return Response(status_code=416, headers={"Content-Range": f"bytes */{size}"})
-
     length = end - start + 1
     stream_service = VideoStreamService(downloader)
     chunk_size = 4 * 1024 * 1024
@@ -167,18 +121,15 @@ async def stream_file(
             print("[VIDEO STREAM] client disconnected", "file=", file_id, "range=", f"{start}-{end}", flush=True)
             raise
 
-    headers = {
-        "Accept-Ranges": "bytes",
-        "Content-Length": str(length),
-        "Content-Disposition": "inline",
-        "Content-Type": row["mime_type"] or "application/octet-stream",
-    }
-    if range_header:
-        headers["Content-Range"] = f"bytes {start}-{end}/{size}"
+    headers = {"Accept-Ranges": "bytes", "Content-Length": str(length), "Content-Disposition": "inline"}
+    if partial:
+        headers["Content-Range"] = f"bytes {start}-{end}/{row['size']}"
+    return StreamingResponse(generator(), status_code=206 if partial else 200, media_type=row["mime_type"] or "application/octet-stream", headers=headers)
 
-    return StreamingResponse(
-        generator(),
-        status_code=206 if range_header else 200,
-        media_type=row["mime_type"] or "application/octet-stream",
-        headers=headers,
-    )
+
+@router.head("/{file_id}/stream")
+async def stream_head(file_id: int, _: Principal = Depends(require_user)):
+    row = file_repository.get_head_info(file_id)
+    if not row or not row["is_available"]:
+        return Response(status_code=404)
+    return Response(headers={"Accept-Ranges": "bytes", "Content-Length": str(row["size"]), "Content-Disposition": "inline", "Content-Type": row["mime_type"] or "application/octet-stream"})
