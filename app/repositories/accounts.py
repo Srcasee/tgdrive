@@ -3,65 +3,50 @@ from database import get_connection
 
 class AccountRepository:
     def list_all(self):
-        conn = get_connection()
-        try:
-            cursor = conn.cursor()
-            cursor.execute(
-                """
-                SELECT id, name, username, session, enabled
-                FROM accounts
-                ORDER BY id
-                """
-            )
-            return [dict(row) for row in cursor.fetchall()]
-        finally:
-            conn.close()
+        with get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT id, name, username, session, enabled
+                    FROM accounts
+                    ORDER BY id
+                    """
+                )
+                return cursor.fetchall()
 
     def get_id_by_session(self, session):
-        conn = get_connection()
-        try:
-            cursor = conn.cursor()
-            cursor.execute(
-                "SELECT id FROM accounts WHERE session=?",
-                (session,),
-            )
-            row = cursor.fetchone()
-            return row[0] if row else None
-        finally:
-            conn.close()
+        with get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "SELECT id FROM accounts WHERE session=%s",
+                    (session,),
+                )
+                row = cursor.fetchone()
+                return row["id"] if row else None
 
     def get_session(self, account_id):
-        conn = get_connection()
-        try:
-            cursor = conn.cursor()
-            cursor.execute(
-                "SELECT session FROM accounts WHERE id=? AND enabled=1",
-                (account_id,),
-            )
-            row = cursor.fetchone()
-            return row[0] if row else None
-        finally:
-            conn.close()
+        with get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "SELECT session FROM accounts WHERE id=%s AND enabled=TRUE",
+                    (account_id,),
+                )
+                row = cursor.fetchone()
+                return row["session"] if row else None
 
     def upsert_session(self, session, name=None):
-        conn = get_connection()
-        try:
-            cursor = conn.cursor()
-            cursor.execute(
-                "SELECT id FROM accounts WHERE session=?",
-                (session,),
-            )
-            row = cursor.fetchone()
-            if row:
-                return row[0]
-            cursor.execute(
-                """
-                INSERT INTO accounts(name, session, enabled)
-                VALUES(?, ?, 1)
-                """,
-                (name or session, session),
-            )
+        with get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO accounts(name, session, enabled)
+                    VALUES(%s, %s, TRUE)
+                    ON CONFLICT (session) DO UPDATE
+                    SET name=COALESCE(accounts.name, EXCLUDED.name)
+                    RETURNING id
+                    """,
+                    (name or session, session),
+                )
+                account_id = cursor.fetchone()["id"]
             conn.commit()
-            return cursor.lastrowid
-        finally:
-            conn.close()
+            return account_id
