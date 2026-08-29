@@ -183,5 +183,13 @@ def init_database():
                 )
                 cursor.execute("INSERT INTO schema_migrations(version) VALUES (4)")
 
+            if 5 not in applied:
+                cursor.execute(
+                    """
+                    ALTER TABLE files DROP COLUMN IF EXISTS category_id;
+                    """
+                )
+                cursor.execute("INSERT INTO schema_migrations(version) VALUES (5)")
+
             conn.commit()
             print("[DB] PostgreSQL database initialized", flush=True)
