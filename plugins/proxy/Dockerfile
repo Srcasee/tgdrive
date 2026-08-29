@@ -7,4 +7,6 @@ COPY tgdrive_proxy.py /opt/tgdrive-proxy/tgdrive_proxy.py
 
 ENV PYTHONPATH=/opt/tgdrive-proxy
 
+# The plugin is loaded directly from the source module. This avoids a
+# network-dependent PEP 517 build during the proxy image build.
 ENTRYPOINT ["python", "-c", "from tgdrive_proxy import run_proxy; raise SystemExit(run_proxy())"]
