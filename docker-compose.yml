@@ -50,8 +50,10 @@ services:
     restart: unless-stopped
     profiles:
       - proxy
+    env_file:
+      - .env
     volumes:
-      - ./plugins/tgdrive-proxy-socks5/sing-box/config.json:/etc/sing-box/config.json:ro
+      - ./plugins/proxy/sing-box/config.json:/etc/sing-box/config.json:ro
     command:
       - run
       - -c
