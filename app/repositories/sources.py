@@ -1,9 +1,9 @@
-from database import get_connection
+from database_pool import connection, transaction
 
 
 class SourceRepository:
     def list_enabled_for_account(self, account_id):
-        with get_connection() as conn:
+        with connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     """
@@ -20,7 +20,7 @@ class SourceRepository:
         self._update_status(source_id, "scanning")
 
     def mark_success(self, source_id, last_message_id):
-        with get_connection() as conn:
+        with transaction() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     """
@@ -31,10 +31,9 @@ class SourceRepository:
                     """,
                     (last_message_id, source_id),
                 )
-            conn.commit()
 
     def add(self, account_id, chat_id, name):
-        with get_connection() as conn:
+        with transaction() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     """
@@ -45,13 +44,11 @@ class SourceRepository:
                     """,
                     (account_id, chat_id, name),
                 )
-                source_id = cursor.fetchone()["id"]
-            conn.commit()
-            return source_id
+                return cursor.fetchone()["id"]
 
     @staticmethod
     def _update_status(source_id, status):
-        with get_connection() as conn:
+        with transaction() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     """
@@ -61,4 +58,3 @@ class SourceRepository:
                     """,
                     (status, source_id),
                 )
-            conn.commit()
