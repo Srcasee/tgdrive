@@ -3,13 +3,13 @@ import os
 from telethon import TelegramClient
 
 from config import settings, validate_telegram_credentials
-from plugins.proxy.runtime import ProxyRuntime
+from plugins.runtime import PluginRuntime
 from repositories.accounts import AccountRepository
 
 
 clients = {}
 account_repository = AccountRepository()
-proxy_runtime = ProxyRuntime()
+plugin_runtime = PluginRuntime()
 
 
 def sync_sessions():
@@ -36,12 +36,13 @@ def get_clients():
     if not os.path.exists(session_dir):
         return clients
 
+    proxy_plugin = plugin_runtime.get_capability("telegram.proxy")
     for filename in os.listdir(session_dir):
         if not filename.endswith(".session"):
             continue
         name = filename[:-8]
         session = os.path.join(session_dir, name)
-        proxy = proxy_runtime.resolve(name)
+        proxy = proxy_plugin.get_proxy(name) if proxy_plugin else None
         clients[name] = TelegramClient(
             session,
             settings.TG_API_ID,
