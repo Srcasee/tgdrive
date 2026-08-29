@@ -166,8 +166,8 @@ app/
 |
 +-- web/                          # browser UI
 |
-+plugins/
-+  +-- proxy/                     # optional external proxy implementation
+plugins/
+  +-- proxy/                     # optional external proxy implementation
 ```
 
 The layout above is the **target boundary**, not a claim that all target modules already exist. Current implementation mapping and gaps are documented below.
@@ -206,7 +206,7 @@ accounts
            +-- category_id -> categories
 ```
 
-Current `files` rows represent a Telegram message/file location. The unique index is `(account_id, telegram_chat_id, message_id)`. This is correct for physical-source identity but insufficient for the product requirement that multiple Telegram accounts can back up one logical resource. fileciteturn36file0
+Current `files` rows represent a Telegram message/file location. The unique index is `(account_id, telegram_chat_id, message_id)`. This is correct for physical-source identity but insufficient for the product requirement that multiple Telegram accounts can back up one logical resource.
 
 Target conceptual model:
 
@@ -262,7 +262,7 @@ Telegram client boundary
   Direct    Proxy plugin
 ```
 
-Core must not contain country/region detection or concrete proxy protocol logic. An administrator/deployment chooses direct vs proxy according to the server/network environment. The proxy implementation lives outside the core and is discovered through the plugin runtime. `PluginRuntime` loads external plugins from configured directories and exposes capabilities; the Telegram client asks for `telegram.proxy` and otherwise uses direct connectivity. fileciteturn32file0turn33file0
+Core must not contain country/region detection or concrete proxy protocol logic. An administrator/deployment chooses direct vs proxy according to the server/network environment. The proxy implementation lives outside the core and is discovered through the plugin runtime. `PluginRuntime` loads external plugins from configured directories and exposes capabilities; the Telegram client asks for `telegram.proxy` and otherwise uses direct connectivity.
 
 The product requirement does **not** require account-scoped proxy selection. Keep that out of the core model unless a real deployment requirement appears.
 
@@ -296,31 +296,31 @@ It must not own Telegram sessions, Resources, Categories or download selection.
 
 ### P0 — logical Resource model is missing
 
-The current database identifies each physical Telegram message/file location by `(account_id, telegram_chat_id, message_id)`. There is no logical Resource entity. Consequently, the same content copied to two Telegram accounts cannot be represented as two backing locations of one resource. This blocks the intended account-redundancy design and makes failover impossible at the domain level. fileciteturn27file0turn36file0
+The current database identifies each physical Telegram message/file location by `(account_id, telegram_chat_id, message_id)`. There is no logical Resource entity. Consequently, the same content copied to two Telegram accounts cannot be represented as two backing locations of one resource. This blocks the intended account-redundancy design and makes failover impossible at the domain level.
 
 ### P0 — account redundancy is defeated by account deletion semantics
 
-`files.account_id` has `ON DELETE CASCADE`. Deleting an account therefore deletes all indexed file rows belonging to it, which is unsafe for a system whose accounts exist partly for redundancy. Account disable/removal must be separated from physical-resource metadata retention. fileciteturn36file0
+`files.account_id` has `ON DELETE CASCADE`. Deleting an account therefore deletes all indexed file rows belonging to it, which is unsafe for a system whose accounts exist partly for redundancy. Account disable/removal must be separated from physical-resource metadata retention.
 
 ### P1 — Delivery is hard-wired to one Telegram account
 
-Both download and stream resolve `get_client(row["account_id"])`. There is no source selector, health check or fallback to another Telegram-backed location. A restricted/broken account can therefore make an otherwise backed-up resource unavailable. fileciteturn26file0
+Both download and stream resolve `get_client(row["account_id"])`. There is no source selector, health check or fallback to another Telegram-backed location. A restricted/broken account can therefore make an otherwise backed-up resource unavailable.
 
 ### P1 — scanner is doing domain work inside Telegram infrastructure
 
-`app/telegram/scanner.py` directly writes `files` through `FileRepository`. It handles source filtering, message iteration, filename normalization, full-sync reconciliation and scan state in one Telegram-specific function. There is no separate recognition/resource-identification layer. fileciteturn25file0
+`app/telegram/scanner.py` directly writes `files` through `FileRepository`. It handles source filtering, message iteration, filename normalization, full-sync reconciliation and scan state in one Telegram-specific function. There is no separate recognition/resource-identification layer.
 
 ### P1 — catalog/search is too physical-file-oriented
 
-`FileRepository.search()` searches only `filename ILIKE`, and list/search return physical Telegram identifiers. Category is a single nullable `files.category_id`, not a Resource-level classification model. This is sufficient for the current demo but not for the intended catalog-first product. fileciteturn27file0
+`FileRepository.search()` searches only `filename ILIKE`, and list/search return physical Telegram identifiers. Category is a single nullable `files.category_id`, not a Resource-level classification model. This is sufficient for the current demo but not for the intended catalog-first product.
 
 ### P1 — Telegram account lifecycle is incomplete
 
-`get_clients()` auto-discovers every `.session` file and creates clients, while `ApplicationLifecycle` then connects and scans every loaded client. The database `accounts.enabled` flag is not consulted when building the client set or starting scanners. There is also no admin API in the current Telegram API for enabling/disabling/removing accounts; it currently exposes account listing, dialog discovery and source creation. fileciteturn33file0turn40file0turn41file0
+`get_clients()` auto-discovers every `.session` file and creates clients, while `ApplicationLifecycle` then connects and scans every loaded client. The database `accounts.enabled` flag is not consulted when building the client set or starting scanners. There is also no admin API in the current Telegram API for enabling/disabling/removing accounts; it currently exposes account listing, dialog discovery and source creation.
 
 ### P1 — proxy runtime reload is only registry-level
 
-`PluginRuntime.refresh()` reloads the plugin registry, but `get_clients()` caches Telegram clients globally and captures the proxy when each client is created. Refreshing the plugin registry therefore does not change existing Telegram connections. This is acceptable as an explicit lifecycle boundary, but the deployment must have a controlled reconnect/reload operation before claiming runtime proxy reconfiguration. fileciteturn32file0turn33file0
+`PluginRuntime.refresh()` reloads the plugin registry, but `get_clients()` caches Telegram clients globally and captures the proxy when each client is created. Refreshing the plugin registry therefore does not change existing Telegram connections. This is acceptable as an explicit lifecycle boundary, but the deployment must have a controlled reconnect/reload operation before claiming runtime proxy reconfiguration.
 
 ### P2 — top-level `telegram` package remains collision-prone
 
@@ -328,7 +328,7 @@ The application uses a top-level package named `telegram`, which has previously 
 
 ### P2 — download transport remains variable
 
-The real-server benchmark showed large throughput variance, including a very slow middle-range request. HTTP Range semantics are currently implemented correctly, but transport bottlenecks have not been isolated. The next optimization must consider Resource source selection and redundancy rather than tuning a single fixed account path in isolation. fileciteturn23file0
+The real-server benchmark showed large throughput variance, including a very slow middle-range request. HTTP Range semantics are currently implemented correctly, but transport bottlenecks have not been isolated. The next optimization must consider Resource source selection and redundancy rather than tuning a single fixed account path in isolation.
 
 ## Out of scope / intentionally rejected
 
