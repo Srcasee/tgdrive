@@ -54,11 +54,11 @@ class FakeCategories:
             self.items.remove(item)
         return item
 
-    def assign_file(self, file_id, category_id):
-        return {"id": file_id, "category_id": category_id}
+    def assign_resource(self, resource_id, category_id):
+        return {"resource_id": resource_id, "category_id": category_id}
 
 
-class FakeFiles:
+class FakeResources:
     def __init__(self):
         self.available = {
             1: {"id": 1, "filename": "video.mp4", "size": 100, "mime_type": "video/mp4", "is_available": True}
@@ -71,14 +71,14 @@ class FakeFiles:
     def search(self, query, limit=100):
         return [x for x in self.available.values() if query.lower() in x["filename"].lower()]
 
-    def get_download_info(self, file_id):
-        return self.available.get(file_id)
+    def get_download_info(self, resource_id):
+        return self.available.get(resource_id)
 
-    def get_stream_info(self, file_id):
-        return self.available.get(file_id)
+    def get_stream_info(self, resource_id):
+        return self.available.get(resource_id)
 
-    def get_head_info(self, file_id):
-        return self.available.get(file_id)
+    def get_head_info(self, resource_id):
+        return self.available.get(resource_id)
 
 
 async def _noop_startup():
@@ -92,11 +92,11 @@ async def _noop_shutdown():
 def make_client(monkeypatch):
     users = FakeUsers()
     categories = FakeCategories()
-    files = FakeFiles()
+    resources = FakeResources()
     monkeypatch.setattr("auth.api.user_repository", users)
     monkeypatch.setattr("auth.dependencies.user_repository", users)
     monkeypatch.setattr("admin.api.category_repository", categories)
-    monkeypatch.setattr("files.api.file_repository", files)
+    monkeypatch.setattr("delivery.api.resource_repository", resources)
 
     app = create_app()
     lifecycle = ApplicationLifecycle()
@@ -104,7 +104,7 @@ def make_client(monkeypatch):
     lifecycle.shutdown = _noop_shutdown
     app.state.lifecycle = lifecycle
 
-    return TestClient(app), files
+    return TestClient(app), resources
 
 
 def test_auth_and_authorization(monkeypatch):
@@ -134,23 +134,23 @@ def test_category_admin_crud(monkeypatch):
     assert client.delete(f"/api/admin/categories/{category_id}").status_code == 200
 
 
-def test_protected_file_apis(monkeypatch):
+def test_protected_delivery_apis(monkeypatch):
     client, _ = make_client(monkeypatch)
-    assert client.get("/files").status_code == 401
-    assert client.get("/files/search?q=video").status_code == 401
-    assert client.get("/files/1/download").status_code == 401
-    assert client.get("/files/1/stream").status_code == 401
+    assert client.get("/resources").status_code == 401
+    assert client.get("/resources/search?q=video").status_code == 401
+    assert client.get("/resources/1/download").status_code == 401
+    assert client.get("/resources/1/stream").status_code == 401
 
     client.post("/auth/login", json={"username": "user", "password": "user-pass"})
-    assert client.get("/files").status_code == 200
-    assert client.get("/files/search?q=video").status_code == 200
-    assert client.get("/files/999/download").status_code == 404
-    assert client.get("/files/999/stream").status_code == 404
+    assert client.get("/resources").status_code == 200
+    assert client.get("/resources/search?q=video").status_code == 200
+    assert client.get("/resources/999/download").status_code == 404
+    assert client.get("/resources/999/stream").status_code == 404
 
 
-def test_unavailable_file_is_not_downloadable_or_streamable(monkeypatch):
-    client, files = make_client(monkeypatch)
+def test_unavailable_resource_is_not_downloadable_or_streamable(monkeypatch):
+    client, resources = make_client(monkeypatch)
     client.post("/auth/login", json={"username": "user", "password": "user-pass"})
-    files.available[1]["is_available"] = False
-    assert client.get("/files/1/download").status_code == 404
-    assert client.get("/files/1/stream").status_code == 404
+    resources.available[1]["is_available"] = False
+    assert client.get("/resources/1/download").status_code == 404
+    assert client.get("/resources/1/stream").status_code == 404
