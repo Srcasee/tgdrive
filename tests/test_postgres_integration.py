@@ -19,8 +19,15 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture(scope="module", autouse=True)
 def postgres_pool():
+    """Keep the shared PostgreSQL pool alive for the whole integration module.
+
+    psycopg_pool ConnectionPool instances are single-use: close() permanently
+    closes that instance. A function-scoped fixture would close the global
+    application pool after the first test and the next test would fail with
+    PoolClosed when it tried to reopen the same instance.
+    """
     open_pool()
     try:
         yield
