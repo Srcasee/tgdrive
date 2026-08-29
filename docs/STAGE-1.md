@@ -1,95 +1,59 @@
 # Stage 1 — Architecture Convergence
 
-## Objective
+## Status
 
-Establish a secure application boundary before expanding media/plugin features.
+**Phase 1 is complete.** The Core business path is now authenticated, authorized, administrable and covered by the full CI test suite.
+
+## Completed scope
+
+- Web users and roles (`user` / `admin`)
+- PBKDF2-SHA256 password hashing
+- HMAC-signed, expiring HttpOnly Web sessions
+- `/auth/login`, `/auth/me`, `/auth/logout`
+- Explicit `require_user` / `require_admin` authorization dependencies
+- Protected file list/search/download/HEAD/stream endpoints
+- Protected Telegram account/source administration
+- Telegram session credentials removed from account API responses
+- Category repository, CRUD API, admin UI and file assignment
+- Source account validation and `(account_id, telegram_chat_id)` uniqueness
+- Full-sync reconciliation semantics hardened
+- Scanner failure state transitions hardened
+- HTTP Range parsing and 416 handling hardened
+- Integration coverage for auth/admin/category/file permissions
+- Full CI suite (`pytest -q`) passing
 
 ## Video decision
 
 Video streaming remains a Core capability during Stage 1 and is intentionally frozen.
 
-This does **not** create a significant migration penalty because `VideoStreamService` already provides a service boundary between the HTTP file API and Telegram download/cache mechanics. We will not introduce a speculative `MediaPlugin` abstraction yet. When Media Plugin becomes the final architecture phase, the existing service can be wrapped behind a stable media interface without forcing Telegram, authentication or admin domains to depend on the concrete implementation.
+`VideoStreamService` already provides a service boundary between the HTTP file API and Telegram download/cache mechanics. This is sufficient to defer speculative `MediaPlugin` extraction without creating a significant migration penalty.
 
-Rule: do not add new media implementations to Core during Stage 1.
+When Media Plugin becomes the final architecture phase, the existing service can be wrapped behind a stable media interface without forcing authentication, admin, file or Telegram domains to depend on concrete media implementations.
 
-## Workstreams
+**Rule:** do not add new media implementations to Core before the Media Plugin phase.
 
-### 1. Authentication
+## Download performance boundary
 
-The Web application has its own users and sessions. Telegram sessions are infrastructure credentials and are never Web login credentials.
+The public download and video-stream APIs are not the content-source bottleneck themselves. Both ultimately depend on `TelegramDownloader.stream()`, which calls Telethon `iter_download()` against Telegram.
 
-Current implementation:
-- `users` table with `user`/`admin` roles.
-- PBKDF2-SHA256 password hashes.
-- HMAC-signed, expiring Web session token in an HttpOnly cookie.
-- `/auth/login`, `/auth/me`, `/auth/logout`.
-- `AUTH_SECRET`, `AUTH_TOKEN_TTL`, `AUTH_COOKIE_SECURE` configuration.
-- Optional first-admin bootstrap through `ADMIN_USERNAME` and `ADMIN_PASSWORD`.
-
-### 2. Authorization
-
-Minimum roles:
-
-- `user`: browse/search and access files according to product policy.
-- `admin`: all user capabilities plus account/source/category administration.
-
-All protected endpoints use explicit FastAPI dependencies (`require_user` / `require_admin`).
-
-### 3. Categories
-
-Categories are now a first-class administrative API:
+The important layers are:
 
 ```text
-CategoryRepository
-      |
-Admin API
-      |
-Admin UI
-      |
-files.category_id
+Browser
+  -> FastAPI file/stream endpoint
+  -> TelegramDownloader.stream()
+  -> Telethon iter_download()
+  -> Telegram DC / network / proxy
 ```
 
-Implemented endpoints:
+Video playback additionally has `VideoStreamService` and a 4 MiB application cache chunk. Normal downloads currently stream directly from Telegram and do not use the video cache.
 
-- `GET /api/admin/categories`
-- `POST /api/admin/categories`
-- `PUT /api/admin/categories/{id}`
-- `DELETE /api/admin/categories/{id}`
-- `PUT /api/admin/files/{file_id}/category`
+Before Phase 2, download performance should be benchmarked and optimized at the Telegram transport boundary rather than coupling performance work to future Media Plugins. The optimization must preserve the Core interface so proxy selection can remain an independent plugin concern.
 
-### 4. Credential boundary
+## Phase 2 boundary
 
-Telegram API ID/hash and session files remain server-side infrastructure credentials. Account APIs return only safe account metadata; raw Telegram session values are not returned.
-
-### 5. File authorization
-
-File listing, search, download, HEAD and stream are protected by Web authentication. Download and stream both reject unavailable files.
-
-### 6. Telegram administration
-
-Account listing, dialog inspection and source creation require admin authorization. Source creation validates the account and the database now enforces `(account_id, telegram_chat_id)` uniqueness.
-
-## Current implementation in this stage
-
-- Added `app/auth/` domain and security primitives.
-- Added `users` schema migration.
-- Added Web login/logout/me.
-- Added live-user authorization dependencies.
-- Protected file and Telegram admin APIs.
-- Removed Telegram `session` from account list responses.
-- Added category repository/API and basic Web category management.
-- Added authentication unit tests.
-- Added source account validation and uniqueness enforcement.
-
-## Remaining Stage 1 hardening
-
-1. Add integration tests for 401/403 on every protected route.
-2. Add category assignment/list filtering tests.
-3. Harden full-sync reconciliation semantics before production use.
-4. Harden scanner failure state transitions.
-5. Complete HTTP Range edge-case handling.
-6. Run and fix the complete CI suite.
+Phase 2 starts only after the Core path above is stable. It focuses on infrastructure extensibility, especially account-scoped proxy selection and controlled proxy lifecycle/reload. Media Plugin extraction remains a later phase.
 
 ## Architectural constraint
 
-Core business code must not import concrete Proxy or Media plugins. Proxy is an optional infrastructure capability behind its existing interface. Media Plugin extraction is deferred until the final architecture phase.
+Core business code must not import concrete Proxy or Media plugins. Optional infrastructure capabilities may implement stable Core interfaces, but Core must remain usable without any optional plugin installed.
