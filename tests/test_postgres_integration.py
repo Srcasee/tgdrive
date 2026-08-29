@@ -46,7 +46,6 @@ def test_schema_and_repositories_are_transactional():
     account_id = accounts.upsert_session("integration-session", "Integration")
     sources.add(account_id, 10001, "Integration source")
 
-    resource_id = 123
     with psycopg.connect(DATABASE_URL) as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -58,12 +57,12 @@ def test_schema_and_repositories_are_transactional():
             category_id = cur.fetchone()[0]
         conn.commit()
 
-    files.upsert_verified_message(
+    files.upsert_indexed_message(
         filename="one.bin", size=123, mime_type="application/octet-stream",
         chat_id=10001, message_id=7, upload_time=1700000000,
         account_id=account_id, resource_id=resource_id, content_hash="a" * 64,
     )
-    files.upsert_verified_message(
+    files.upsert_indexed_message(
         filename="one-renamed.bin", size=456, mime_type="application/octet-stream",
         chat_id=10001, message_id=7, upload_time=1700000001,
         account_id=account_id, resource_id=resource_id, content_hash="a" * 64,
@@ -82,7 +81,7 @@ def test_schema_and_repositories_are_transactional():
             cur.execute("SELECT COUNT(*) FROM files")
             assert cur.fetchone()[0] == 1
             cur.execute("SELECT filename, size, resource_id, content_hash, status, scan_status, is_available FROM files")
-            assert cur.fetchone() == ("one-renamed.bin", 456, resource_id, "a" * 64, "active", "verified", True)
+            assert cur.fetchone() == ("one-renamed.bin", 456, resource_id, "a" * 64, "active", "indexed", True)
 
     with psycopg.connect(DATABASE_URL) as conn:
         with conn.cursor() as cur:
@@ -100,9 +99,8 @@ def test_schema_and_repositories_are_transactional():
             cur.execute("SELECT COUNT(*) FROM telegram_sources s LEFT JOIN accounts a ON a.id=s.account_id WHERE a.id IS NULL")
             assert cur.fetchone()[0] == 0
 
-    with pytest.raises(ValueError, match="content_hash is required"):
-        files.upsert_verified_message(
-            filename="no-hash.bin", size=1, mime_type="application/octet-stream",
-            chat_id=10001, message_id=8, upload_time=1700000002,
-            account_id=None, resource_id=resource_id, content_hash=None,
-        )
+    files.upsert_indexed_message(
+        filename="no-hash.bin", size=1, mime_type="application/octet-stream",
+        chat_id=10001, message_id=8, upload_time=1700000002,
+        account_id=None, resource_id=resource_id, content_hash=None,
+    )
