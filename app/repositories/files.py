@@ -3,156 +3,127 @@ from database import get_connection
 
 class FileRepository:
     def list_available(self, limit, offset):
-        conn = get_connection()
-        try:
-            cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM files WHERE is_available=1")
-            total = cursor.fetchone()[0]
-            cursor.execute(
-                """
-                SELECT id, filename, size, mime_type,
-                       telegram_chat_id, message_id
-                FROM files
-                WHERE is_available=1
-                ORDER BY id DESC
-                LIMIT ? OFFSET ?
-                """,
-                (limit, offset),
-            )
-            return total, [dict(row) for row in cursor.fetchall()]
-        finally:
-            conn.close()
+        with get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("SELECT COUNT(*) AS total FROM files WHERE is_available=TRUE")
+                total = cursor.fetchone()["total"]
+                cursor.execute(
+                    """
+                    SELECT id, filename, size, mime_type,
+                           telegram_chat_id, message_id
+                    FROM files
+                    WHERE is_available=TRUE
+                    ORDER BY id DESC
+                    LIMIT %s OFFSET %s
+                    """,
+                    (limit, offset),
+                )
+                return total, cursor.fetchall()
 
     def search(self, query, limit=100):
-        conn = get_connection()
-        try:
-            cursor = conn.cursor()
-            cursor.execute(
-                """
-                SELECT id, filename, size, mime_type,
-                       telegram_chat_id, message_id
-                FROM files
-                WHERE filename LIKE ?
-                ORDER BY id DESC
-                LIMIT ?
-                """,
-                (f"%{query}%", limit),
-            )
-            return [dict(row) for row in cursor.fetchall()]
-        finally:
-            conn.close()
+        with get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT id, filename, size, mime_type,
+                           telegram_chat_id, message_id
+                    FROM files
+                    WHERE filename ILIKE %s
+                    ORDER BY id DESC
+                    LIMIT %s
+                    """,
+                    (f"%{query}%", limit),
+                )
+                return cursor.fetchall()
 
     def get_download_info(self, file_id):
-        conn = get_connection()
-        try:
-            cursor = conn.cursor()
-            cursor.execute(
-                """
-                SELECT filename, telegram_chat_id, message_id, size,
-                       mime_type, account_id, is_available
-                FROM files WHERE id=?
-                """,
-                (file_id,),
-            )
-            row = cursor.fetchone()
-            return dict(row) if row else None
-        finally:
-            conn.close()
+        with get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT filename, telegram_chat_id, message_id, size,
+                           mime_type, account_id, is_available
+                    FROM files WHERE id=%s
+                    """,
+                    (file_id,),
+                )
+                return cursor.fetchone()
 
     def get_stream_info(self, file_id):
-        conn = get_connection()
-        try:
-            cursor = conn.cursor()
-            cursor.execute(
-                """
-                SELECT telegram_chat_id, message_id, filename,
-                       mime_type, size, account_id
-                FROM files WHERE id=?
-                """,
-                (file_id,),
-            )
-            row = cursor.fetchone()
-            return dict(row) if row else None
-        finally:
-            conn.close()
+        with get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT telegram_chat_id, message_id, filename,
+                           mime_type, size, account_id
+                    FROM files WHERE id=%s
+                    """,
+                    (file_id,),
+                )
+                return cursor.fetchone()
 
     def get_head_info(self, file_id):
-        conn = get_connection()
-        try:
-            cursor = conn.cursor()
-            cursor.execute(
-                "SELECT size, mime_type FROM files WHERE id=?",
-                (file_id,),
-            )
-            row = cursor.fetchone()
-            return dict(row) if row else None
-        finally:
-            conn.close()
+        with get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "SELECT size, mime_type FROM files WHERE id=%s",
+                    (file_id,),
+                )
+                return cursor.fetchone()
 
     def mark_verified(self, account_id, chat_id, message_id):
-        conn = get_connection()
-        try:
-            cursor = conn.cursor()
-            cursor.execute(
-                """
-                UPDATE files
-                SET status='active', scan_status='verified', is_available=1
-                WHERE account_id=? AND telegram_chat_id=? AND message_id=?
-                """,
-                (account_id, chat_id, message_id),
-            )
+        with get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    UPDATE files
+                    SET status='active', scan_status='verified', is_available=TRUE
+                    WHERE account_id=%s AND telegram_chat_id=%s AND message_id=%s
+                    """,
+                    (account_id, chat_id, message_id),
+                )
             conn.commit()
-        finally:
-            conn.close()
 
     def upsert_message(self, *, filename, size, mime_type, chat_id,
                        message_id, upload_time, account_id):
-        conn = get_connection()
-        try:
-            cursor = conn.cursor()
-            cursor.execute(
-                """
-                INSERT OR IGNORE INTO files
-                (filename, size, mime_type, telegram_chat_id, message_id,
-                 upload_time, account_id)
-                VALUES(?,?,?,?,?,?,?)
-                """,
-                (filename, size, mime_type, chat_id, message_id,
-                 upload_time, account_id),
-            )
+        with get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO files
+                    (filename, size, mime_type, telegram_chat_id, message_id,
+                     upload_time, account_id)
+                    VALUES(%s,%s,%s,%s,%s,%s,%s)
+                    ON CONFLICT (account_id, telegram_chat_id, message_id) DO NOTHING
+                    """,
+                    (filename, size, mime_type, chat_id, message_id,
+                     upload_time, account_id),
+                )
             conn.commit()
-        finally:
-            conn.close()
 
     def mark_checking(self, account_id, chat_id):
-        conn = get_connection()
-        try:
-            cursor = conn.cursor()
-            cursor.execute(
-                """
-                UPDATE files
-                SET scan_status='checking', is_available=0
-                WHERE account_id=? AND telegram_chat_id=?
-                """,
-                (account_id, chat_id),
-            )
+        with get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    UPDATE files
+                    SET scan_status='checking', is_available=FALSE
+                    WHERE account_id=%s AND telegram_chat_id=%s
+                    """,
+                    (account_id, chat_id),
+                )
             conn.commit()
-        finally:
-            conn.close()
 
     def mark_unverified_deleted(self, account_id, chat_id):
-        conn = get_connection()
-        try:
-            cursor = conn.cursor()
-            cursor.execute(
-                """
-                UPDATE files
-                SET status='deleted', is_available=0
-                WHERE account_id=? AND telegram_chat_id=?
-                  AND scan_status='checking'
-                """,
-                (account_id, chat_id),
-            )
+        with get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    UPDATE files
+                    SET status='deleted', is_available=FALSE
+                    WHERE account_id=%s AND telegram_chat_id=%s
+                      AND scan_status='checking'
+                    """,
+                    (account_id, chat_id),
+                )
             conn.commit()
-        finally:
-            conn.close()
