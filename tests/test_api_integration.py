@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 
 from auth.security import hash_password
 from core.app import create_app
+from core.lifecycle import ApplicationLifecycle
 
 
 class FakeUsers:
@@ -96,9 +97,13 @@ def make_client(monkeypatch):
     monkeypatch.setattr("auth.dependencies.user_repository", users)
     monkeypatch.setattr("admin.api.category_repository", categories)
     monkeypatch.setattr("files.api.file_repository", files)
+
     app = create_app()
-    app.state.lifecycle.startup = _noop_startup
-    app.state.lifecycle.shutdown = _noop_shutdown
+    lifecycle = ApplicationLifecycle()
+    lifecycle.startup = _noop_startup
+    lifecycle.shutdown = _noop_shutdown
+    app.state.lifecycle = lifecycle
+
     return TestClient(app), files
 
 
