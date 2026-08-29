@@ -1,337 +1,193 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
-
 <head>
 <meta charset="UTF-8">
-
 <title>Telegram Drive</title>
-
 <style>
-
-body {
-    font-family: Arial, sans-serif;
-    margin: 30px;
-}
-
-input {
-    width: 300px;
-    padding: 8px;
-}
-
-button {
-    padding: 6px 12px;
-    margin: 5px;
-    cursor: pointer;
-}
-
-.card {
-    border: 1px solid #ddd;
-    padding: 15px;
-    margin: 15px 0;
-    border-radius: 8px;
-}
-
-.name {
-    font-weight: bold;
-    margin-bottom: 8px;
-}
-
-.info {
-    color: #666;
-    margin-bottom: 10px;
-}
-
-video {
-    margin-top: 10px;
-    max-width: 800px;
-}
-
-.video-box {
-    margin-top: 10px;
-}
-
+body { font-family: Arial, sans-serif; margin: 30px; }
+input { width: 300px; padding: 8px; }
+button { padding: 6px 12px; margin: 5px; cursor: pointer; }
+.card { border: 1px solid #ddd; padding: 15px; margin: 15px 0; border-radius: 8px; }
+.name { font-weight: bold; margin-bottom: 8px; }
+.info { color: #666; margin-bottom: 10px; }
+video { margin-top: 10px; max-width: 800px; }
+.video-box { margin-top: 10px; }
+.hidden { display: none; }
 </style>
-
 </head>
-
-
 <body>
+<h2>Telegram Drive</h2>
 
+<section id="login-panel">
+  <h3>登录</h3>
+  <input id="username" placeholder="用户名" autocomplete="username">
+  <input id="password" type="password" placeholder="密码" autocomplete="current-password">
+  <button onclick="login()">登录</button>
+  <div id="login-error"></div>
+</section>
 
-<h2>
-Telegram Drive
-</h2>
-
-
-<input
-id="search"
-placeholder="搜索文件"
-/>
-
-
-<button onclick="searchFiles()">
-搜索
-</button>
-
-
-<button onclick="loadFiles()">
-刷新
-</button>
-
-
-<div id="files"></div>
-
-
+<section id="app-panel" class="hidden">
+  <div>
+    <span id="identity"></span>
+    <button onclick="logout()">退出</button>
+  </div>
+  <input id="search" placeholder="搜索文件">
+  <button onclick="searchFiles()">搜索</button>
+  <button onclick="loadFiles()">刷新</button>
+  <div id="admin-panel" class="hidden">
+    <h3>分类管理</h3>
+    <input id="category-name" placeholder="新分类名称">
+    <button onclick="createCategory()">创建分类</button>
+    <div id="categories"></div>
+  </div>
+  <div id="files"></div>
+</section>
 
 <script>
-
-
-async function loadFiles(){
-
-
-    let res =
-        await fetch(
-            "/files?page=1&size=50"
-        );
-
-
-    let data =
-        await res.json();
-
-
-    renderFiles(
-        data.data?.items || []
-    );
-
+async function request(url, options = {}) {
+  const res = await fetch(url, options);
+  if (res.status === 401) {
+    showLogin();
+    throw new Error("authentication required");
+  }
+  return res;
 }
 
+async function login() {
+  const response = await fetch("/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      username: document.getElementById("username").value,
+      password: document.getElementById("password").value
+    })
+  });
+  if (!response.ok) {
+    document.getElementById("login-error").textContent = "用户名或密码错误";
+    return;
+  }
+  document.getElementById("login-error").textContent = "";
+  await loadIdentity();
+}
 
+async function loadIdentity() {
+  const response = await fetch("/auth/me");
+  if (!response.ok) { showLogin(); return; }
+  const user = await response.json();
+  document.getElementById("identity").textContent = `${user.username} (${user.role})`;
+  document.getElementById("login-panel").classList.add("hidden");
+  document.getElementById("app-panel").classList.remove("hidden");
+  if (user.role === "admin") {
+    document.getElementById("admin-panel").classList.remove("hidden");
+    loadCategories();
+  }
+  loadFiles();
+}
 
-async function searchFiles(){
+async function logout() {
+  await fetch("/auth/logout", { method: "POST" });
+  showLogin();
+}
 
+function showLogin() {
+  document.getElementById("login-panel").classList.remove("hidden");
+  document.getElementById("app-panel").classList.add("hidden");
+}
 
-    let q =
-        document.getElementById(
-            "search"
-        ).value.trim();
+async function loadFiles() {
+  const res = await request("/files?page=1&size=50");
+  const data = await res.json();
+  renderFiles(data.data?.items || []);
+}
 
+async function searchFiles() {
+  const q = document.getElementById("search").value.trim();
+  if (!q) return loadFiles();
+  const res = await request("/files/search?q=" + encodeURIComponent(q));
+  const data = await res.json();
+  renderFiles(data.data?.items || data);
+}
 
-    if(!q){
-
-        loadFiles();
-
-        return;
-
+function renderFiles(files) {
+  const box = document.getElementById("files");
+  box.replaceChildren();
+  for (const f of files) {
+    const card = document.createElement("div");
+    card.className = "card";
+    const name = document.createElement("div");
+    name.className = "name";
+    name.textContent = f.filename;
+    const info = document.createElement("div");
+    info.className = "info";
+    info.textContent = `${(f.size / 1024 / 1024).toFixed(2)} MB | ${f.mime_type || "unknown"}`;
+    const link = document.createElement("a");
+    link.href = `/files/${f.id}/download`;
+    const download = document.createElement("button");
+    download.textContent = "下载";
+    link.appendChild(download);
+    card.append(name, info, link);
+    if (f.mime_type && f.mime_type.startsWith("video")) {
+      const play = document.createElement("button");
+      play.textContent = "播放";
+      const videoBox = document.createElement("div");
+      videoBox.className = "video-box";
+      play.onclick = () => playVideo(videoBox, f.id, f.mime_type);
+      card.append(play, videoBox);
     }
-
-
-    let res =
-        await fetch(
-            "/files/search?q="
-            +
-            encodeURIComponent(q)
-        );
-
-
-    let data =
-        await res.json();
-
-
-    renderFiles(
-        data.data?.items || data
-    );
-
+    box.appendChild(card);
+  }
 }
 
-
-
-function renderFiles(files){
-
-
-    let box =
-        document.getElementById(
-            "files"
-        );
-
-
-    box.innerHTML = "";
-
-
-    for(
-        let f of files
-    ){
-
-
-        let size =
-            (
-                f.size
-                /
-                1024
-                /
-                1024
-            )
-            .toFixed(2)
-            +
-            " MB";
-
-
-
-        let card =
-        document.createElement(
-            "div"
-        );
-
-
-        card.className =
-            "card";
-
-
-
-        let html = `
-
-
-<div class="name">
-${f.filename}
-</div>
-
-
-<div class="info">
-${size}
-|
-${f.mime_type}
-</div>
-
-
-<a href="/files/${f.id}/download">
-
-<button>
-下载
-</button>
-
-</a>
-
-
-`;
-
-
-
-        if(
-            f.mime_type &&
-            f.mime_type.startsWith(
-                "video"
-            )
-        ){
-
-            html += `
-
-<button
-onclick="playVideo(this, ${f.id}, '${f.mime_type}')">
-
-播放
-
-</button>
-
-
-<div class="video-box"></div>
-
-`;
-
-        }
-
-
-
-        card.innerHTML =
-            html;
-
-
-        box.appendChild(
-            card
-        );
-
-
-    }
-
-
+function playVideo(box, id, mime) {
+  if (box.querySelector("video")) return;
+  const video = document.createElement("video");
+  video.controls = true;
+  video.playsInline = true;
+  video.preload = "metadata";
+  video.src = `/files/${id}/stream`;
+  video.type = mime;
+  box.appendChild(video);
+  video.play().catch(() => {});
 }
 
-
-
-
-function playVideo(
-    btn,
-    id,
-    mime
-){
-
-
-    let box =
-        btn.parentElement.querySelector(
-            ".video-box"
-        );
-
-
-    if(
-        box.querySelector("video")
-    ){
-
-        return;
-
-    }
-
-
-
-    let video =
-        document.createElement(
-            "video"
-        );
-
-
-    video.controls =
-        true;
-
-
-    video.playsInline =
-        true;
-
-
-    video.preload =
-        "metadata";
-
-
-    video.src =
-        "/files/"
-        +
-        id
-        +
-        "/stream";
-
-
-
-    video.type =
-        mime;
-
-
-    box.appendChild(
-        video
-    );
-
-
-    video.play()
-    .catch(
-        ()=>{}
-    );
-
-
+async function loadCategories() {
+  const res = await request("/api/admin/categories");
+  if (!res.ok) return;
+  const categories = await res.json();
+  const box = document.getElementById("categories");
+  box.replaceChildren();
+  for (const category of categories) {
+    const row = document.createElement("div");
+    const label = document.createElement("span");
+    label.textContent = category.name;
+    const remove = document.createElement("button");
+    remove.textContent = "删除";
+    remove.onclick = () => deleteCategory(category.id);
+    row.append(label, remove);
+    box.appendChild(row);
+  }
 }
 
+async function createCategory() {
+  const name = document.getElementById("category-name").value.trim();
+  if (!name) return;
+  const res = await request("/api/admin/categories", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name })
+  });
+  if (res.ok) {
+    document.getElementById("category-name").value = "";
+    loadCategories();
+  }
+}
 
+async function deleteCategory(id) {
+  const res = await request(`/api/admin/categories/${id}`, { method: "DELETE" });
+  if (res.ok) loadCategories();
+}
 
-loadFiles();
-
-
+loadIdentity();
 </script>
-
-
 </body>
-
 </html>
