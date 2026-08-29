@@ -17,13 +17,13 @@ class IngestionService:
         return full_sync
 
     def ingest(self, observation):
-        # Scanning is metadata-only. A Resource may have an unverified identity
-        # until its full payload is explicitly delivered/verified later.
+        # Scanning is metadata-only. Content verification is performed only
+        # when a caller explicitly supplies a complete byte stream.
         resource_id = self.resource_repository.get_or_create(
             **observation.resource_metadata,
             content_hash=None,
         )
-        self.file_repository.upsert_verified_message(
+        self.file_repository.upsert_indexed_message(
             **observation.file_metadata,
             resource_id=resource_id,
             content_hash=None,
