@@ -16,7 +16,7 @@ FastAPI
   |
   +-- Telegram client manager ----> Telethon sessions
   |                                  |
-  |                                  +--> ProxyManager -> proxy plugins
+  |                                  +--> PluginRuntime -> optional capabilities
   |
   +-- Video stream service --------> chunk cache -> TelegramDownloader
 
@@ -33,10 +33,33 @@ Telegram private source
 - `app/files/`: file listing, search, download and streaming HTTP APIs.
 - `app/repositories/`: PostgreSQL persistence for files, accounts and sources.
 - `app/telegram/`: Telethon client management, scanning and file downloading.
-- `app/plugins/proxy/`: proxy plugin interface and entry-point based manager.
-- `plugins/`: separately packaged plugins, currently including SOCKS5 proxy support.
+- `app/plugins/`: generic plugin contract and entry-point based runtime.
+- `plugins/`: separately packaged optional plugins, currently including the proxy capability plugin.
 - PostgreSQL: accounts, Telegram sources, file metadata, categories and share records.
 - `app/web/`: browser UI.
+
+## Plugin architecture
+
+The Core exposes one generic plugin API. Plugins advertise capabilities and are discovered through the `tgdrive.plugins` Python entry-point group.
+
+```text
+app/plugins/
+  interface.py      generic Plugin contract
+  runtime.py        discovery + capability lookup
+
+plugins/
+  proxy/            optional network proxy capability
+    tgdrive_proxy.py
+    sing-box/       optional proxy runtime implementation
+```
+
+The Core does not import a concrete plugin package. If the proxy plugin is not installed, Telegram clients use a direct connection. If it is installed and enabled, the Telegram client boundary asks the generic `PluginRuntime` for the `telegram.proxy` capability.
+
+### Proxy capability
+
+The proxy plugin is deliberately not named after a protocol. It may implement SOCKS5, HTTP and future proxy protocols internally. Its current Telethon adapter supports SOCKS5/SOCKS5H and HTTP endpoints; sing-box can provide a local SOCKS5 endpoint backed by VLESS, or another supported upstream in the future.
+
+Server geography is deployment configuration, not application logic. Core behavior is identical across regions.
 
 ## Implemented capabilities
 
@@ -56,12 +79,6 @@ Telegram private source
 - File download through Telegram rather than duplicating the whole file locally.
 - HTTP Range support for downloads/streaming.
 - Video streaming with chunking, cache and prefetch support.
-
-### Telegram proxy plugins
-
-The core defines `ProxyPlugin.get_proxy()`. `ProxyManager` discovers installed packages through the `tgdrive.proxy` Python entry-point group. The current SOCKS5 plugin is an independent package under `plugins/tgdrive-proxy-socks5`.
-
-This is plugin-based discovery at process startup. It is **not yet true runtime hot-plugging**: already-created Telegram clients do not automatically change proxy when a plugin/config changes.
 
 ### Categories
 
@@ -92,33 +109,48 @@ The intended architecture is a small core plus replaceable capability plugins:
                            |
                   Telegram Client Manager
                            |
-                     Proxy Manager
+                     Generic PluginRuntime
                            |
-              +------------+------------+
-              |            |            |
-            direct       SOCKS5      future proxy
+                 +---------+----------+
+                 |                    |
+          telegram.proxy         future capabilities
+                 |
+            proxy plugin
+             /       \
+         SOCKS5      HTTP / future
 ```
 
 ### Design rules
 
 1. **Telegram is a content backend, not the web authentication system.** Web authentication and authorization must be explicit.
-2. **Core code must depend on plugin interfaces, not concrete proxy/media implementations.**
-3. **Proxy selection should eventually be scoped to a Telegram account/deployment, not only global environment variables.**
+2. **Core code must depend on generic plugin interfaces, not concrete proxy/media implementations.**
+3. **Proxy selection is deployment configuration and may later be scoped to a Telegram account without changing the plugin framework.**
 4. **Media handling should use a common plugin interface so video, images, audio and future handlers can be installed independently.**
 5. **PostgreSQL remains the source of truth for indexed metadata and classification.**
 6. **The web layer should not expose Telegram session credentials.**
 
-## Planned plugin model
+## Plugin model
 
-### ProxyPlugin
+### Generic Plugin
 
 ```text
-ProxyPlugin
+Plugin
   name
-  get_proxy()
+  version
+  capabilities
 ```
 
-Future implementations can be distributed independently and registered through `tgdrive.proxy`.
+Plugins are distributed under `plugins/` and registered through `tgdrive.plugins`.
+
+### Proxy capability
+
+```text
+proxy plugin
+  capabilities: telegram.proxy
+  get_proxy(account_name)
+```
+
+The proxy plugin can select its concrete transport internally without requiring changes to Core.
 
 ### MediaPlugin (target)
 
@@ -146,7 +178,7 @@ Stage 1 is focused on security and domain boundaries before adding more media fe
 
 - No complete web authentication/authorization layer currently protects the HTTP API.
 - Category database schema exists, but admin category management is incomplete.
-- Proxy plugins are discovered at startup rather than hot-loaded at runtime.
+- Plugins are discovered at startup rather than hot-loaded at runtime.
 - Proxy configuration is currently process-wide rather than per Telegram account.
 - Video streaming is implemented as a service directly used by the file API rather than a generic media plugin.
 - Image online viewing and a generic media plugin manager are not implemented.
