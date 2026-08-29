@@ -2,7 +2,7 @@ import os
 
 from telethon import TelegramClient
 
-from config import settings
+from config import settings, validate_telegram_credentials
 from plugins.proxy.runtime import ProxyRuntime
 from repositories.accounts import AccountRepository
 
@@ -30,6 +30,7 @@ def get_clients():
     if clients:
         return clients
 
+    validate_telegram_credentials()
     sync_sessions()
     session_dir = settings.TG_SESSION_DIR
     if not os.path.exists(session_dir):
