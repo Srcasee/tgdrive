@@ -34,5 +34,5 @@ jobs:
           python-version: '3.12'
       - name: Install dependencies
         run: pip install -r requirements.txt
-      - name: Run PostgreSQL consistency and migration tests
+      - name: Run PostgreSQL consistency tests
         run: pytest -q tests/test_postgres_integration.py
