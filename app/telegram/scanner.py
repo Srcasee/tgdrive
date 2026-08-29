@@ -2,12 +2,14 @@ import asyncio
 import os
 
 from repositories.files import FileRepository
+from repositories.resources import ResourceRepository
 from repositories.sources import SourceRepository
 
 
 SCAN_INTERVAL = int(os.getenv("SCAN_INTERVAL", "300"))
 
 file_repository = FileRepository()
+resource_repository = ResourceRepository()
 source_repository = SourceRepository()
 
 
@@ -48,6 +50,12 @@ async def _scan_dialogs(client, account_id):
                 filename = message.file.name or f"{message.id}.bin"
                 print("[SCAN] file:", message.id, filename, flush=True)
 
+                resource_id = resource_repository.get_or_create(
+                    filename=filename,
+                    size=message.file.size,
+                    mime_type=message.file.mime_type,
+                )
+
                 file_repository.upsert_verified_message(
                     filename=filename,
                     size=message.file.size,
@@ -56,6 +64,7 @@ async def _scan_dialogs(client, account_id):
                     message_id=message.id,
                     upload_time=int(message.date.timestamp()),
                     account_id=account_id,
+                    resource_id=resource_id,
                 )
                 count += 1
 
