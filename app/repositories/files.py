@@ -55,7 +55,7 @@ class FileRepository:
                 cursor.execute(
                     """
                     SELECT telegram_chat_id, message_id, filename,
-                           mime_type, size, account_id
+                           mime_type, size, account_id, is_available
                     FROM files WHERE id=%s
                     """,
                     (file_id,),
@@ -66,7 +66,7 @@ class FileRepository:
         with connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
-                    "SELECT size, mime_type FROM files WHERE id=%s",
+                    "SELECT size, mime_type, is_available FROM files WHERE id=%s",
                     (file_id,),
                 )
                 return cursor.fetchone()
@@ -91,34 +91,6 @@ class FileRepository:
                         status='active',
                         scan_status='verified',
                         is_available=TRUE
-                    """,
-                    (filename, size, mime_type, chat_id, message_id,
-                     upload_time, account_id),
-                )
-
-    def mark_verified(self, account_id, chat_id, message_id):
-        with transaction() as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(
-                    """
-                    UPDATE files
-                    SET status='active', scan_status='verified', is_available=TRUE
-                    WHERE account_id=%s AND telegram_chat_id=%s AND message_id=%s
-                    """,
-                    (account_id, chat_id, message_id),
-                )
-
-    def upsert_message(self, *, filename, size, mime_type, chat_id,
-                       message_id, upload_time, account_id):
-        with transaction() as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(
-                    """
-                    INSERT INTO files
-                    (filename, size, mime_type, telegram_chat_id, message_id,
-                     upload_time, account_id)
-                    VALUES(%s,%s,%s,%s,%s,%s,%s)
-                    ON CONFLICT (account_id, telegram_chat_id, message_id) DO NOTHING
                     """,
                     (filename, size, mime_type, chat_id, message_id,
                      upload_time, account_id),
