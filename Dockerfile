@@ -1,46 +1,15 @@
-# ============================================================
-# Telegram Drive 单容器镜像
-# 包含：
-# FastAPI
-# Telethon
-# SQLite
-# ============================================================
-
-
 FROM python:3.12-slim
-
-
-
-# 工作目录
 
 WORKDIR /app
 
-
-
-# ============================================================
-# 安装Python依赖
-# ============================================================
-
 COPY requirements.txt .
-
-
+COPY plugins/tgdrive-proxy-socks5 /opt/tgdrive-proxy-socks5
 
 RUN pip install \
     -i https://pypi.tuna.tsinghua.edu.cn/simple \
-    -r requirements.txt
-
-
-
-# ============================================================
-# 复制应用代码
-# ============================================================
+    -r requirements.txt \
+    /opt/tgdrive-proxy-socks5
 
 COPY app /app
 
-
-
-# ============================================================
-# 启动FastAPI
-# ============================================================
-
-CMD ["uvicorn","main:app","--host","0.0.0.0","--port","8000"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
