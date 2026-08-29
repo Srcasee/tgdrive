@@ -1,101 +1,66 @@
 services:
-
-
-  telegram-drive:
-
-    container_name: telegram-drive
-    
-    build:
-
-      context: .
-
-      dockerfile: Dockerfile
-
-
+  postgres:
+    image: postgres:16-alpine
+    container_name: telegram-drive-postgres
     restart: unless-stopped
-
-
-    working_dir: /app
-
-
+    environment:
+      POSTGRES_DB: tgdrive
+      POSTGRES_USER: tgdrive
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tgdrive}
     volumes:
-
-      - ./app:/app
-
-      - ./data:/data
-
-
-    env_file:
-
-      - .env
-
-
-    ports:
-
-      - "8080:8000"
-
-
+      - ./data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tgdrive -d tgdrive"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     networks:
-
       - telegram-net
 
-   
+  telegram-drive:
+    container_name: telegram-drive
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    working_dir: /app
+    volumes:
+      - ./app:/app
+      - ./data:/data
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://tgdrive:tgdrive@postgres:5432/tgdrive}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8080:8000"
+    networks:
+      - telegram-net
     logging:
       driver: json-file
       options:
         max-size: "10m"
         max-file: "3"
 
-
-
   proxy:
-
-
     image: ghcr.io/sagernet/sing-box:latest
-
-
     container_name: telegram-drive-proxy
-
-
     restart: unless-stopped
-
-
     profiles:
-
       - proxy
-
-
     volumes:
-
       - ./sing-box/config.json:/etc/sing-box/config.json:ro
-
-
     command:
-
       - run
       - -c
       - /etc/sing-box/config.json
-
-
     networks:
-
-
       telegram-net:
-
-
         aliases:
-
-
           - proxy
 
-
-
-
-
 networks:
-
-
   telegram-net:
-
-
     driver: bridge
