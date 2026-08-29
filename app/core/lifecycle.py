@@ -1,6 +1,6 @@
 import asyncio
 
-from database import init_database
+from database_pool import close_pool, open_pool, initialize
 from repositories.accounts import AccountRepository
 from telegram.client import get_clients
 from telegram.scanner import scanner_loop
@@ -12,9 +12,11 @@ class ApplicationLifecycle:
         self.account_repository = AccountRepository()
 
     async def startup(self):
-        init_database()
+        open_pool()
+        initialize()
         clients = get_clients()
         if not clients:
+            close_pool()
             raise RuntimeError("No Telegram sessions found")
 
         for name, client in clients.items():
@@ -67,3 +69,4 @@ class ApplicationLifecycle:
             if client.is_connected():
                 await client.disconnect()
                 print(f"[TG] disconnected: {name}", flush=True)
+        close_pool()
