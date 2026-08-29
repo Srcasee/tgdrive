@@ -1,3 +1,4 @@
+import asyncio
 import importlib
 
 
@@ -36,3 +37,28 @@ def test_core_app_imports_without_telegram_credentials(monkeypatch):
 
     app = create_app()
     assert app.title == "tgdrive"
+
+
+def test_core_startup_skips_telegram_when_not_configured(monkeypatch):
+    monkeypatch.setenv("TG_API_ID", "")
+    monkeypatch.setenv("TG_API_HASH", "")
+    monkeypatch.setenv("AUTH_SECRET", "test-secret")
+
+    import config
+    import core.lifecycle as lifecycle_module
+
+    importlib.reload(config)
+    lifecycle = lifecycle_module.ApplicationLifecycle()
+    events = []
+    monkeypatch.setattr(lifecycle_module, "open_pool", lambda: events.append("open"))
+    monkeypatch.setattr(lifecycle_module, "initialize", lambda: events.append("init"))
+    monkeypatch.setattr(lifecycle, "_bootstrap_admin", lambda: events.append("admin"))
+    monkeypatch.setattr(lifecycle_module, "close_pool", lambda: events.append("close"))
+
+    asyncio.run(lifecycle.startup())
+
+    assert events == ["open", "init", "admin"]
+    assert lifecycle.telegram_enabled is False
+
+    asyncio.run(lifecycle.shutdown())
+    assert events[-1] == "close"
