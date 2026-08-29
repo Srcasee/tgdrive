@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tgdrive-proxy-socks5"
+version = "0.1.0"
+description = "SOCKS5 proxy plugin for tgdrive"
+requires-python = ">=3.10"
+
+[project.entry-points."tgdrive.proxy"]
+socks5 = "tgdrive_proxy_socks5:Socks5Proxy"
+
+[tool.setuptools]
+py-modules = ["tgdrive_proxy_socks5"]
