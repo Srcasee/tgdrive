@@ -6,16 +6,32 @@ from pathlib import Path
 
 class ProxyPlugin:
     name = "proxy"
-    version = "0.5.0"
+    version = "0.6.0"
     capabilities = frozenset({"telegram.proxy"})
 
+    @staticmethod
+    def _enabled():
+        return os.getenv("TG_PROXY_ENABLED", "false").strip().lower() == "true"
+
     def get_proxy(self, account_name=None):
-        if os.getenv("TG_PROXY_ENABLED", "false").lower() != "true":
+        if not self._enabled():
             return None
+        proxy_type = os.getenv("TG_PROXY_TYPE", "socks5").strip().lower()
+        if proxy_type not in {"socks5", "http"}:
+            raise RuntimeError("TG_PROXY_TYPE must be socks5 or http")
+        host = os.getenv("TG_PROXY_HOST", "proxy").strip()
+        if not host:
+            raise RuntimeError("TG_PROXY_HOST is required when proxy is enabled")
+        try:
+            port = int(os.getenv("TG_PROXY_PORT", "1080"))
+        except ValueError as exc:
+            raise RuntimeError("TG_PROXY_PORT must be an integer") from exc
+        if not 1 <= port <= 65535:
+            raise RuntimeError("TG_PROXY_PORT must be between 1 and 65535")
         return {
-            "type": os.getenv("TG_PROXY_TYPE", "socks5").lower(),
-            "host": os.getenv("TG_PROXY_HOST", "proxy"),
-            "port": int(os.getenv("TG_PROXY_PORT", "1080")),
+            "type": proxy_type,
+            "host": host,
+            "port": port,
             "username": os.getenv("TG_PROXY_USERNAME") or None,
             "password": os.getenv("TG_PROXY_PASSWORD") or None,
         }
@@ -28,7 +44,7 @@ def _upstream():
         missing = [name for name in required if not os.getenv(name)]
         if missing:
             raise RuntimeError("Missing VLESS settings: " + ", ".join(missing))
-        outbound = {
+        return {
             "type": "vless", "tag": "proxy-out",
             "server": os.environ["TG_PROXY_VLESS_SERVER"],
             "server_port": int(os.getenv("TG_PROXY_VLESS_PORT", "443")),
@@ -36,10 +52,6 @@ def _upstream():
             "tls": {"enabled": True, "server_name": os.environ["TG_PROXY_VLESS_SERVER_NAME"]},
             "transport": {"type": "ws", "path": os.getenv("TG_PROXY_VLESS_WS_PATH", "/")},
         }
-        host = os.getenv("TG_PROXY_VLESS_WS_HOST")
-        if host:
-            outbound["transport"]["headers"] = {"Host": host}
-        return outbound
     if kind in {"socks", "socks5", "http"}:
         host, port = os.getenv("TG_PROXY_UPSTREAM_HOST"), os.getenv("TG_PROXY_UPSTREAM_PORT")
         if not host or not port:
@@ -50,10 +62,15 @@ def _upstream():
 
 def generate_config(path):
     local_type = os.getenv("TG_PROXY_TYPE", "socks5").lower()
+    if local_type not in {"socks5", "http"}:
+        raise RuntimeError("TG_PROXY_TYPE must be socks5 or http")
+    port = int(os.getenv("TG_PROXY_PORT", "1080"))
+    if not 1 <= port <= 65535:
+        raise RuntimeError("TG_PROXY_PORT must be between 1 and 65535")
     inbound_type = "http" if local_type == "http" else "socks"
     config = {
-        "log": {"level": "info"},
-        "inbounds": [{"type": inbound_type, "tag": "proxy-in", "listen": "0.0.0.0", "listen_port": int(os.getenv("TG_PROXY_PORT", "1080"))}],
+        "log": {"level": os.getenv("TG_PROXY_LOG_LEVEL", "info")},
+        "inbounds": [{"type": inbound_type, "tag": "proxy-in", "listen": "0.0.0.0", "listen_port": port}],
         "outbounds": [_upstream()],
     }
     Path(path).write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
