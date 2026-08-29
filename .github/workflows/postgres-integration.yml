@@ -26,6 +26,9 @@ jobs:
     env:
       DATABASE_URL: postgresql://tgdrive:tgdrive@localhost:5432/tgdrive_test
       PYTHONPATH: .:app
+      AUTH_SECRET: ci-test-secret
+      AUTH_COOKIE_SECURE: "false"
+      AUTH_TOKEN_TTL: "3600"
 
     steps:
       - uses: actions/checkout@v4
@@ -34,5 +37,5 @@ jobs:
           python-version: '3.12'
       - name: Install dependencies
         run: pip install -r requirements.txt
-      - name: Run PostgreSQL consistency tests
-        run: pytest -q tests/test_postgres_integration.py
+      - name: Run full test suite
+        run: pytest -q
