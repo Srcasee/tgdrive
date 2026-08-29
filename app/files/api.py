@@ -8,14 +8,14 @@ from auth.dependencies import require_user
 from auth.models import Principal
 from common.response import api_error, api_success
 from files.range import InvalidRange, parse_single_range
+from files.source_selector import TelegramSourceSelector
 from files.stream_service import VideoStreamService
 from repositories.files import FileRepository
-from telegram.client import get_client
-from telegram.downloader import TelegramDownloader
 
 
 router = APIRouter(prefix="/files", tags=["files"])
 file_repository = FileRepository()
+source_selector = TelegramSourceSelector(file_repository)
 
 
 @router.get("")
@@ -48,15 +48,11 @@ async def download_file(file_id: int, range_header: str | None = Header(default=
     if parsed is None:
         return Response(status_code=416, headers={"Content-Range": f"bytes */{row['size']}"})
     start, end, partial = parsed
-
-    tg_client = get_client(row["account_id"])
-    downloader = TelegramDownloader(tg_client)
-    file_info = await downloader.get_file_info(row["telegram_chat_id"], row["message_id"])
     content_length = end - start + 1
 
     async def stream():
         downloaded = 0
-        async for chunk in downloader.stream(file_info, offset=start):
+        async for chunk in source_selector.stream_resource(row["resource_id"], offset=start):
             remaining = content_length - downloaded
             if remaining <= 0:
                 break
@@ -96,12 +92,8 @@ async def stream_file(file_id: int, range_header: str | None = Header(None, alia
     if parsed is None:
         return Response(status_code=416, headers={"Content-Range": f"bytes */{row['size']}"})
     start, end, partial = parsed
-
-    tg_client = get_client(row["account_id"])
-    downloader = TelegramDownloader(tg_client)
-    file_info = await downloader.get_file_info(row["telegram_chat_id"], row["message_id"])
     length = end - start + 1
-    stream_service = VideoStreamService(downloader)
+    stream_service = VideoStreamService(source_selector)
     chunk_size = 4 * 1024 * 1024
 
     async def generator():
@@ -109,7 +101,7 @@ async def stream_file(file_id: int, range_header: str | None = Header(None, alia
         last_chunk = end // chunk_size
         try:
             for index in range(first_chunk, last_chunk + 1):
-                data = await stream_service.get_chunk(file_id, file_info, index)
+                data = await stream_service.get_chunk(row["resource_id"], None, index)
                 if not data:
                     break
                 chunk_start = index * chunk_size
