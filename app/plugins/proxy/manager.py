@@ -11,19 +11,17 @@ class ProxyManager:
     def _load_plugins(self):
         for entry_point in entry_points(group=self.GROUP):
             try:
-                provider = entry_point.load()
-                self.providers[entry_point.name] = provider
+                self.providers[entry_point.name] = entry_point.load()
             except Exception as exc:
                 print(
                     f"[PLUGIN] failed to load proxy {entry_point.name}: {exc!r}",
                     flush=True,
                 )
 
-        # Keep the original built-ins available during the migration.
+        # Direct connection remains a core-safe fallback. All actual proxy
+        # implementations are external distributions discovered by entry point.
         from .providers.none import NoneProxy
-        from .providers.socks5 import Socks5Proxy
         self.providers.setdefault("none", NoneProxy)
-        self.providers.setdefault("socks5", Socks5Proxy)
 
     def get_plugin(self, name):
         provider = self.providers.get(name)
@@ -37,7 +35,7 @@ class ProxyManager:
         if os.getenv("ENABLE_PROXY", "false").lower() != "true":
             return None
 
-        name = os.getenv("PROXY_PLUGIN", os.getenv("PROXY_TYPE", "socks5"))
+        name = os.getenv("PROXY_PLUGIN", "socks5")
         return self.get_plugin(name).get_proxy()
 
     def list_plugins(self):
