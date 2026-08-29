@@ -1,6 +1,6 @@
 import pytest
 
-from files.range import InvalidRange, parse_single_range
+from delivery.range import InvalidRange, parse_single_range
 
 
 def test_full_resource_without_range():
