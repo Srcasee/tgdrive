@@ -71,6 +71,31 @@ class FileRepository:
                 )
                 return cursor.fetchone()
 
+    def upsert_verified_message(self, *, filename, size, mime_type, chat_id,
+                                message_id, upload_time, account_id):
+        """Atomically index a Telegram message and mark it verified."""
+        with transaction() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO files
+                    (filename, size, mime_type, telegram_chat_id, message_id,
+                     upload_time, account_id, status, scan_status, is_available)
+                    VALUES(%s,%s,%s,%s,%s,%s,%s,'active','verified',TRUE)
+                    ON CONFLICT (account_id, telegram_chat_id, message_id)
+                    DO UPDATE SET
+                        filename=EXCLUDED.filename,
+                        size=EXCLUDED.size,
+                        mime_type=EXCLUDED.mime_type,
+                        upload_time=EXCLUDED.upload_time,
+                        status='active',
+                        scan_status='verified',
+                        is_available=TRUE
+                    """,
+                    (filename, size, mime_type, chat_id, message_id,
+                     upload_time, account_id),
+                )
+
     def mark_verified(self, account_id, chat_id, message_id):
         with transaction() as conn:
             with conn.cursor() as cursor:
