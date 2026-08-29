@@ -1,12 +1,10 @@
 import asyncio
-import os
 
 from repositories.files import FileRepository
 from repositories.sources import SourceRepository
 
 
-TG_STORAGE_CHAT_ID = int(os.getenv("TG_STORAGE_CHAT_ID", "0"))
-SCAN_INTERVAL = int(os.getenv("SCAN_INTERVAL", "300"))
+SCAN_INTERVAL = 300
 
 file_repository = FileRepository()
 source_repository = SourceRepository()
@@ -48,9 +46,6 @@ async def _scan_dialogs(client, account_id):
             filename = message.file.name or f"{message.id}.bin"
             print("[SCAN] file:", message.id, filename, flush=True)
 
-            # One DB transaction per indexed message instead of two independent
-            # transactions. This also fixes the old ordering bug where a newly
-            # inserted file could miss the preceding mark_verified UPDATE.
             file_repository.upsert_verified_message(
                 filename=filename,
                 size=message.file.size,
