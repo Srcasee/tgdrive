@@ -1,38 +1,63 @@
 import asyncio
 
+from database import init_database
+from repositories.accounts import AccountRepository
 from telegram.client import get_clients
+from telegram.scanner import scanner_loop
 
 
 class ApplicationLifecycle:
-    """
-    FastAPI application lifecycle manager.
-
-    Keeps startup/shutdown orchestration outside main.py.
-    """
-
     def __init__(self):
         self.scanner_task = None
+        self.account_repository = AccountRepository()
 
     async def startup(self):
+        init_database()
         clients = get_clients()
-
         if not clients:
             raise RuntimeError("No Telegram sessions found")
 
         for name, client in clients.items():
+            print(f"[TG] connecting: {name}", flush=True)
             await client.connect()
-
             if not await client.is_user_authorized():
+                print(f"[TG] session not authorized: {name}", flush=True)
                 await client.disconnect()
                 continue
-
             me = await client.get_me()
-            print(f"[TG] authorized: {name} / {me.username or me.id}", flush=True)
+            print(
+                f"[TG] authorized: {name} / {me.username or me.first_name or me.id}",
+                flush=True,
+            )
+
+        self.scanner_task = asyncio.create_task(self._run_scanners())
+        print("[SCAN] background scanner started", flush=True)
+
+    async def _run_scanners(self):
+        tasks = []
+        for name, client in get_clients().items():
+            account_id = self.account_repository.get_id_by_session(name)
+            if account_id is None:
+                print(f"[SCAN] account not found: {name}", flush=True)
+                continue
+            if not client.is_connected() or not await client.is_user_authorized():
+                continue
+            tasks.append(asyncio.create_task(self._run_one(account_id, name, client)))
+        if tasks:
+            await asyncio.gather(*tasks)
+
+    async def _run_one(self, account_id, account_name, client):
+        try:
+            print(f"[SCAN] starting: {account_name}", flush=True)
+            await scanner_loop(client, account_id)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            print(f"[SCAN] {account_name} crashed: {exc!r}", flush=True)
 
     async def shutdown(self):
         if self.scanner_task:
             self.scanner_task.cancel()
-
             try:
                 await self.scanner_task
             except asyncio.CancelledError:
