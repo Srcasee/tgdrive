@@ -50,20 +50,6 @@ def get_clients():
     return clients
 
 
-client = None
-
-
-def get_default_client():
-    global client
-    if client:
-        return client
-    all_clients = get_clients()
-    if not all_clients:
-        raise RuntimeError("No telegram session found")
-    client = list(all_clients.values())[0]
-    return client
-
-
 def get_client(account_id: int):
     session_name = account_repository.get_session(account_id)
     if not session_name:
