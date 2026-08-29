@@ -1,11 +1,13 @@
 import asyncio
 import os
 
+from ingestion.identity import hash_telegram_file
 from ingestion.recognizer import TelegramMessageRecognizer
 from ingestion.service import IngestionService
 from repositories.files import FileRepository
 from repositories.resources import ResourceRepository
 from repositories.sources import SourceRepository
+from telegram.downloader import TelegramDownloader
 
 
 SCAN_INTERVAL = int(os.getenv("SCAN_INTERVAL", "300"))
@@ -34,6 +36,7 @@ async def _scan_source(client, account_id, dialog, source):
     last_message_id = source["last_message_id"] or 0
     current_max_message_id = last_message_id
     count = 0
+    downloader = TelegramDownloader(client)
     print("[SCAN] dialog:", dialog.name, "id:", dialog.id, flush=True)
     try:
         message_kwargs = {} if full_sync else {"min_id": last_message_id}
@@ -44,7 +47,14 @@ async def _scan_source(client, account_id, dialog, source):
             if observation is None:
                 continue
             current_max_message_id = max(current_max_message_id, message.id)
-            ingestion_service.ingest(observation)
+
+            existing = file_repository.get_by_telegram_location(account_id, dialog.id, message.id)
+            content_hash = existing["content_hash"] if existing and existing["content_hash"] else None
+            if content_hash is None:
+                file_info = await downloader.get_file_info(dialog.id, message.id)
+                content_hash = await hash_telegram_file(downloader, file_info)
+
+            ingestion_service.ingest(observation, content_hash)
             count += 1
 
         ingestion_service.finish_source_scan(
