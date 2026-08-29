@@ -48,12 +48,10 @@ async def _scan_dialogs(client, account_id):
             filename = message.file.name or f"{message.id}.bin"
             print("[SCAN] file:", message.id, filename, flush=True)
 
-            file_repository.mark_verified(
-                account_id,
-                dialog.id,
-                message.id,
-            )
-            file_repository.upsert_message(
+            # One DB transaction per indexed message instead of two independent
+            # transactions. This also fixes the old ordering bug where a newly
+            # inserted file could miss the preceding mark_verified UPDATE.
+            file_repository.upsert_verified_message(
                 filename=filename,
                 size=message.file.size,
                 mime_type=message.file.mime_type,
