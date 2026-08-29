@@ -23,7 +23,11 @@ async def list_dialogs(account_id: int):
     except Exception as exc:
         raise HTTPException(status_code=404, detail=str(exc))
 
-    await client.connect()
+    connected_here = False
+    if not client.is_connected():
+        await client.connect()
+        connected_here = True
+
     try:
         if not await client.is_user_authorized():
             raise HTTPException(status_code=401, detail="telegram session not authorized")
@@ -32,9 +36,8 @@ async def list_dialogs(account_id: int):
             async for dialog in client.iter_dialogs(limit=200)
         ]
     finally:
-        # Keep the legacy endpoint behavior while the application lifecycle
-        # owns long-lived clients used by the scanner.
-        await client.disconnect()
+        if connected_here:
+            await client.disconnect()
 
 
 class SourceCreate(BaseModel):
