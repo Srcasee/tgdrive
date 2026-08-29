@@ -6,12 +6,8 @@ os.environ["AUTH_COOKIE_SECURE"] = "false"
 
 from fastapi.testclient import TestClient
 
-from auth.api import user_repository
 from auth.security import hash_password
 from core.app import create_app
-from files.api import file_repository
-from admin.api import category_repository
-from telegram import api as telegram_api
 
 
 class FakeUsers:
@@ -63,7 +59,9 @@ class FakeCategories:
 
 class FakeFiles:
     def __init__(self):
-        self.available = {1: {"id": 1, "filename": "video.mp4", "size": 100, "mime_type": "video/mp4", "is_available": True}}
+        self.available = {
+            1: {"id": 1, "filename": "video.mp4", "size": 100, "mime_type": "video/mp4", "is_available": True}
+        }
 
     def list_available(self, limit, offset):
         rows = list(self.available.values())[offset:offset + limit]
@@ -82,6 +80,14 @@ class FakeFiles:
         return self.available.get(file_id)
 
 
+async def _noop_startup():
+    return None
+
+
+async def _noop_shutdown():
+    return None
+
+
 def make_client(monkeypatch):
     users = FakeUsers()
     categories = FakeCategories()
@@ -91,20 +97,19 @@ def make_client(monkeypatch):
     monkeypatch.setattr("admin.api.category_repository", categories)
     monkeypatch.setattr("files.api.file_repository", files)
     app = create_app()
-    app.state.lifecycle.startup = lambda: None
-    app.state.lifecycle.shutdown = lambda: None
-    return TestClient(app)
+    app.state.lifecycle.startup = _noop_startup
+    app.state.lifecycle.shutdown = _noop_shutdown
+    return TestClient(app), files
 
 
 def test_auth_and_authorization(monkeypatch):
-    client = make_client(monkeypatch)
+    client, _ = make_client(monkeypatch)
     assert client.get("/auth/me").status_code == 401
 
     response = client.post("/auth/login", json={"username": "user", "password": "user-pass"})
     assert response.status_code == 200
     assert response.json()["role"] == "user"
     assert client.get("/auth/me").status_code == 200
-
     assert client.get("/api/admin/categories").status_code == 403
 
     response = client.post("/auth/login", json={"username": "admin", "password": "admin-pass"})
@@ -113,7 +118,7 @@ def test_auth_and_authorization(monkeypatch):
 
 
 def test_category_admin_crud(monkeypatch):
-    client = make_client(monkeypatch)
+    client, _ = make_client(monkeypatch)
     client.post("/auth/login", json={"username": "admin", "password": "admin-pass"})
 
     created = client.post("/api/admin/categories", json={"name": "Movies"})
@@ -125,7 +130,7 @@ def test_category_admin_crud(monkeypatch):
 
 
 def test_protected_file_apis(monkeypatch):
-    client = make_client(monkeypatch)
+    client, _ = make_client(monkeypatch)
     assert client.get("/files").status_code == 401
     assert client.get("/files/search?q=video").status_code == 401
     assert client.get("/files/1/download").status_code == 401
@@ -139,9 +144,8 @@ def test_protected_file_apis(monkeypatch):
 
 
 def test_unavailable_file_is_not_downloadable_or_streamable(monkeypatch):
-    client = make_client(monkeypatch)
+    client, files = make_client(monkeypatch)
     client.post("/auth/login", json={"username": "user", "password": "user-pass"})
-    monkeypatch.setattr(file_repository, "get_download_info", lambda _: {"is_available": False, "size": 10})
-    monkeypatch.setattr(file_repository, "get_stream_info", lambda _: {"is_available": False, "size": 10})
+    files.available[1]["is_available"] = False
     assert client.get("/files/1/download").status_code == 404
     assert client.get("/files/1/stream").status_code == 404
