@@ -3,10 +3,12 @@ from pydantic import BaseModel, Field
 
 from auth.dependencies import require_admin
 from auth.models import Principal
+from catalog.repository import CatalogRepository
 from repositories.categories import CategoryRepository
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 category_repository = CategoryRepository()
+catalog_repository = CatalogRepository()
 
 
 class CategoryInput(BaseModel):
@@ -15,6 +17,10 @@ class CategoryInput(BaseModel):
 
 class FileCategoryInput(BaseModel):
     category_id: int | None
+
+
+class ResourceCategoriesInput(BaseModel):
+    category_ids: list[int] = Field(default_factory=list, max_length=100)
 
 
 @router.get("/categories")
@@ -44,6 +50,21 @@ def delete_category(category_id: int, _: Principal = Depends(require_admin)):
     if not deleted:
         raise HTTPException(status_code=404, detail="category not found")
     return {"status": "ok"}
+
+
+@router.put("/resources/{resource_id}/categories")
+def set_resource_categories(
+    resource_id: int,
+    data: ResourceCategoriesInput,
+    _: Principal = Depends(require_admin),
+):
+    try:
+        updated = catalog_repository.set_categories(resource_id, data.category_ids)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    if not updated:
+        raise HTTPException(status_code=404, detail="resource not found")
+    return updated
 
 
 @router.put("/files/{file_id}/category")
