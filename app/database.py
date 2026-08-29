@@ -72,7 +72,7 @@ def init_database():
                         category_id BIGINT REFERENCES categories(id) ON DELETE SET NULL,
                         created_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW())::BIGINT,
                         last_message_id BIGINT NOT NULL DEFAULT 0,
-                        account_id BIGINT REFERENCES accounts(id) ON DELETE CASCADE,
+                        account_id BIGINT REFERENCES accounts(id) ON DELETE SET NULL,
                         status TEXT NOT NULL DEFAULT 'active',
                         is_available BOOLEAN NOT NULL DEFAULT TRUE,
                         scan_status TEXT NOT NULL DEFAULT 'idle'
@@ -112,6 +112,57 @@ def init_database():
                     """
                 )
                 cursor.execute("INSERT INTO schema_migrations(version) VALUES (2)")
+
+            if 3 not in applied:
+                cursor.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS resources (
+                        id BIGSERIAL PRIMARY KEY,
+                        identity_key TEXT UNIQUE NOT NULL,
+                        filename TEXT NOT NULL,
+                        size BIGINT NOT NULL DEFAULT 0,
+                        mime_type TEXT,
+                        status TEXT NOT NULL DEFAULT 'active',
+                        created_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW())::BIGINT,
+                        updated_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW())::BIGINT
+                    );
+
+                    ALTER TABLE files
+                        ADD COLUMN IF NOT EXISTS resource_id BIGINT;
+
+                    INSERT INTO resources(identity_key, filename, size, mime_type)
+                    SELECT md5(lower(trim(filename)) || '|' || size::TEXT || '|' || COALESCE(mime_type, '')),
+                           min(filename), max(size), max(mime_type)
+                    FROM files
+                    GROUP BY md5(lower(trim(filename)) || '|' || size::TEXT || '|' || COALESCE(mime_type, ''))
+                    ON CONFLICT (identity_key) DO NOTHING;
+
+                    UPDATE files f
+                    SET resource_id = r.id
+                    FROM resources r
+                    WHERE r.identity_key = md5(lower(trim(f.filename)) || '|' || f.size::TEXT || '|' || COALESCE(f.mime_type, ''))
+                      AND f.resource_id IS NULL;
+
+                    ALTER TABLE files
+                        DROP CONSTRAINT IF EXISTS files_account_id_fkey;
+                    ALTER TABLE files
+                        ADD CONSTRAINT files_account_id_fkey
+                        FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE SET NULL;
+
+                    ALTER TABLE files
+                        DROP CONSTRAINT IF EXISTS files_resource_id_fkey;
+                    ALTER TABLE files
+                        ADD CONSTRAINT files_resource_id_fkey
+                        FOREIGN KEY (resource_id) REFERENCES resources(id) ON DELETE RESTRICT;
+
+                    ALTER TABLE files
+                        ALTER COLUMN resource_id SET NOT NULL;
+
+                    CREATE INDEX IF NOT EXISTS idx_files_resource ON files(resource_id);
+                    CREATE INDEX IF NOT EXISTS idx_resources_filename ON resources(filename);
+                    """
+                )
+                cursor.execute("INSERT INTO schema_migrations(version) VALUES (3)")
 
             conn.commit()
             print("[DB] PostgreSQL database initialized", flush=True)
