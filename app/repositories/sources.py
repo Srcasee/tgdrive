@@ -3,72 +3,62 @@ from database import get_connection
 
 class SourceRepository:
     def list_enabled_for_account(self, account_id):
-        conn = get_connection()
-        try:
-            cursor = conn.cursor()
-            cursor.execute(
-                """
-                SELECT id, telegram_chat_id, name, scan_interval,
-                       last_message_id, last_scan_time, sync_mode, scan_status
-                FROM telegram_sources
-                WHERE account_id=? AND enabled=1
-                """,
-                (account_id,),
-            )
-            return [dict(row) for row in cursor.fetchall()]
-        finally:
-            conn.close()
+        with get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT id, telegram_chat_id, name, scan_interval,
+                           last_message_id, last_scan_time, sync_mode, scan_status
+                    FROM telegram_sources
+                    WHERE account_id=%s AND enabled=TRUE
+                    """,
+                    (account_id,),
+                )
+                return cursor.fetchall()
 
     def mark_scanning(self, source_id):
         self._update_status(source_id, "scanning")
 
     def mark_success(self, source_id, last_message_id):
-        conn = get_connection()
-        try:
-            cursor = conn.cursor()
-            cursor.execute(
-                """
-                UPDATE telegram_sources
-                SET last_message_id=?, last_scan_time=strftime('%s','now'),
-                    scan_status='success', updated_at=strftime('%s','now')
-                WHERE id=?
-                """,
-                (last_message_id, source_id),
-            )
+        with get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    UPDATE telegram_sources
+                    SET last_message_id=%s, last_scan_time=EXTRACT(EPOCH FROM NOW())::BIGINT,
+                        scan_status='success', updated_at=EXTRACT(EPOCH FROM NOW())::BIGINT
+                    WHERE id=%s
+                    """,
+                    (last_message_id, source_id),
+                )
             conn.commit()
-        finally:
-            conn.close()
 
     def add(self, account_id, chat_id, name):
-        conn = get_connection()
-        try:
-            cursor = conn.cursor()
-            cursor.execute(
-                """
-                INSERT INTO telegram_sources
-                (account_id, telegram_chat_id, name, enabled)
-                VALUES (?, ?, ?, 1)
-                """,
-                (account_id, chat_id, name),
-            )
+        with get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO telegram_sources
+                    (account_id, telegram_chat_id, name, enabled)
+                    VALUES (%s, %s, %s, TRUE)
+                    RETURNING id
+                    """,
+                    (account_id, chat_id, name),
+                )
+                source_id = cursor.fetchone()["id"]
             conn.commit()
-            return cursor.lastrowid
-        finally:
-            conn.close()
+            return source_id
 
     @staticmethod
     def _update_status(source_id, status):
-        conn = get_connection()
-        try:
-            cursor = conn.cursor()
-            cursor.execute(
-                """
-                UPDATE telegram_sources
-                SET scan_status=?, updated_at=strftime('%s','now')
-                WHERE id=?
-                """,
-                (status, source_id),
-            )
+        with get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    UPDATE telegram_sources
+                    SET scan_status=%s, updated_at=EXTRACT(EPOCH FROM NOW())::BIGINT
+                    WHERE id=%s
+                    """,
+                    (status, source_id),
+                )
             conn.commit()
-        finally:
-            conn.close()
