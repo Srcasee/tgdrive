@@ -5,7 +5,7 @@ from database_pool import connection, transaction
 
 def build_identity_key(filename, size, mime_type):
     normalized = f"{filename.strip().casefold()}|{int(size or 0)}|{mime_type or ''}"
-    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+    return hashlib.md5(normalized.encode("utf-8"), usedforsecurity=False).hexdigest()
 
 
 class ResourceRepository:
