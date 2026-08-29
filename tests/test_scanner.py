@@ -38,7 +38,16 @@ class FakeFileRepository:
         self.calls.append(("reset", account_id, chat_id))
 
     def upsert_verified_message(self, **kwargs):
-        self.calls.append(("upsert", kwargs["message_id"]))
+        self.calls.append(("upsert", kwargs["message_id"], kwargs["resource_id"]))
+
+
+class FakeResourceRepository:
+    def __init__(self):
+        self.calls = []
+
+    def get_or_create(self, **kwargs):
+        self.calls.append(kwargs)
+        return 100
 
 
 class FakeClient:
@@ -69,14 +78,17 @@ def make_message(message_id):
 def test_full_sync_scans_history_and_finalizes(monkeypatch):
     sources = FakeSourceRepository()
     files = FakeFileRepository()
+    resources = FakeResourceRepository()
     monkeypatch.setattr(scanner, "source_repository", sources)
     monkeypatch.setattr(scanner, "file_repository", files)
+    monkeypatch.setattr(scanner, "resource_repository", resources)
 
     asyncio.run(scanner.scan_dialogs(FakeClient([make_message(5), make_message(20)]), 1))
 
     assert ("checking", 1, 123) in files.calls
-    assert ("upsert", 5) in files.calls
-    assert ("upsert", 20) in files.calls
+    assert ("upsert", 5, 100) in files.calls
+    assert ("upsert", 20, 100) in files.calls
+    assert len(resources.calls) == 2
     assert ("deleted", 1, 123) in files.calls
     assert ("success", 7, 20) in sources.status
     assert not any(call[0] == "failed" for call in sources.status)
@@ -85,8 +97,10 @@ def test_full_sync_scans_history_and_finalizes(monkeypatch):
 def test_failed_full_sync_does_not_delete(monkeypatch):
     sources = FakeSourceRepository()
     files = FakeFileRepository()
+    resources = FakeResourceRepository()
     monkeypatch.setattr(scanner, "source_repository", sources)
     monkeypatch.setattr(scanner, "file_repository", files)
+    monkeypatch.setattr(scanner, "resource_repository", resources)
 
     with pytest.raises(RuntimeError):
         asyncio.run(scanner.scan_dialogs(FakeClient([], fail=True), 1))
