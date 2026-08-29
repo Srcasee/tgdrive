@@ -1,3 +1,4 @@
-from .registry import ProxyRegistry
+from .interface import ProxyPlugin
+from .manager import ProxyManager
 
-__all__ = ["ProxyRegistry"]
+__all__ = ["ProxyPlugin", "ProxyManager"]
