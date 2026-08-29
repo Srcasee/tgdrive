@@ -1,4 +1,4 @@
-FROM ghcr.io/sagernet/sing-box:1.13.19 AS singbox
+FROM ghcr.io/sagernet/sing-box:v1.13.19 AS singbox
 
 FROM python:3.12-slim
 
