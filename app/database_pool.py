@@ -1,9 +1,10 @@
 from contextlib import contextmanager
 
+from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 
-from database import init_database
 from config import settings
+from database import init_database
 
 
 pool = ConnectionPool(
@@ -11,7 +12,7 @@ pool = ConnectionPool(
     min_size=settings.DB_POOL_MIN_SIZE,
     max_size=settings.DB_POOL_MAX_SIZE,
     timeout=settings.DB_POOL_TIMEOUT,
-    kwargs={"row_factory": settings.DB_ROW_FACTORY},
+    kwargs={"row_factory": dict_row},
     open=False,
 )
 
@@ -38,6 +39,6 @@ def transaction():
 
 
 def initialize():
-    # Schema initialization currently remains in the legacy database module.
-    # Pool-backed repositories are used after this has completed.
+    # Schema initialization currently remains in the database module.
+    # Repository operations use the shared pool after initialization.
     init_database()
