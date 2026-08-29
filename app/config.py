@@ -13,6 +13,9 @@ class Settings:
         "DATABASE_URL",
         "postgresql://tgdrive:tgdrive@postgres:5432/tgdrive",
     )
+    DB_POOL_MIN_SIZE = int(os.getenv("DB_POOL_MIN_SIZE", "2"))
+    DB_POOL_MAX_SIZE = int(os.getenv("DB_POOL_MAX_SIZE", "10"))
+    DB_POOL_TIMEOUT = float(os.getenv("DB_POOL_TIMEOUT", "30"))
 
 
 settings = Settings()
