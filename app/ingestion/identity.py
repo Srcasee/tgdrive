@@ -21,17 +21,8 @@ def finalize_hasher(digest):
 
 
 async def hash_stream(stream):
-    """Hash an already-consumed-by-the-caller async byte stream.
-
-    This helper never opens a Telegram client and never writes content to disk.
-    It is intended for an explicit full-content delivery/verification path.
-    """
+    """Hash an explicitly supplied full-content byte stream without persistence."""
     digest = new_hasher()
     async for chunk in stream:
         update_hasher(digest, chunk)
     return finalize_hasher(digest)
-
-
-async def hash_telegram_file(downloader, file_info):
-    """Compatibility helper for explicit callers that intentionally verify a file."""
-    return await hash_stream(downloader.stream(file_info, offset=0))
