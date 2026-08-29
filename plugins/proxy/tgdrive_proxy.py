@@ -3,34 +3,34 @@ import os
 import subprocess
 from pathlib import Path
 
-import socks
-
 
 class ProxyPlugin:
     """Optional network proxy capability for Telegram clients."""
 
     name = "proxy"
-    version = "0.3.1"
+    version = "0.4.0"
     capabilities = frozenset({"telegram.proxy"})
 
     def get_proxy(self, account_name=None):
         if os.getenv("TG_PROXY_ENABLED", "false").lower() != "true":
             return None
-
         proxy_type = os.getenv("TG_PROXY_TYPE", "socks5").lower()
-        proxy_types = {
-            "socks5": socks.SOCKS5,
-            "socks5h": socks.SOCKS5,
-            "http": socks.HTTP,
-        }
-        if proxy_type not in proxy_types:
+        if proxy_type not in {"socks5", "socks5h", "http"}:
             raise RuntimeError(f"Unsupported local proxy type: {proxy_type}")
-
         host = os.getenv("TG_PROXY_HOST", "proxy")
         port = int(os.getenv("TG_PROXY_PORT", "1080"))
         username = os.getenv("TG_PROXY_USERNAME") or None
         password = os.getenv("TG_PROXY_PASSWORD") or None
-        return (proxy_types[proxy_type], host, port, True, username, password)
+        # Pyrogram accepts a PySocks-compatible tuple, but the proxy plugin
+        # must not make the Core image install a proxy-specific dependency.
+        # Return a standard descriptor; the Telegram adapter owns translation.
+        return {
+            "type": proxy_type,
+            "host": host,
+            "port": port,
+            "username": username,
+            "password": password,
+        }
 
 
 def _local_inbound():
@@ -50,7 +50,7 @@ def _upstream_outbound():
         missing = [name for name in required if not os.getenv(name)]
         if missing:
             raise RuntimeError("Missing VLESS settings: " + ", ".join(missing))
-        return {
+        outbound = {
             "type": "vless",
             "tag": "proxy-out",
             "server": os.environ["TG_PROXY_VLESS_SERVER"],
@@ -60,9 +60,12 @@ def _upstream_outbound():
             "transport": {
                 "type": "ws",
                 "path": os.getenv("TG_PROXY_VLESS_WS_PATH", "/"),
-                "headers": {"Host": os.getenv("TG_PROXY_VLESS_WS_HOST", "")},
             },
         }
+        ws_host = os.getenv("TG_PROXY_VLESS_WS_HOST")
+        if ws_host:
+            outbound["transport"]["headers"] = {"Host": ws_host}
+        return outbound
 
     if upstream_type in {"socks", "socks5"}:
         host = os.getenv("TG_PROXY_UPSTREAM_HOST")
@@ -82,7 +85,6 @@ def _upstream_outbound():
 
 
 def generate_singbox_config(path: str) -> None:
-    """Generate the proxy plugin's private sing-box configuration."""
     config = {
         "log": {"level": "info"},
         "inbounds": [_local_inbound()],
@@ -92,7 +94,6 @@ def generate_singbox_config(path: str) -> None:
 
 
 def run_proxy() -> int:
-    """Generate, validate, and run the proxy plugin's private sing-box instance."""
     config_dir = Path(os.getenv("TG_PROXY_RUNTIME_DIR", "/tmp/tgdrive-proxy"))
     config_dir.mkdir(parents=True, exist_ok=True)
     config_path = config_dir / "config.json"
@@ -102,3 +103,7 @@ def run_proxy() -> int:
         return result.returncode
     os.execvp("sing-box", ["sing-box", "run", "-c", str(config_path)])
     return 0
+
+
+def main():
+    return run_proxy()
