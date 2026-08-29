@@ -7,116 +7,87 @@ class FileRepository:
             with conn.cursor() as cursor:
                 cursor.execute("SELECT COUNT(*) AS total FROM files WHERE is_available=TRUE")
                 total = cursor.fetchone()["total"]
-                cursor.execute(
-                    """
-                    SELECT id, filename, size, mime_type,
-                           telegram_chat_id, message_id
-                    FROM files
-                    WHERE is_available=TRUE
-                    ORDER BY id DESC
-                    LIMIT %s OFFSET %s
-                    """,
-                    (limit, offset),
-                )
+                cursor.execute("""
+                    SELECT id, filename, size, mime_type, telegram_chat_id, message_id,
+                           category_id
+                    FROM files WHERE is_available=TRUE
+                    ORDER BY id DESC LIMIT %s OFFSET %s
+                """, (limit, offset))
                 return total, cursor.fetchall()
 
     def search(self, query, limit=100):
         with connection() as conn:
             with conn.cursor() as cursor:
-                cursor.execute(
-                    """
-                    SELECT id, filename, size, mime_type,
-                           telegram_chat_id, message_id
+                cursor.execute("""
+                    SELECT id, filename, size, mime_type, telegram_chat_id, message_id,
+                           category_id
                     FROM files
-                    WHERE filename ILIKE %s
-                    ORDER BY id DESC
-                    LIMIT %s
-                    """,
-                    (f"%{query}%", limit),
-                )
+                    WHERE filename ILIKE %s AND is_available=TRUE
+                    ORDER BY id DESC LIMIT %s
+                """, (f"%{query}%", limit))
                 return cursor.fetchall()
 
     def get_download_info(self, file_id):
         with connection() as conn:
             with conn.cursor() as cursor:
-                cursor.execute(
-                    """
+                cursor.execute("""
                     SELECT filename, telegram_chat_id, message_id, size,
                            mime_type, account_id, is_available
                     FROM files WHERE id=%s
-                    """,
-                    (file_id,),
-                )
+                """, (file_id,))
                 return cursor.fetchone()
 
     def get_stream_info(self, file_id):
         with connection() as conn:
             with conn.cursor() as cursor:
-                cursor.execute(
-                    """
+                cursor.execute("""
                     SELECT telegram_chat_id, message_id, filename,
                            mime_type, size, account_id, is_available
                     FROM files WHERE id=%s
-                    """,
-                    (file_id,),
-                )
+                """, (file_id,))
                 return cursor.fetchone()
 
     def get_head_info(self, file_id):
         with connection() as conn:
             with conn.cursor() as cursor:
-                cursor.execute(
-                    "SELECT size, mime_type, is_available FROM files WHERE id=%s",
-                    (file_id,),
-                )
+                cursor.execute("SELECT size, mime_type, is_available FROM files WHERE id=%s", (file_id,))
                 return cursor.fetchone()
 
-    def upsert_verified_message(self, *, filename, size, mime_type, chat_id,
-                                message_id, upload_time, account_id):
+    def upsert_verified_message(self, *, filename, size, mime_type, chat_id, message_id, upload_time, account_id):
         """Atomically index a Telegram message and mark it verified."""
         with transaction() as conn:
             with conn.cursor() as cursor:
-                cursor.execute(
-                    """
+                cursor.execute("""
                     INSERT INTO files
                     (filename, size, mime_type, telegram_chat_id, message_id,
                      upload_time, account_id, status, scan_status, is_available)
                     VALUES(%s,%s,%s,%s,%s,%s,%s,'active','verified',TRUE)
                     ON CONFLICT (account_id, telegram_chat_id, message_id)
-                    DO UPDATE SET
-                        filename=EXCLUDED.filename,
-                        size=EXCLUDED.size,
-                        mime_type=EXCLUDED.mime_type,
-                        upload_time=EXCLUDED.upload_time,
-                        status='active',
-                        scan_status='verified',
-                        is_available=TRUE
-                    """,
-                    (filename, size, mime_type, chat_id, message_id,
-                     upload_time, account_id),
-                )
+                    DO UPDATE SET filename=EXCLUDED.filename, size=EXCLUDED.size,
+                        mime_type=EXCLUDED.mime_type, upload_time=EXCLUDED.upload_time,
+                        status='active', scan_status='verified', is_available=TRUE
+                """, (filename, size, mime_type, chat_id, message_id, upload_time, account_id))
 
     def mark_checking(self, account_id, chat_id):
         with transaction() as conn:
             with conn.cursor() as cursor:
-                cursor.execute(
-                    """
-                    UPDATE files
-                    SET scan_status='checking', is_available=FALSE
+                cursor.execute("""
+                    UPDATE files SET scan_status='checking', is_available=FALSE
                     WHERE account_id=%s AND telegram_chat_id=%s
-                    """,
-                    (account_id, chat_id),
-                )
+                """, (account_id, chat_id))
 
     def mark_unverified_deleted(self, account_id, chat_id):
         with transaction() as conn:
             with conn.cursor() as cursor:
-                cursor.execute(
-                    """
-                    UPDATE files
-                    SET status='deleted', is_available=FALSE
-                    WHERE account_id=%s AND telegram_chat_id=%s
-                      AND scan_status='checking'
-                    """,
-                    (account_id, chat_id),
-                )
+                cursor.execute("""
+                    UPDATE files SET status='deleted', is_available=FALSE
+                    WHERE account_id=%s AND telegram_chat_id=%s AND scan_status='checking'
+                """, (account_id, chat_id))
+
+    def reset_checking(self, account_id, chat_id):
+        with transaction() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("""
+                    UPDATE files SET scan_status='verified', is_available=TRUE
+                    WHERE account_id=%s AND telegram_chat_id=%s AND scan_status='checking'
+                """, (account_id, chat_id))
