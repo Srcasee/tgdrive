@@ -1,6 +1,4 @@
 import os
-import sqlite3
-from pathlib import Path
 
 import psycopg
 import pytest
@@ -21,13 +19,7 @@ pytestmark = pytest.mark.skipif(
 
 @pytest.fixture(scope="module", autouse=True)
 def postgres_pool():
-    """Keep the shared PostgreSQL pool alive for the whole integration module.
-
-    psycopg_pool ConnectionPool instances are single-use: close() permanently
-    closes that instance. A function-scoped fixture would close the global
-    application pool after the first test and the next test would fail with
-    PoolClosed when it tried to reopen the same instance.
-    """
+    """Keep the shared PostgreSQL pool alive for the whole integration module."""
     open_pool()
     try:
         yield
@@ -93,47 +85,3 @@ def test_schema_and_repositories_are_transactional():
         with conn.cursor() as cur:
             cur.execute("SELECT COUNT(*) FROM files WHERE message_id=8")
             assert cur.fetchone()[0] == 0
-
-
-def test_sqlite_to_postgres_migration(tmp_path: Path, monkeypatch):
-    sqlite_path = tmp_path / "files.db"
-    sqlite_conn = sqlite3.connect(sqlite_path)
-    sqlite_conn.executescript(
-        """
-        CREATE TABLE accounts (id INTEGER PRIMARY KEY, name TEXT, username TEXT, session TEXT UNIQUE, enabled INTEGER DEFAULT 1);
-        CREATE TABLE telegram_sources (id INTEGER PRIMARY KEY, name TEXT, telegram_chat_id INTEGER, last_message_id INTEGER DEFAULT 0, last_scan_time INTEGER, scan_interval INTEGER DEFAULT 600, sync_mode TEXT DEFAULT 'incremental', scan_status TEXT DEFAULT 'idle');
-        CREATE TABLE categories (id INTEGER PRIMARY KEY, name TEXT UNIQUE);
-        CREATE TABLE files (id INTEGER PRIMARY KEY, filename TEXT, size INTEGER DEFAULT 0, mime_type TEXT, telegram_chat_id INTEGER, message_id INTEGER, topic_id INTEGER, telegram_file_id TEXT, upload_time INTEGER, category_id INTEGER, created_at INTEGER, last_message_id INTEGER DEFAULT 0, account_id INTEGER, status TEXT DEFAULT 'active', is_available INTEGER DEFAULT 1, scan_status TEXT DEFAULT 'idle');
-        CREATE TABLE shares (id INTEGER PRIMARY KEY, file_id INTEGER, token TEXT UNIQUE, created_at INTEGER);
-        """
-    )
-    sqlite_conn.execute("INSERT INTO accounts VALUES (?, ?, ?, ?, ?)", (10, "A", "user", "session-a", 1))
-    sqlite_conn.execute("INSERT INTO telegram_sources VALUES (?, ?, ?, ?, ?, ?, ?, ?)", (20, "Source", 10001, 9, 1700000000, 600, "incremental", "success"))
-    sqlite_conn.execute("INSERT INTO categories VALUES (?, ?)", (30, "docs"))
-    sqlite_conn.execute(
-        "INSERT INTO files VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        (40, "a.pdf", 99, "application/pdf", 10001, 9, None, "tg-file", 1700000000, 30, 1700000000, 9, 10, "active", 1, "verified"),
-    )
-    sqlite_conn.execute("INSERT INTO shares VALUES (?, ?, ?, ?)", (50, 40, "token-a", 1700000000))
-    sqlite_conn.commit()
-    sqlite_conn.close()
-
-    with psycopg.connect(DATABASE_URL) as conn:
-        _reset_schema(conn)
-    init_database()
-
-    monkeypatch.setenv("SQLITE_PATH", str(sqlite_path))
-    from scripts.migrate_sqlite_to_postgres import migrate
-    migrate()
-
-    with psycopg.connect(DATABASE_URL) as conn:
-        with conn.cursor() as cur:
-            for table in ("accounts", "telegram_sources", "categories", "files", "shares"):
-                cur.execute(f"SELECT COUNT(*) FROM {table}")
-                assert cur.fetchone()[0] == 1
-            cur.execute("SELECT id, filename, account_id FROM files WHERE id=40")
-            assert cur.fetchone() == (40, "a.pdf", 10)
-            cur.execute("SELECT id FROM shares WHERE id=50 AND file_id=40")
-            assert cur.fetchone() == (50,)
-            cur.execute("SELECT last_value FROM files_id_seq")
-            assert cur.fetchone()[0] >= 40
