@@ -1,7 +1,5 @@
 from importlib.metadata import entry_points
 
-from .interface import Plugin
-
 
 class PluginRuntime:
     """Discover and expose optional plugins through a generic capability API."""
@@ -20,8 +18,8 @@ class PluginRuntime:
                 plugin = entry_point.load()
                 if isinstance(plugin, type):
                     plugin = plugin()
-                if not isinstance(plugin, Plugin):
-                    raise TypeError("plugin must implement app.plugins.Plugin")
+                if not all(hasattr(plugin, attr) for attr in ("name", "version", "capabilities")):
+                    raise TypeError("plugin must implement the generic tgdrive plugin contract")
                 self.plugins[plugin.name] = plugin
             except Exception as exc:
                 print(
