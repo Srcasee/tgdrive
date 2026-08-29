@@ -7,6 +7,6 @@ COPY --from=singbox /usr/local/bin/sing-box /usr/local/bin/sing-box
 COPY pyproject.toml /opt/tgdrive-proxy/pyproject.toml
 COPY tgdrive_proxy.py /opt/tgdrive-proxy/tgdrive_proxy.py
 
-RUN pip install --no-cache-dir /opt/tgdrive-proxy
+RUN pip install --no-cache-dir --no-build-isolation /opt/tgdrive-proxy
 
 ENTRYPOINT ["python", "-c", "from tgdrive_proxy import run_proxy; raise SystemExit(run_proxy())"]
