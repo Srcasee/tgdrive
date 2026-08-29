@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from plugins.runtime import PluginRuntime
 
 
@@ -22,11 +24,8 @@ def test_proxy_plugin_supports_socks5(monkeypatch):
     monkeypatch.setenv("TG_PROXY_TYPE", "socks5")
     monkeypatch.setenv("TG_PROXY_HOST", "127.0.0.1")
     monkeypatch.setenv("TG_PROXY_PORT", "1080")
-    proxy_plugin = runtime().get_capability("telegram.proxy")
-    proxy = proxy_plugin.get_proxy()
-    assert proxy["type"] == "socks5"
-    assert proxy["host"] == "127.0.0.1"
-    assert proxy["port"] == 1080
+    proxy = runtime().get_capability("telegram.proxy").get_proxy()
+    assert proxy == {"type": "socks5", "host": "127.0.0.1", "port": 1080, "username": None, "password": None}
 
 
 def test_proxy_plugin_supports_http(monkeypatch):
@@ -38,6 +37,20 @@ def test_proxy_plugin_supports_http(monkeypatch):
     assert proxy["type"] == "http"
     assert proxy["host"] == "127.0.0.1"
     assert proxy["port"] == 8080
+
+
+def test_proxy_plugin_rejects_invalid_type(monkeypatch):
+    monkeypatch.setenv("TG_PROXY_ENABLED", "true")
+    monkeypatch.setenv("TG_PROXY_TYPE", "vless")
+    with pytest.raises(RuntimeError, match="TG_PROXY_TYPE"):
+        runtime().get_capability("telegram.proxy").get_proxy()
+
+
+def test_proxy_plugin_rejects_invalid_port(monkeypatch):
+    monkeypatch.setenv("TG_PROXY_ENABLED", "true")
+    monkeypatch.setenv("TG_PROXY_PORT", "70000")
+    with pytest.raises(RuntimeError, match="TG_PROXY_PORT"):
+        runtime().get_capability("telegram.proxy").get_proxy()
 
 
 def test_refresh_increments_generation():
