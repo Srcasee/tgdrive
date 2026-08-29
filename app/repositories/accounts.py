@@ -1,9 +1,9 @@
-from database import get_connection
+from database_pool import connection, transaction
 
 
 class AccountRepository:
     def list_all(self):
-        with get_connection() as conn:
+        with connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     """
@@ -15,7 +15,7 @@ class AccountRepository:
                 return cursor.fetchall()
 
     def get_id_by_session(self, session):
-        with get_connection() as conn:
+        with connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "SELECT id FROM accounts WHERE session=%s",
@@ -25,7 +25,7 @@ class AccountRepository:
                 return row["id"] if row else None
 
     def get_session(self, account_id):
-        with get_connection() as conn:
+        with connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "SELECT session FROM accounts WHERE id=%s AND enabled=TRUE",
@@ -35,7 +35,7 @@ class AccountRepository:
                 return row["session"] if row else None
 
     def upsert_session(self, session, name=None):
-        with get_connection() as conn:
+        with transaction() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     """
@@ -47,6 +47,4 @@ class AccountRepository:
                     """,
                     (name or session, session),
                 )
-                account_id = cursor.fetchone()["id"]
-            conn.commit()
-            return account_id
+                return cursor.fetchone()["id"]
