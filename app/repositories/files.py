@@ -8,8 +8,8 @@ class FileRepository:
                 cursor.execute("SELECT COUNT(*) AS total FROM files WHERE is_available=TRUE")
                 total = cursor.fetchone()["total"]
                 cursor.execute("""
-                    SELECT id, filename, size, mime_type, telegram_chat_id, message_id,
-                           category_id
+                    SELECT id, resource_id, filename, size, mime_type, telegram_chat_id,
+                           message_id, category_id
                     FROM files WHERE is_available=TRUE
                     ORDER BY id DESC LIMIT %s OFFSET %s
                 """, (limit, offset))
@@ -19,8 +19,8 @@ class FileRepository:
         with connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute("""
-                    SELECT id, filename, size, mime_type, telegram_chat_id, message_id,
-                           category_id
+                    SELECT id, resource_id, filename, size, mime_type, telegram_chat_id,
+                           message_id, category_id
                     FROM files
                     WHERE filename ILIKE %s AND is_available=TRUE
                     ORDER BY id DESC LIMIT %s
@@ -31,7 +31,7 @@ class FileRepository:
         with connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute("""
-                    SELECT filename, telegram_chat_id, message_id, size,
+                    SELECT id, resource_id, filename, telegram_chat_id, message_id, size,
                            mime_type, account_id, is_available
                     FROM files WHERE id=%s
                 """, (file_id,))
@@ -41,7 +41,7 @@ class FileRepository:
         with connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute("""
-                    SELECT telegram_chat_id, message_id, filename,
+                    SELECT id, resource_id, telegram_chat_id, message_id, filename,
                            mime_type, size, account_id, is_available
                     FROM files WHERE id=%s
                 """, (file_id,))
@@ -53,28 +53,26 @@ class FileRepository:
                 cursor.execute("SELECT size, mime_type, is_available FROM files WHERE id=%s", (file_id,))
                 return cursor.fetchone()
 
-    def upsert_verified_message(self, *, filename, size, mime_type, chat_id, message_id, upload_time, account_id):
-        """Atomically index a verified Telegram message.
-
-        Filename is required at the repository boundary because the files schema
-        intentionally does not allow nameless records. Telegram-specific callers
-        must normalize missing metadata before calling this method.
-        """
+    def upsert_verified_message(self, *, filename, size, mime_type, chat_id, message_id, upload_time, account_id, resource_id):
+        """Atomically index one verified Telegram message as a physical resource location."""
         if not isinstance(filename, str) or not filename.strip():
             raise ValueError("filename is required for indexed files")
+        if resource_id is None:
+            raise ValueError("resource_id is required for indexed files")
 
         with transaction() as conn:
             with conn.cursor() as cursor:
                 cursor.execute("""
                     INSERT INTO files
                     (filename, size, mime_type, telegram_chat_id, message_id,
-                     upload_time, account_id, status, scan_status, is_available)
-                    VALUES(%s,%s,%s,%s,%s,%s,%s,'active','verified',TRUE)
+                     upload_time, account_id, resource_id, status, scan_status, is_available)
+                    VALUES(%s,%s,%s,%s,%s,%s,%s,%s,'active','verified',TRUE)
                     ON CONFLICT (account_id, telegram_chat_id, message_id)
-                    DO UPDATE SET filename=EXCLUDED.filename, size=EXCLUDED.size,
+                    DO UPDATE SET resource_id=EXCLUDED.resource_id,
+                        filename=EXCLUDED.filename, size=EXCLUDED.size,
                         mime_type=EXCLUDED.mime_type, upload_time=EXCLUDED.upload_time,
                         status='active', scan_status='verified', is_available=TRUE
-                """, (filename, size, mime_type, chat_id, message_id, upload_time, account_id))
+                """, (filename, size, mime_type, chat_id, message_id, upload_time, account_id, resource_id))
 
     def mark_checking(self, account_id, chat_id):
         with transaction() as conn:
