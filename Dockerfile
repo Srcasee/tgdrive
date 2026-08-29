@@ -3,12 +3,12 @@ FROM python:3.12-slim
 WORKDIR /app
 
 COPY requirements.txt .
-COPY plugins/tgdrive-proxy-socks5 /opt/tgdrive-proxy-socks5
+COPY plugins/proxy /opt/tgdrive-plugin-proxy
 
 RUN pip install \
     -i https://pypi.tuna.tsinghua.edu.cn/simple \
     -r requirements.txt \
-    /opt/tgdrive-proxy-socks5
+    /opt/tgdrive-plugin-proxy
 
 COPY app /app
 
