@@ -1,9 +1,11 @@
 import asyncio
 from urllib.parse import quote
 
-from fastapi import APIRouter, Header, Query, Response
+from fastapi import APIRouter, Depends, Header, Query, Response
 from fastapi.responses import StreamingResponse
 
+from auth.dependencies import require_user
+from auth.models import Principal
 from common.response import api_success
 from files.stream_service import VideoStreamService
 from repositories.files import FileRepository
@@ -16,7 +18,11 @@ file_repository = FileRepository()
 
 
 @router.get("")
-def list_files(page: int = Query(1, ge=1), size: int = Query(50, ge=1, le=200)):
+def list_files(
+    page: int = Query(1, ge=1),
+    size: int = Query(50, ge=1, le=200),
+    _: Principal = Depends(require_user),
+):
     total, rows = file_repository.list_available(size, (page - 1) * size)
     return api_success({
         "total": total,
@@ -27,7 +33,7 @@ def list_files(page: int = Query(1, ge=1), size: int = Query(50, ge=1, le=200)):
 
 
 @router.get("/search")
-def search_files(q: str = Query("", min_length=1)):
+def search_files(q: str = Query("", min_length=1), _: Principal = Depends(require_user)):
     return file_repository.search(q)
 
 
@@ -35,11 +41,12 @@ def search_files(q: str = Query("", min_length=1)):
 async def download_file(
     file_id: int,
     range_header: str | None = Header(default=None, alias="Range"),
+    _: Principal = Depends(require_user),
 ):
     row = file_repository.get_download_info(file_id)
     if not row:
         return {"error": "file not found"}
-    if row["is_available"] != 1:
+    if not row["is_available"]:
         return {"error": "file unavailable"}
 
     filename = row["filename"]
@@ -51,12 +58,15 @@ async def download_file(
 
     start, end = 0, file_size - 1
     if range_header:
-        value = range_header.replace("bytes=", "")
+        value = range_header.removeprefix("bytes=")
         parts = value.split("-", 1)
-        if parts[0]:
-            start = int(parts[0])
-        if len(parts) > 1 and parts[1]:
-            end = int(parts[1])
+        try:
+            if parts[0]:
+                start = int(parts[0])
+            if len(parts) > 1 and parts[1]:
+                end = int(parts[1])
+        except ValueError:
+            return Response(status_code=416, headers={"Content-Range": f"bytes */{file_size}"})
 
     if start < 0 or end < start or end >= file_size:
         return Response(status_code=416, headers={"Content-Range": f"bytes */{file_size}"})
@@ -87,9 +97,9 @@ async def download_file(
 
 
 @router.head("/{file_id}/download")
-async def download_head(file_id: int):
+async def download_head(file_id: int, _: Principal = Depends(require_user)):
     row = file_repository.get_head_info(file_id)
-    if not row:
+    if not row or not row["is_available"]:
         return Response(status_code=404)
     return Response(
         headers={
@@ -105,10 +115,13 @@ async def download_head(file_id: int):
 async def stream_file(
     file_id: int,
     range_header: str | None = Header(None, alias="Range"),
+    _: Principal = Depends(require_user),
 ):
     row = file_repository.get_stream_info(file_id)
     if not row:
         return {"error": "file not found"}
+    if not row["is_available"]:
+        return Response(status_code=404)
 
     tg_client = get_client(row["account_id"])
     downloader = TelegramDownloader(tg_client)
@@ -117,17 +130,20 @@ async def stream_file(
     size = row["size"]
     start, end = 0, size - 1
     if range_header:
-        value = range_header.replace("bytes=", "")
+        value = range_header.removeprefix("bytes=")
         parts = value.split("-", 1)
-        if parts[0]:
-            start = int(parts[0])
-        if len(parts) > 1 and parts[1]:
-            end = int(parts[1])
+        try:
+            if parts[0]:
+                start = int(parts[0])
+            if len(parts) > 1 and parts[1]:
+                end = int(parts[1])
+        except ValueError:
+            return Response(status_code=416, headers={"Content-Range": f"bytes */{size}"})
 
     from cache.video import CHUNK_SIZE
     if end - start + 1 > CHUNK_SIZE:
         end = min(start + CHUNK_SIZE - 1, size - 1)
-    if start < 0 or end < start or start >= size:
+    if start < 0 or end < start or start >= size or end >= size:
         return Response(status_code=416, headers={"Content-Range": f"bytes */{size}"})
 
     length = end - start + 1
@@ -148,12 +164,7 @@ async def stream_file(
                 if offset_start < offset_end:
                     yield data[offset_start:offset_end]
         except asyncio.CancelledError:
-            print(
-                "[VIDEO STREAM] client disconnected",
-                "file=", file_id,
-                "range=", f"{start}-{end}",
-                flush=True,
-            )
+            print("[VIDEO STREAM] client disconnected", "file=", file_id, "range=", f"{start}-{end}", flush=True)
             raise
 
     headers = {
