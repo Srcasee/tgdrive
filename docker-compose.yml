@@ -45,19 +45,15 @@ services:
         max-file: "3"
 
   proxy:
-    image: ghcr.io/sagernet/sing-box:latest
+    build:
+      context: ./plugins/proxy
+      dockerfile: Dockerfile
     container_name: telegram-drive-proxy
     restart: unless-stopped
     profiles:
       - proxy
     env_file:
       - .env
-    volumes:
-      - ./plugins/proxy/sing-box/config.json:/etc/sing-box/config.json:ro
-    command:
-      - run
-      - -c
-      - /etc/sing-box/config.json
     networks:
       telegram-net:
         aliases:
