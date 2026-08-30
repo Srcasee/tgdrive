@@ -34,16 +34,22 @@ class TelegramSourceSelector:
             account_id = row["account_id"]
             if account_id is None:
                 continue
-            position = offset
+            emitted = False
             try:
                 downloader = self.downloader_factory(self.client_factory(account_id))
                 info = await downloader.get_file_info(row["telegram_chat_id"], row["message_id"])
                 async for chunk in downloader.stream(info, offset=offset):
                     if chunk:
-                        position += len(chunk)
+                        emitted = True
                         yield chunk
                 return
             except Exception as exc:
+                # Once bytes have been emitted, restarting from the original
+                # offset on another source would duplicate bytes in the HTTP
+                # response. Fail the current transfer instead of corrupting it.
+                if emitted:
+                    print("[DELIVERY] source failed after bytes were emitted", row["id"], repr(exc), flush=True)
+                    raise
                 last_error = exc
-                print("[DELIVERY] source failed", row["id"], repr(exc), flush=True)
+                print("[DELIVERY] source failed before bytes were emitted", row["id"], repr(exc), flush=True)
         raise RuntimeError("all Telegram sources failed") from last_error
