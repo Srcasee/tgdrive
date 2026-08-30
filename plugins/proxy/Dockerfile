@@ -3,6 +3,7 @@
 FROM alpine:3.22 AS singbox
 
 ARG SING_BOX_VERSION=1.13.19
+ARG SING_BOX_DOWNLOAD_BASE=https://github.com/SagerNet/sing-box/releases/download
 ARG TARGETARCH
 
 RUN apk add --no-cache ca-certificates curl tar \
@@ -17,8 +18,7 @@ RUN apk add --no-cache ca-certificates curl tar \
            ;; \
          *) echo "Unsupported TARGETARCH=${TARGETARCH}; supported: amd64, arm64" >&2; exit 1 ;; \
        esac \
-    && BASE="${SING_BOX_DOWNLOAD_BASE:-https://github.com/SagerNet/sing-box/releases/download}" \
-    && URL="${BASE}/v${SING_BOX_VERSION}/${ASSET}" \
+    && URL="${SING_BOX_DOWNLOAD_BASE}/v${SING_BOX_VERSION}/${ASSET}" \
     && curl -fsSL --retry 5 --retry-delay 2 "${URL}" -o /tmp/sing-box.tar.gz \
     && echo "${SHA256}  /tmp/sing-box.tar.gz" | sha256sum -c - \
     && tar -xzf /tmp/sing-box.tar.gz -C /tmp \
