@@ -1,3 +1,5 @@
+import pytest
+
 import telegram.client as telegram_client
 
 
@@ -21,10 +23,8 @@ class FakeTelegramClient:
 
 
 def test_client_loading_ignores_disabled_sessions(monkeypatch, tmp_path):
-    enabled = tmp_path / "enabled.session"
-    disabled = tmp_path / "disabled.session"
-    enabled.touch()
-    disabled.touch()
+    (tmp_path / "enabled.session").touch()
+    (tmp_path / "disabled.session").touch()
 
     monkeypatch.setattr(telegram_client.settings, "TG_SESSION_DIR", str(tmp_path))
     monkeypatch.setattr(telegram_client.settings, "TG_API_ID", 1)
@@ -39,4 +39,5 @@ def test_client_loading_ignores_disabled_sessions(monkeypatch, tmp_path):
     clients = telegram_client.get_clients()
 
     assert set(clients) == {"enabled"}
-    assert telegram_client.get_client(2) if False else True
+    with pytest.raises(RuntimeError, match="disabled"):
+        telegram_client.get_client(2)
