@@ -114,22 +114,58 @@ class ResourceRepository:
                 target = cursor.fetchone()
                 if target and target["id"] != resource_id:
                     target_id = target["id"]
+                elif current["content_hash"] is None:
+                    # A metadata identity is only provisional. Verifying one
+                    # physical copy must not claim every other copy has the same
+                    # bytes, so promote this file into its own verified Resource.
                     cursor.execute(
-                        "INSERT INTO resource_categories(resource_id, category_id) SELECT %s, category_id FROM resource_categories WHERE resource_id=%s ON CONFLICT DO NOTHING",
+                        """
+                        INSERT INTO resources(identity_key, content_hash, filename, size, mime_type)
+                        SELECT %s, %s, filename, size, mime_type
+                        FROM resources WHERE id=%s
+                        RETURNING id
+                        """,
+                        (identity_key, digest, resource_id),
+                    )
+                    target_id = cursor.fetchone()["id"]
+                else:
+                    # The current Resource was already verified with a different
+                    # digest. A newly verified file with another digest cannot
+                    # mutate that identity; it becomes a separate Resource.
+                    cursor.execute(
+                        """
+                        INSERT INTO resources(identity_key, content_hash, filename, size, mime_type)
+                        SELECT %s, %s, filename, size, mime_type
+                        FROM resources WHERE id=%s
+                        RETURNING id
+                        """,
+                        (identity_key, digest, resource_id),
+                    )
+                    target_id = cursor.fetchone()["id"]
+
+                if target_id != resource_id:
+                    cursor.execute(
+                        """
+                        INSERT INTO resource_categories(resource_id, category_id)
+                        SELECT %s, category_id
+                        FROM resource_categories
+                        WHERE resource_id=%s
+                        ON CONFLICT DO NOTHING
+                        """,
                         (target_id, resource_id),
                     )
-                    cursor.execute("UPDATE files SET resource_id=%s, content_hash=%s WHERE id=%s", (target_id, digest, file_id))
-                    cursor.execute("DELETE FROM resource_categories WHERE resource_id=%s", (resource_id,))
                     cursor.execute(
-                        "SELECT COUNT(*) AS count FROM files WHERE resource_id=%s", (resource_id,)
+                        "UPDATE files SET resource_id=%s, content_hash=%s WHERE id=%s",
+                        (target_id, digest, file_id),
+                    )
+                    cursor.execute(
+                        "SELECT COUNT(*) AS count FROM files WHERE resource_id=%s",
+                        (resource_id,),
                     )
                     if cursor.fetchone()["count"] == 0:
+                        cursor.execute("DELETE FROM resource_categories WHERE resource_id=%s", (resource_id,))
                         cursor.execute("DELETE FROM resources WHERE id=%s", (resource_id,))
                     return target_id
 
-                cursor.execute(
-                    "UPDATE resources SET identity_key=%s, content_hash=%s, updated_at=EXTRACT(EPOCH FROM NOW())::BIGINT WHERE id=%s",
-                    (identity_key, digest, resource_id),
-                )
                 cursor.execute("UPDATE files SET content_hash=%s WHERE id=%s", (digest, file_id))
                 return resource_id
