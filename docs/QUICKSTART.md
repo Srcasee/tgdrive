@@ -120,6 +120,19 @@ TG_PROXY_HOST=proxy
 TG_PROXY_PORT=1080
 ```
 
+The Proxy plugin embeds a pinned sing-box release instead of using the upstream GHCR image as a Docker build stage. This avoids making production builds depend on access to `ghcr.io`.
+
+The default build source is GitHub Releases:
+
+```env
+SING_BOX_VERSION=1.13.19
+SING_BOX_DOWNLOAD_BASE=https://github.com/SagerNet/sing-box/releases/download
+```
+
+If the deployment network cannot reliably reach GitHub Releases, the administrator may set `SING_BOX_DOWNLOAD_BASE` to a trusted mirror that preserves the release path and filenames. The sing-box version remains pinned and the downloaded archive is verified against the checksum embedded in the Proxy Dockerfile.
+
+The proxy build currently supports Linux `amd64` and `arm64`. Unsupported architectures fail during the image build instead of silently installing an incompatible binary.
+
 The external proxy plugin may use a sing-box upstream. Core does not contain region detection or proxy protocol logic.
 
 After changing proxy configuration, restart/recreate tgdrive so existing Telegram clients are rebuilt with the new connectivity settings.
