@@ -25,7 +25,6 @@ services:
     restart: unless-stopped
     working_dir: /app
     volumes:
-      - ./app:/app
       - ./data:/data
     env_file:
       - .env
