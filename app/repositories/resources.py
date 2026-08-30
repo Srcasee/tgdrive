@@ -42,7 +42,7 @@ class ResourceRepository:
                 cursor.execute(
                     """
                     INSERT INTO resources(identity_key, filename, size, mime_type)
-                    VALUES(%s,%s,%s,%s)
+                    VALUES(%s,%s,%s,%s,%s)
                     ON CONFLICT (identity_key) DO UPDATE
                     SET filename=EXCLUDED.filename,
                         size=EXCLUDED.size,
@@ -60,7 +60,14 @@ class ResourceRepository:
                 cursor.execute(
                     """
                     SELECT id, identity_key, content_hash, filename, size, mime_type,
-                           status, created_at, updated_at
+                           status,
+                           EXISTS (
+                               SELECT 1 FROM files f
+                               WHERE f.resource_id = resources.id
+                                 AND f.is_available = TRUE
+                                 AND f.status = 'active'
+                           ) AS is_available,
+                           created_at, updated_at
                     FROM resources WHERE id=%s
                     """,
                     (resource_id,),

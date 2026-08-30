@@ -31,7 +31,12 @@ def _parse_range_or_416(value, size):
 
 
 def _resource(resource_id):
-    return resource_repository.get(resource_id)
+    resource = resource_repository.get(resource_id)
+    if not resource:
+        return None
+    if resource.get("status") != "active" or resource.get("is_available") is False:
+        return None
+    return resource
 
 
 @router.get("/{resource_id}/download")

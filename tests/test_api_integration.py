@@ -7,6 +7,7 @@ os.environ["AUTH_COOKIE_SECURE"] = "false"
 from fastapi.testclient import TestClient
 
 from auth.security import hash_password
+from catalog.service import CatalogService
 from core.app import create_app
 from core.lifecycle import ApplicationLifecycle
 
@@ -61,15 +62,28 @@ class FakeCategories:
 class FakeResources:
     def __init__(self):
         self.available = {
-            1: {"id": 1, "filename": "video.mp4", "size": 100, "mime_type": "video/mp4", "is_available": True}
+            1: {"id": 1, "filename": "video.mp4", "size": 100, "mime_type": "video/mp4", "status": "active", "is_available": True},
         }
 
-    def list_available(self, limit, offset):
-        rows = list(self.available.values())[offset:offset + limit]
+    def _rows(self):
+        return list(self.available.values())
+
+    def list_resources(self, limit, offset, category_id=None):
+        rows = self._rows()[offset:offset + limit]
         return len(self.available), rows
 
-    def search(self, query, limit=100):
-        return [x for x in self.available.values() if query.lower() in x["filename"].lower()]
+    def search_resources(self, query, limit=100, category_id=None):
+        return [x for x in self._rows() if query.lower() in x["filename"].lower()][:limit]
+
+    def get_resource(self, resource_id):
+        return self.available.get(resource_id)
+
+    def set_categories(self, resource_id, category_ids):
+        resource = self.available.get(resource_id)
+        if not resource:
+            return None
+        resource["category_ids"] = list(category_ids)
+        return resource
 
     def get(self, resource_id):
         return self.available.get(resource_id)
@@ -99,6 +113,7 @@ def make_client(monkeypatch):
     monkeypatch.setattr("auth.api.user_repository", users)
     monkeypatch.setattr("auth.dependencies.user_repository", users)
     monkeypatch.setattr("admin.api.category_repository", categories)
+    monkeypatch.setattr("catalog.api.service", CatalogService(resources))
     monkeypatch.setattr("delivery.api.resource_repository", resources)
 
     app = create_app()
