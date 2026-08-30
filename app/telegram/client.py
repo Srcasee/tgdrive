@@ -37,10 +37,14 @@ def get_clients():
         return clients
 
     proxy_plugin = plugin_runtime.get_capability("telegram.proxy")
+    enabled_accounts = account_repository.list_enabled_sessions()
+    enabled_sessions = {row["session"] for row in enabled_accounts}
     for filename in os.listdir(session_dir):
         if not filename.endswith(".session"):
             continue
         name = filename[:-8]
+        if name not in enabled_sessions:
+            continue
         session = os.path.join(session_dir, name)
         proxy = proxy_plugin.get_proxy(name) if proxy_plugin else None
         clients[name] = TelegramClient(
@@ -55,7 +59,7 @@ def get_clients():
 def get_client(account_id: int):
     session_name = account_repository.get_session(account_id)
     if not session_name:
-        raise RuntimeError(f"Telegram account {account_id} not found")
+        raise RuntimeError(f"Telegram account {account_id} not found or disabled")
 
     all_clients = get_clients()
     if session_name not in all_clients:
