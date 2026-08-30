@@ -7,6 +7,7 @@ from database import init_database
 from database_pool import close_pool, open_pool
 from repositories.accounts import AccountRepository
 from repositories.files import FileRepository
+from repositories.resources import ResourceRepository
 from repositories.sources import SourceRepository
 from catalog.repository import CatalogRepository
 
@@ -40,6 +41,7 @@ def test_schema_and_repositories_are_transactional():
     init_database()
     accounts = AccountRepository()
     files = FileRepository()
+    resources = ResourceRepository()
     sources = SourceRepository()
     catalog = CatalogRepository()
 
@@ -83,6 +85,26 @@ def test_schema_and_repositories_are_transactional():
             cur.execute("SELECT filename, size, resource_id, content_hash, status, scan_status, is_available FROM files")
             assert cur.fetchone() == ("one-renamed.bin", 456, resource_id, "a" * 64, "active", "indexed", True)
 
+    provisional_id = resources.get_or_create(
+        filename="same-metadata.bin",
+        size=10,
+        mime_type="application/octet-stream",
+    )
+    files.upsert_indexed_message(
+        filename="same-metadata.bin", size=10, mime_type="application/octet-stream",
+        chat_id=10001, message_id=8, upload_time=1700000002,
+        account_id=account_id, resource_id=provisional_id, content_hash=None,
+    )
+    verified_id = resources.verify_file(2, "b" * 64)
+    assert verified_id != provisional_id
+    assert resources.get(provisional_id)["content_hash"] is None
+    assert resources.get(verified_id)["content_hash"] == "b" * 64
+
+    with psycopg.connect(DATABASE_URL) as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT resource_id, content_hash FROM files WHERE id=2")
+            assert cur.fetchone() == (verified_id, "b" * 64)
+
     with psycopg.connect(DATABASE_URL) as conn:
         with conn.cursor() as cur:
             cur.execute("DELETE FROM accounts WHERE id=%s", (account_id,))
@@ -90,7 +112,7 @@ def test_schema_and_repositories_are_transactional():
 
     with psycopg.connect(DATABASE_URL) as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT resource_id, account_id, filename FROM files")
+            cur.execute("SELECT resource_id, account_id, filename FROM files WHERE id=1")
             assert cur.fetchone() == (resource_id, None, "one-renamed.bin")
             cur.execute("SELECT COUNT(*) FROM resources WHERE id=%s", (resource_id,))
             assert cur.fetchone()[0] == 1
@@ -101,6 +123,6 @@ def test_schema_and_repositories_are_transactional():
 
     files.upsert_indexed_message(
         filename="no-hash.bin", size=1, mime_type="application/octet-stream",
-        chat_id=10001, message_id=8, upload_time=1700000002,
+        chat_id=10001, message_id=9, upload_time=1700000003,
         account_id=None, resource_id=resource_id, content_hash=None,
     )
