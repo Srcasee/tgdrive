@@ -1,67 +1,72 @@
 # tgdrive
 
-Telegram-backed personal file drive with HTTP Range streaming.
+Telegram-only file catalog and delivery system.
+
+```text
+Telegram
+   ↓ metadata-only scan
+Ingestion / recognition
+   ↓
+Resource
+   ↓
+Catalog / classification / search
+   ↓
+Delivery
+   ↓
+Telegram backing locations (with safe pre-transfer failover)
+```
+
+Telegram is the only content backend. Multiple Telegram accounts are access/redundancy paths, not storage-provider backends.
 
 ## Quick start
 
-1. Copy `.env.example` to `.env` and set `TG_API_ID`, `TG_API_HASH`, `TG_PHONE`, and a strong `AUTH_SECRET`.
-2. Start the stack with Docker Compose.
-3. Run the one-time Telegram login command from the Core container. If a session already exists, login is skipped by Telethon.
-4. Open the web UI, sign in, select the exact Telegram dialog/chat, and add it as a source.
-5. Wait for the scanner; files then appear in the drive.
-
-The deployment should not require manual PostgreSQL SQL, manual account-row creation, or hand-written proxy configuration for the normal single-account case.
-
-## Telegram login
-
 ```bash
+git clone https://github.com/Srcasee/tgdrive.git
+cd tgdrive
+cp .env.example .env
+# set TG_API_ID, TG_API_HASH, TG_PHONE, AUTH_SECRET
+docker compose up -d --build
 docker compose exec telegram-drive python -m telegram.login
 ```
 
-The Telegram client asks the generic plugin runtime for the `telegram.proxy` capability. When the optional proxy plugin is disabled, the client connects directly.
+Then open `http://<server>:8080/` and configure the Telegram chat/source to scan.
 
-## Optional proxy plugin
+Scanning is metadata-only: a large file is not downloaded to the server just because it is indexed.
 
-Proxy support is an optional plugin under `plugins/proxy`. Core does not depend on a concrete proxy protocol. The plugin currently supports SOCKS5/SOCKS5H and HTTP endpoints.
+See `docs/QUICKSTART.md` for the full operator procedure.
 
-Direct connectivity (default):
+## Optional proxy
 
-```env
-TG_PROXY_ENABLED=false
-```
-
-Using a local SOCKS5 endpoint supplied by the optional Compose `proxy` profile:
-
-```env
-TG_PROXY_ENABLED=true
-TG_PROXY_TYPE=socks5
-TG_PROXY_HOST=proxy
-TG_PROXY_PORT=1080
-```
-
-Optional username/password are supported with `TG_PROXY_USERNAME` and `TG_PROXY_PASSWORD`.
-
-The Compose `proxy` profile runs sing-box and keeps its configuration inside the proxy plugin. Enable it only on deployments that need it:
+Direct Telegram connectivity is the default. Proxy is an external plugin and should only be enabled when the deployment/network requires it.
 
 ```bash
 docker compose --profile proxy up -d --build
 ```
 
+The Core application does not contain country/region detection or concrete proxy protocol logic. Proxy configuration is deployment-controlled; changing it requires rebuilding/reconnecting Telegram clients.
+
+## Optional Video capability
+
+Video chunk caching is a plugin, not a Core dependency. Core cataloging, scanning and delivery work without it.
+
 ## Development
 
 ```bash
 cp .env.example .env
-# fill secrets and Telegram credentials
-
 docker compose up -d --build
 pytest -q
 ```
 
-## Project status
+## Current status
 
-- Phase 1 real Telegram integration: complete.
-- Real-server Range/file transport validation: complete.
-- Download-speed optimization: intentionally paused after baseline benchmarking.
-- Browser/video-player simulation: final validation step, not yet the current focus.
+- Telegram-only architecture: established.
+- Logical Resource model: implemented.
+- Metadata-only Ingestion/recognition boundary: implemented; scanner orchestration can be further separated.
+- Resource-level Catalog and classification: implemented.
+- Multi-account backing locations and pre-transfer failover: implemented.
+- Web authentication: implemented and isolated.
+- Proxy plugin boundary: implemented; explicit reconnect lifecycle remains to be completed.
+- Admin Telegram account lifecycle: incomplete.
+- Transport optimization: intentionally deferred until multi-path delivery can be measured.
 
-See `docs/QUICKSTART.md`, `docs/MIGRATION.md`, `docs/DEPLOYMENT-NOTES.md`, and `docs/PHASE-2-DOWNLOAD.md` for operational details.
+See `docs/ARCHITECTURE.md` and `docs/MIGRATION.md` for the authoritative architecture and migration status.
