@@ -46,6 +46,9 @@ services:
     build:
       context: ./plugins/proxy
       dockerfile: Dockerfile
+      args:
+        SING_BOX_VERSION: ${SING_BOX_VERSION:-1.13.19}
+        SING_BOX_DOWNLOAD_BASE: ${SING_BOX_DOWNLOAD_BASE:-https://github.com/SagerNet/sing-box/releases/download}
     restart: unless-stopped
     profiles:
       - proxy
