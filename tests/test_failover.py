@@ -1,5 +1,7 @@
 import asyncio
 
+import pytest
+
 from delivery.source_selector import TelegramSourceSelector
 
 
@@ -26,6 +28,14 @@ class FakeDownloader:
         yield b"ok"
 
 
+class PartialFailureDownloader(FakeDownloader):
+    async def stream(self, file_info, offset=0):
+        if self.client == "bad":
+            yield b"partial"
+            raise RuntimeError("stream failed after bytes")
+        yield b"backup"
+
+
 def test_get_file_info_fails_over():
     clients = {1: "bad", 2: "good"}
     selector = TelegramSourceSelector(FakeRepo(), clients.__getitem__, FakeDownloader)
@@ -34,7 +44,7 @@ def test_get_file_info_fails_over():
     assert info == (20, 200)
 
 
-def test_stream_fails_over():
+def test_stream_fails_over_before_bytes_are_emitted():
     clients = {1: "bad", 2: "good"}
     selector = TelegramSourceSelector(FakeRepo(), clients.__getitem__, FakeDownloader)
 
@@ -42,3 +52,14 @@ def test_stream_fails_over():
         return [chunk async for chunk in selector.stream_resource(1)]
 
     assert asyncio.run(collect()) == [b"ok"]
+
+
+def test_stream_does_not_retry_after_partial_response():
+    clients = {1: "bad", 2: "good"}
+    selector = TelegramSourceSelector(FakeRepo(), clients.__getitem__, PartialFailureDownloader)
+
+    async def collect():
+        return [chunk async for chunk in selector.stream_resource(1)]
+
+    with pytest.raises(RuntimeError, match="stream failed after bytes"):
+        asyncio.run(collect())
