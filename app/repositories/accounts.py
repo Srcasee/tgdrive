@@ -14,6 +14,14 @@ class AccountRepository:
                 )
                 return cursor.fetchall()
 
+    def list_enabled_sessions(self):
+        with connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "SELECT id, session FROM accounts WHERE enabled=TRUE ORDER BY id"
+                )
+                return cursor.fetchall()
+
     def get_id_by_session(self, session):
         with connection() as conn:
             with conn.cursor() as cursor:
