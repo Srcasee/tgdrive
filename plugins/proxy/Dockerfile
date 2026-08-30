@@ -21,7 +21,15 @@ RUN apk add --no-cache ca-certificates curl tar \
          *) echo "Unsupported TARGETARCH=${TARGETARCH}; supported: amd64, arm64" >&2; exit 1 ;; \
        esac \
     && URL="${SING_BOX_DOWNLOAD_BASE}/v${SING_BOX_VERSION}/${ASSET}" \
-    && curl -fsSL --retry 5 --retry-delay 2 "${URL}" -o /tmp/sing-box.tar.gz \
+    && echo "Downloading sing-box ${SING_BOX_VERSION} from ${URL}" \
+    && curl --http1.1 -fL \
+         --connect-timeout 20 \
+         --max-time 900 \
+         --retry 10 \
+         --retry-all-errors \
+         --retry-delay 5 \
+         --retry-max-time 900 \
+         "${URL}" -o /tmp/sing-box.tar.gz \
     && echo "${SHA256}  /tmp/sing-box.tar.gz" | sha256sum -c - \
     && tar -xzf /tmp/sing-box.tar.gz -C /tmp \
     && install -m 0755 "/tmp/${EXTRACTED_DIR}/sing-box" /usr/local/bin/sing-box \
