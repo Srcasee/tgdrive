@@ -29,6 +29,9 @@ class FakeDownloader:
 
 
 class PartialFailureDownloader(FakeDownloader):
+    async def get_file_info(self, chat_id, message_id):
+        return (chat_id, message_id)
+
     async def stream(self, file_info, offset=0):
         if self.client == "bad":
             yield b"partial"
