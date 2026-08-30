@@ -3,7 +3,7 @@ import os
 
 from telethon import TelegramClient
 
-from plugins.proxy.runtime import ProxyRuntime
+from plugins.runtime import PluginRuntime
 
 
 async def main():
@@ -12,7 +12,10 @@ async def main():
     phone = os.environ["TG_PHONE"]
     session = os.getenv("TG_SESSION", "/data/accounts/default")
 
-    proxy = ProxyRuntime().resolve("default")
+    plugin_runtime = PluginRuntime()
+    proxy_plugin = plugin_runtime.get_capability("telegram.proxy")
+    proxy = proxy_plugin.get_proxy("default") if proxy_plugin else None
+
     client = TelegramClient(session, api_id, api_hash, proxy=proxy)
 
     print("[LOGIN] starting Telegram login", flush=True)
