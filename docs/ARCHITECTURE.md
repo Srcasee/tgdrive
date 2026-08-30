@@ -4,7 +4,7 @@
 
 tgdrive is a Telegram-only file catalog and delivery system.
 
-Telegram is the only content backend. The project does **not** need a generic storage-provider abstraction for S3, WebDAV, Google Drive, or other backends. Such abstraction would add complexity without serving the current product.
+Telegram is the only content backend. The project does **not** use a generic storage-provider abstraction for S3, WebDAV, Google Drive, or other backends.
 
 The product flow is:
 
@@ -22,16 +22,16 @@ Resource catalog + classification
       +----> Download / streaming
 ```
 
-PostgreSQL stores the system's metadata, classification and source state. Telegram remains the source of file bytes.
+PostgreSQL stores metadata, classification and source state. Telegram remains the source of file bytes. Scanning is metadata-only; the application does not download complete files merely to index them.
 
 ## Domain priorities
 
-1. **Ingestion / system recognition** — discover Telegram media, normalize metadata, identify resources and maintain their availability.
-2. **Catalog / classification** — organize recognized resources into categories and make them searchable.
-3. **Delivery** — retrieve bytes from Telegram efficiently for downloads and streaming.
-4. **Telegram accounts** — provide source redundancy and optional throughput optimization. Multiple accounts are not multiple storage backends; they are multiple access paths to Telegram content.
-5. **Connectivity / proxy** — optional deployment infrastructure used only when the deployment's network requires it.
-6. **Web authentication / authorization** — cross-cutting access control for users and administrators. It is not a core domain.
+1. **Ingestion / system recognition** — discover Telegram media, normalize metadata, identify logical Resources and maintain physical-location availability.
+2. **Catalog / classification** — organize Resources into categories and expose Resource-oriented search/browse.
+3. **Delivery** — retrieve bytes from Telegram only when requested, with source selection/failover and HTTP Range streaming.
+4. **Telegram accounts** — provide redundancy and optional alternative delivery paths. Multiple accounts are not storage backends.
+5. **Connectivity / proxy** — optional deployment infrastructure used only when the server/network requires it.
+6. **Web authentication / authorization** — cross-cutting access control for users and administrators; not a core domain.
 
 ## Domain relationship
 
@@ -45,9 +45,7 @@ PostgreSQL stores the system's metadata, classification and source state. Telegr
                                   v
                        +----------------------+
                        |       Catalog        |
-                       |                      |
-                       | Resource             |
-                       | Category             |
+                       | Resource / Category  |
                        | Search / metadata    |
                        +----------+-----------+
                                   ^
@@ -56,10 +54,8 @@ PostgreSQL stores the system's metadata, classification and source state. Telegr
                                   |
                        +----------+-----------+
                        |      Ingestion       |
-                       |                      |
-                       | Scanner              |
-                       | Parser / normalizer  |
-                       | Dedup / identification|
+                       | Scanner / Recognizer |
+                       | Normalize / Identify |
                        +----------+-----------+
                                   |
                            Telegram messages
@@ -80,195 +76,139 @@ PostgreSQL stores the system's metadata, classification and source state. Telegr
                       Direct         Proxy plugin
 ```
 
-Authentication/authorization is a cross-cutting boundary around the Web/API side:
-
-```text
-                         +-------------+
-                         |    Auth     |
-                         +------+------+ 
-                                |
-                    +-----------+-----------+
-                    |                       |
-                    v                       v
-                  User                    Admin
-                    |                       |
-                    v                       v
-             Search / Download       Catalog / TG management
-```
-
 ## Architectural principle
-
-The central rule is:
 
 > **Telegram Message is the physical source record; Resource is the system-recognized business entity; Category organizes Resources; Delivery consumes a Resource; Telegram Account is an access/redundancy path; Proxy is a Telegram connectivity policy; User/Admin Auth controls who may use or manage the system.**
 
-This distinction prevents Telegram message records, business resources, accounts and web users from becoming one overloaded concept.
-
 ## Target module layout
+
+The following remains the target boundary. It is not a claim that every target filename exists yet.
 
 ```text
 app/
 |
-+-- core/
-|   +-- app.py
-|   +-- lifecycle.py
-|   +-- config.py
-|   +-- exceptions.py
++-- core/                         # application composition + lifecycle
 |
-+-- auth/                         # cross-cutting access control
-|   +-- api.py
-|   +-- security.py
-|   +-- dependencies.py
-|   +-- models.py
-|   +-- policy.py
-|   +-- repository.py
++-- auth/                         # cross-cutting Web access control
 |
-+-- telegram/                     # only content backend
-|   +-- api.py
++-- telegram/                     # Telegram-only backend integration
 |   +-- client.py
+|   +-- login.py
 |   +-- scanner.py
 |   +-- downloader.py
-|   +-- login.py
-|   +-- check_sessions.py
+|   +-- api.py
 |
-+-- ingestion/                    # target: first core domain
-|   +-- discovery.py
-|   +-- parser.py
-|   +-- normalizer.py
-|   +-- deduplicator.py
++-- ingestion/                    # recognition / normalization / identity
+|   +-- recognizer.py
 |   +-- service.py
 |
-+-- catalog/                      # target: first core domain
-|   +-- resources.py
-|   +-- categories.py
-|   +-- search.py
-|   +-- service.py
++-- catalog/                      # Resource-oriented catalog API/service
+|   +-- api.py
 |   +-- repository.py
+|   +-- service.py
 |
-+-- delivery/                     # target: core user capability
-|   +-- download.py
++-- delivery/                     # user-facing retrieval from Resource sources
+|   +-- api.py
 |   +-- source_selector.py
 |   +-- streaming.py
 |   +-- range.py
 |
-+-- connectivity/                 # target: Telegram network boundary
-|   +-- interface.py
-|   +-- direct.py
-|   +-- registry.py
++-- repositories/                 # current PostgreSQL persistence implementation
+|   +-- resources.py
+|   +-- files.py
+|   +-- accounts.py
+|   +-- sources.py
+|   +-- categories.py
 |
-+-- plugins/                      # optional infrastructure capabilities
-|   +-- interface.py
-|   +-- runtime.py
-|
-+-- repositories/                 # current persistence layer; to be split by domain
-|
-+-- admin/                        # HTTP adapter for admin operations
-|
++-- admin/                        # administrator HTTP adapter
 +-- web/                          # browser UI
-|
-plugins/
-  +-- proxy/                     # optional external proxy implementation
-```
++-- plugins/                      # plugin runtime contracts inside Core
 
-The layout above is the **target boundary**, not a claim that all target modules already exist. Current implementation mapping and gaps are documented below.
+plugins/
++-- proxy/                        # optional Telegram connectivity implementation
++-- video/                        # optional delivery chunk-cache capability
+```
 
 ## Current implementation mapping
 
-| Target responsibility | Current implementation | Status / finding |
+| Responsibility | Current implementation | Status |
 |---|---|---|
-| Telegram account/session access | `app/telegram/client.py`, `app/telegram/login.py`, `repositories/accounts.py` | Implemented, but account lifecycle is coupled to session-file discovery |
-| Telegram source selection | `app/telegram/api.py`, `repositories/sources.py` | Implemented; source is `(account_id, telegram_chat_id)` |
-| System recognition / scanning | `app/telegram/scanner.py` | Implemented as Telegram-specific scanner; normalization/dedup/resource recognition are not separate domain services |
-| Resource identity | `files` table + `FileRepository` | **Missing as a business concept**; current identity is physical `(account_id, telegram_chat_id, message_id)` |
-| Resource redundancy | `files.account_id` | **Missing**; same logical resource in another TG account becomes another file row rather than another source of one Resource |
-| Catalog | `repositories/files.py` | Partial; file listing and filename search exist, but no Resource/Catalog service layer |
-| Classification | `repositories/categories.py`, `admin/api.py` | Implemented as one `files.category_id` foreign key; admin CRUD and assignment exist |
-| Search | `FileRepository.search()` | Partial; filename-only PostgreSQL `ILIKE`, no category/resource-oriented search model |
-| Download | `app/files/api.py`, `app/telegram/downloader.py` | Implemented, but file API directly constructs Telegram downloader and selects the fixed `account_id` from the file row |
-| Streaming | `app/files/api.py`, `app/files/stream_service.py` | Implemented with HTTP Range and 4 MiB application cache chunks |
-| Download source selection | `get_client(row["account_id"])` | **Missing failover/selection**; no alternate Telegram account is tried when the selected account is unavailable |
-| Proxy boundary | `app/plugins/runtime.py`, external `plugins/proxy/` | Good direction; Core asks for `telegram.proxy` capability and can fall back to direct |
-| Proxy deployment policy | config/plugin | Current code is deployment-oriented; account-scoped proxy is not a product requirement |
-| Web auth | `app/auth/*` | Implemented and tested; remains cross-cutting, not a core domain |
-| Admin | `app/admin/api.py`, `app/telegram/api.py` | Partial management surface; category and source operations exist, account management is incomplete |
+| Telegram account/session access | `app/telegram/client.py`, `app/telegram/login.py`, `app/repositories/accounts.py` | **Implemented**; enabled accounts are filtered when clients are created. Full admin lifecycle API is still incomplete. |
+| Telegram source configuration | `app/telegram/api.py`, `app/repositories/sources.py` | **Implemented**; physical source identity is account + Telegram chat. |
+| Scanner/discovery | `app/telegram/scanner.py` | **Implemented**; traverses configured chats and performs metadata-only discovery. It delegates recognition/persistence to Ingestion but still owns some scan orchestration. |
+| Recognition / identity | `app/ingestion/recognizer.py`, `app/ingestion/service.py`, `app/repositories/resources.py` | **Implemented**; deterministic provisional identity and SHA-256 content identity are separate. Verified physical locations retain their Resource identity across rescans. |
+| Logical Resource | `resources` table + `app/repositories/resources.py` | **Implemented**; Resource is separate from physical Telegram file/message location. |
+| Resource redundancy | `files.resource_id` + `ResourceRepository.verify_file()` + source listing | **Implemented at data/delivery level**; one Resource can have multiple Telegram-backed file locations. Account deletion uses `ON DELETE SET NULL` for file metadata. |
+| Catalog | `app/catalog/api.py`, `app/catalog/repository.py`, `app/catalog/service.py` | **Implemented**; lists and searches logical Resources and reports usable source counts. |
+| Classification | `resource_categories` + `app/admin/api.py` + `CatalogRepository.set_categories()` | **Implemented** at Resource level. The old physical `files.category_id` column has been removed. |
+| Search | `CatalogRepository.search_resources()` | **Implemented**, currently filename-oriented with optional Resource category filtering. |
+| Delivery | `app/delivery/api.py`, `app/delivery/streaming.py`, `app/delivery/range.py` | **Implemented**; Resource-centric download/stream endpoints and Range semantics. |
+| Source selection/failover | `app/delivery/source_selector.py` | **Implemented** for pre-transfer source failure. A source that fails after bytes have been emitted is not transparently retried, preventing duplicate/corrupt HTTP bodies. |
+| Content verification | `app/repositories/resources.py` | **Implemented** as an explicit verification/promotion operation. Scanning itself does not download payloads. |
+| Proxy boundary | `app/plugins/runtime.py`, `plugins/proxy/` | **Implemented**; concrete proxy code is external to the Core Telegram domain. |
+| Proxy deployment policy | environment + optional Compose `proxy` profile | **Implemented** as deployment configuration. Core does not infer country/region requirements. Reconnect semantics for changing an already-created client remain explicit/lifecycle-bound. |
+| Optional video cache | `plugins/video/` + plugin capability `delivery.chunk-cache` | **Optional plugin**; not required by Core or deployment. |
+| Web Auth | `app/auth/*` | **Implemented** and intentionally cross-cutting. |
+| Admin | `app/admin/api.py` | **Partial**; Resource category management exists; Telegram account lifecycle management is not complete. |
 
-## Current data model vs target model
-
-Current schema contains:
+## Current data model
 
 ```text
 accounts
     |
     +-- telegram_sources
     |
-    +-- files
-           |
-           +-- category_id -> categories
+    +-- files --------------------+
+           |                      |
+           +-- resource_id ------> resources
+                                  |
+                                  +-- resource_categories --> categories
 ```
 
-Current `files` rows represent a Telegram message/file location. The unique index is `(account_id, telegram_chat_id, message_id)`. This is correct for physical-source identity but insufficient for the product requirement that multiple Telegram accounts can back up one logical resource.
+Physical file identity remains `(account_id, telegram_chat_id, message_id)`. Logical Resource identity is represented separately by `resources.identity_key`, initially using normalized metadata and, after verification, SHA-256 content identity.
 
-Target conceptual model:
+This gives the required distinction:
 
 ```text
-telegram_accounts
-       |
-       +---- telegram_messages / file_locations ----+
-                                                    |
-                                                    v
-                                                resources
-                                                    |
-                                      +-------------+-------------+
-                                      |                           |
-                                      v                           v
-                                  categories                 search index
+Telegram physical location
+        |
+        +-- account/chat/message
+        |
+        v
+Physical file row
+        |
+        +-- resource_id
+        v
+Logical Resource
 ```
 
-The first implementation of this model does not require a generic storage abstraction. It requires a logical `Resource` above Telegram message/file locations.
+## Telegram accounts
 
-## Telegram accounts: purpose and lifecycle
+Multiple accounts primarily provide:
 
-Multiple Telegram accounts serve two product purposes:
+1. **Availability / redundancy** — a Resource may have multiple Telegram-backed locations.
+2. **Delivery optimization** — Delivery may choose among usable locations later using health/throughput signals.
 
-1. **Availability / redundancy** — a logical Resource may have more than one Telegram-backed copy/location so that a single account restriction does not make the Resource unavailable.
-2. **Delivery optimization** — when multiple usable locations exist, Delivery may later choose the better path based on availability/health/throughput.
-
-Therefore an account is an infrastructure/access identity, not a separate storage backend and not Web Auth.
-
-A future Delivery source selector should be able to evaluate:
-
-```text
-Resource
-  -> candidate Telegram locations
-  -> account health / authorization
-  -> connectivity health
-  -> choose source
-  -> download
-  -> retry/fail over when safe
-```
+Account enablement is enforced when clients are created. Disabled accounts therefore are not normal scanner/delivery access paths, while their physical metadata can remain attached to a Resource.
 
 ## Proxy plugin boundary
 
-Proxy is optional deployment infrastructure.
-
 ```text
-Telegram client boundary
-          |
-          v
-     Connectivity
-          |
-     +----+----+
-     |         |
-  Direct    Proxy plugin
+Telegram client
+      |
+      v
+ Connectivity request
+      |
+   +--+--+
+   |     |
+Direct  Proxy plugin
 ```
 
-Core must not contain country/region detection or concrete proxy protocol logic. An administrator/deployment chooses direct vs proxy according to the server/network environment. The proxy implementation lives outside the core and is discovered through the plugin runtime. `PluginRuntime` loads external plugins from configured directories and exposes capabilities; the Telegram client asks for `telegram.proxy` and otherwise uses direct connectivity.
+Core contains no country/region detection and no concrete proxy protocol implementation. The administrator/deployment chooses direct or proxy according to server/network requirements. The current external plugin supports SOCKS5/HTTP local endpoints and can run a sing-box upstream.
 
-The product requirement does **not** require account-scoped proxy selection. Keep that out of the core model unless a real deployment requirement appears.
+Changing proxy configuration requires Telegram client recreation/reconnect; refreshing the plugin registry alone does not mutate an already-created Telethon client.
 
 ## Web authentication boundary
-
-Web Auth is intentionally small and isolated:
 
 ```text
 username/password
@@ -285,66 +225,55 @@ HttpOnly cookie
       v
 Principal(subject, role)
       |
-      +---- user -> file APIs
+      +---- user -> Catalog / Delivery
       |
-      +---- admin -> management APIs
+      +---- admin -> Catalog / Telegram management
 ```
 
-It must not own Telegram sessions, Resources, Categories or download selection.
+Auth does not own Telegram sessions, Resources, Categories or source selection.
 
-## Known gaps and bugs from the current code mapping
+## Remaining implementation gaps
 
-### P0 — logical Resource model is missing
+### P1 — complete Telegram account lifecycle
 
-The current database identifies each physical Telegram message/file location by `(account_id, telegram_chat_id, message_id)`. There is no logical Resource entity. Consequently, the same content copied to two Telegram accounts cannot be represented as two backing locations of one resource. This blocks the intended account-redundancy design and makes failover impossible at the domain level.
+Client loading now respects `accounts.enabled`, but administrator operations for enable/disable/retire/remove and account health inspection are not yet a complete API surface. Account lifecycle must continue to preserve Resource metadata and make disabled access paths unavailable.
 
-### P0 — account redundancy is defeated by account deletion semantics
+### P1 — finish ingestion separation
 
-`files.account_id` has `ON DELETE CASCADE`. Deleting an account therefore deletes all indexed file rows belonging to it, which is unsafe for a system whose accounts exist partly for redundancy. Account disable/removal must be separated from physical-resource metadata retention.
+`IngestionService` and `TelegramMessageRecognizer` now provide the recognition boundary, but `app/telegram/scanner.py` still coordinates scan state, source selection and the Ingestion call. Further separation should make Telegram traversal produce observations while Ingestion owns recognition and persistence semantics.
 
-### P1 — Delivery is hard-wired to one Telegram account
+### P1 — broaden Resource catalog semantics
 
-Both download and stream resolve `get_client(row["account_id"])`. There is no source selector, health check or fallback to another Telegram-backed location. A restricted/broken account can therefore make an otherwise backed-up resource unavailable.
+Catalog is Resource-oriented and category assignment is Resource-level, but search is still primarily filename + category. Additional metadata fields should be added only when required by product behavior.
 
-### P1 — scanner is doing domain work inside Telegram infrastructure
+### P1 — proxy reconnect operation
 
-`app/telegram/scanner.py` directly writes `files` through `FileRepository`. It handles source filtering, message iteration, filename normalization, full-sync reconciliation and scan state in one Telegram-specific function. There is no separate recognition/resource-identification layer.
+Proxy is correctly isolated and deployment-controlled. An explicit lifecycle operation is still needed to safely rebuild existing Telegram clients after proxy configuration changes.
 
-### P1 — catalog/search is too physical-file-oriented
+### P2 — transport optimization
 
-`FileRepository.search()` searches only `filename ILIKE`, and list/search return physical Telegram identifiers. Category is a single nullable `files.category_id`, not a Resource-level classification model. This is sufficient for the current demo but not for the intended catalog-first product.
+Delivery failover exists, but throughput optimization should be measured across valid Telegram paths before introducing more aggressive concurrency or caching.
 
-### P1 — Telegram account lifecycle is incomplete
+### P2 — top-level `telegram` package namespace
 
-`get_clients()` auto-discovers every `.session` file and creates clients, while `ApplicationLifecycle` then connects and scans every loaded client. The database `accounts.enabled` flag is not consulted when building the client set or starting scanners. There is also no admin API in the current Telegram API for enabling/disabling/removing accounts; it currently exposes account listing, dialog discovery and source creation.
+The application package name remains potentially collision-prone with third-party Python packages. This is a packaging concern, not a reason to introduce a generic Telegram/storage abstraction.
 
-### P1 — proxy runtime reload is only registry-level
-
-`PluginRuntime.refresh()` reloads the plugin registry, but `get_clients()` caches Telegram clients globally and captures the proxy when each client is created. Refreshing the plugin registry therefore does not change existing Telegram connections. This is acceptable as an explicit lifecycle boundary, but the deployment must have a controlled reconnect/reload operation before claiming runtime proxy reconfiguration.
-
-### P2 — top-level `telegram` package remains collision-prone
-
-The application uses a top-level package named `telegram`, which has previously collided with unrelated Python packages. The current test bootstrap mitigates the problem, but the application package namespace remains fragile. Treat this as a refactor/packaging concern rather than a core domain requirement.
-
-### P2 — download transport remains variable
-
-The real-server benchmark showed large throughput variance, including a very slow middle-range request. HTTP Range semantics are currently implemented correctly, but transport bottlenecks have not been isolated. The next optimization must consider Resource source selection and redundancy rather than tuning a single fixed account path in isolation.
-
-## Out of scope / intentionally rejected
+## Intentionally rejected
 
 - Generic storage-provider abstraction.
-- Generic media-plugin architecture unless the product explicitly requires it later.
-- Country/region logic embedded in application code.
+- Country/region detection embedded in application code.
 - Account-scoped proxy policy as a default requirement.
+- Treating Telegram accounts as storage backends.
 - Treating Web users and Telegram accounts as one authentication model.
+- Making Video a Core capability.
 
 ## Work order
 
-1. Introduce the logical Resource + Telegram backing-location model.
-2. Move recognition/normalization/deduplication behind an ingestion service.
-3. Move category/search behavior to Resource/Catalog semantics.
-4. Add Telegram account lifecycle management and health state.
-5. Add Delivery source selection/failover using multiple Telegram locations.
+1. Introduce/complete logical Resource + Telegram backing-location model.
+2. Complete ingestion/recognition boundaries and deterministic identity.
+3. Move classification/search behavior to Resource/Catalog semantics.
+4. Complete Telegram account lifecycle and health state.
+5. Complete Delivery source selection/failover across Telegram locations.
 6. Finish deployment-level proxy configuration/reconnect semantics.
-7. Optimize transport only after the Resource/Delivery model can select among valid Telegram paths.
+7. Optimize transport only after Resource/Delivery source selection is stable.
 8. Keep Web Auth isolated and stable unless a concrete security defect is found.
