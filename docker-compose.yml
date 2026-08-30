@@ -1,7 +1,6 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: telegram-drive-postgres
     restart: unless-stopped
     environment:
       POSTGRES_DB: tgdrive
@@ -18,7 +17,6 @@ services:
       - telegram-net
 
   telegram-drive:
-    container_name: telegram-drive
     build:
       context: .
       dockerfile: Dockerfile
@@ -26,6 +24,7 @@ services:
     working_dir: /app
     volumes:
       - ./data:/data
+      - ./plugins:/opt/tgdrive-plugins:ro
     env_file:
       - .env
     environment:
@@ -47,7 +46,6 @@ services:
     build:
       context: ./plugins/proxy
       dockerfile: Dockerfile
-    container_name: telegram-drive-proxy
     restart: unless-stopped
     profiles:
       - proxy
