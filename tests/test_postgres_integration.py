@@ -105,7 +105,7 @@ def test_schema_and_repositories_are_transactional():
 
     verified_id = resources.verify_file(second_file_id, "b" * 64)
     assert verified_id != provisional_id
-    assert resources.get(provisional_id)["content_hash"] is None
+    assert resources.get(provisional_id) is None
     assert resources.get(verified_id)["content_hash"] == "b" * 64
 
     with psycopg.connect(DATABASE_URL) as conn:
