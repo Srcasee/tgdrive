@@ -30,7 +30,7 @@ def postgres_pool():
 
 def _reset_schema(conn):
     with conn.cursor() as cur:
-        cur.execute("DROP TABLE IF EXISTS shares, resource_categories, files, resources, telegram_sources, categories, accounts, schema_migrations CASCADE")
+        cur.execute("DROP TABLE IF EXISTS resource_categories, files, resources, telegram_sources, categories, accounts, schema_migrations CASCADE")
     conn.commit()
 
 
@@ -74,6 +74,10 @@ def test_schema_and_repositories_are_transactional():
     assert assigned["category_ids"] == [category_id]
     assert catalog.get_resource(resource_id)["source_count"] == 1
 
+    first_file = files.get_by_telegram_location(account_id, 10001, 7)
+    assert first_file is not None
+    first_file_id = first_file["id"]
+
     with psycopg.connect(DATABASE_URL) as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT COUNT(*) FROM accounts")
@@ -95,14 +99,18 @@ def test_schema_and_repositories_are_transactional():
         chat_id=10001, message_id=8, upload_time=1700000002,
         account_id=account_id, resource_id=provisional_id, content_hash=None,
     )
-    verified_id = resources.verify_file(2, "b" * 64)
+    second_file = files.get_by_telegram_location(account_id, 10001, 8)
+    assert second_file is not None
+    second_file_id = second_file["id"]
+
+    verified_id = resources.verify_file(second_file_id, "b" * 64)
     assert verified_id != provisional_id
     assert resources.get(provisional_id)["content_hash"] is None
     assert resources.get(verified_id)["content_hash"] == "b" * 64
 
     with psycopg.connect(DATABASE_URL) as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT resource_id, content_hash FROM files WHERE id=2")
+            cur.execute("SELECT resource_id, content_hash FROM files WHERE id=%s", (second_file_id,))
             assert cur.fetchone() == (verified_id, "b" * 64)
 
     with psycopg.connect(DATABASE_URL) as conn:
@@ -112,7 +120,7 @@ def test_schema_and_repositories_are_transactional():
 
     with psycopg.connect(DATABASE_URL) as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT resource_id, account_id, filename FROM files WHERE id=1")
+            cur.execute("SELECT resource_id, account_id, filename FROM files WHERE id=%s", (first_file_id,))
             assert cur.fetchone() == (resource_id, None, "one-renamed.bin")
             cur.execute("SELECT COUNT(*) FROM resources WHERE id=%s", (resource_id,))
             assert cur.fetchone()[0] == 1
