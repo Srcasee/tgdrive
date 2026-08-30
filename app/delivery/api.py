@@ -13,10 +13,12 @@ from delivery.streaming import StreamService
 from plugins.runtime import PluginRuntime
 from repositories.files import FileRepository
 from repositories.resources import ResourceRepository
+from repositories.shares import ShareRepository
 
 router = APIRouter(prefix="/resources", tags=["delivery"])
 file_repository = FileRepository()
 resource_repository = ResourceRepository()
+share_repository = ShareRepository()
 source_selector = TelegramSourceSelector(file_repository)
 _plugin_runtime = PluginRuntime()
 _cache_plugin = _plugin_runtime.get_capability("delivery.chunk-cache")
@@ -39,8 +41,7 @@ def _resource(resource_id):
     return resource
 
 
-@router.get("/{resource_id}/download")
-async def download_resource(resource_id: int, range_header: str | None = Header(default=None, alias="Range"), _: Principal = Depends(require_user)):
+def _download_response(resource_id, range_header):
     resource = _resource(resource_id)
     if not resource:
         return api_error("not_found", "resource not found", 404)
@@ -70,6 +71,20 @@ async def download_resource(resource_id: int, range_header: str | None = Header(
     if partial:
         headers["Content-Range"] = f"bytes {start}-{end}/{resource['size']}"
     return StreamingResponse(stream(), status_code=206 if partial else 200, media_type=resource["mime_type"] or "application/octet-stream", headers=headers)
+
+
+@router.post("/{resource_id}/share")
+async def create_share(resource_id: int, _: Principal = Depends(require_user)):
+    resource = _resource(resource_id)
+    if not resource:
+        return api_error("not_found", "resource not found", 404)
+    token = share_repository.create(resource_id)
+    return {"url": f"/share/{token}", "resource_id": resource_id}
+
+
+@router.get("/{resource_id}/download")
+async def download_resource(resource_id: int, range_header: str | None = Header(default=None, alias="Range"), _: Principal = Depends(require_user)):
+    return _download_response(resource_id, range_header)
 
 
 @router.head("/{resource_id}/download")
@@ -129,3 +144,14 @@ async def stream_head(resource_id: int, _: Principal = Depends(require_user)):
         "Content-Disposition": "inline",
         "Content-Type": resource["mime_type"] or "application/octet-stream",
     })
+
+
+share_router = APIRouter(prefix="/share", tags=["delivery"])
+
+
+@share_router.get("/{token}")
+async def shared_download(token: str, range_header: str | None = Header(default=None, alias="Range")):
+    resource_id = share_repository.get_resource_id(token)
+    if resource_id is None:
+        return api_error("not_found", "share link not found", 404)
+    return _download_response(resource_id, range_header)
