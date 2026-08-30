@@ -17,12 +17,21 @@ class IngestionService:
         return full_sync
 
     def ingest(self, observation):
-        # Scanning is metadata-only. Content verification is performed only
-        # when a caller explicitly supplies a complete byte stream.
-        resource_id = self.resource_repository.get_or_create(
-            **observation.resource_metadata,
-            content_hash=None,
+        # Scanning is metadata-only. If a physical Telegram location has already
+        # been content-verified, keep it attached to that verified Resource.
+        existing = self.file_repository.get_by_telegram_location(
+            observation.file_metadata["account_id"],
+            observation.file_metadata["chat_id"],
+            observation.file_metadata["message_id"],
         )
+        if existing and existing["content_hash"]:
+            resource_id = existing["resource_id"]
+        else:
+            resource_id = self.resource_repository.get_or_create(
+                **observation.resource_metadata,
+                content_hash=None,
+            )
+
         self.file_repository.upsert_indexed_message(
             **observation.file_metadata,
             resource_id=resource_id,
