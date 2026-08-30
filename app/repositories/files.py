@@ -58,8 +58,12 @@ class FileRepository:
                      upload_time, account_id, resource_id, content_hash, status, scan_status, is_available)
                     VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,'active','indexed',TRUE)
                     ON CONFLICT (account_id, telegram_chat_id, message_id)
-                    DO UPDATE SET resource_id=EXCLUDED.resource_id,
-                        content_hash=COALESCE(EXCLUDED.content_hash, files.content_hash),
+                    DO UPDATE SET
+                        resource_id=CASE
+                            WHEN files.content_hash IS NOT NULL THEN files.resource_id
+                            ELSE EXCLUDED.resource_id
+                        END,
+                        content_hash=COALESCE(files.content_hash, EXCLUDED.content_hash),
                         filename=EXCLUDED.filename, size=EXCLUDED.size,
                         mime_type=EXCLUDED.mime_type, upload_time=EXCLUDED.upload_time,
                         status='active', scan_status='indexed', is_available=TRUE
