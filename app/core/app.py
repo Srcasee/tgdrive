@@ -7,7 +7,7 @@ from admin.api import router as admin_router
 from auth.api import router as auth_router
 from catalog.api import router as catalog_router
 from core.lifecycle import ApplicationLifecycle
-from delivery.api import router as delivery_router
+from delivery.api import router as delivery_router, share_router
 from telegram.api import router as telegram_router
 
 
@@ -27,6 +27,7 @@ def create_app():
     app.include_router(auth_router)
     app.include_router(catalog_router)
     app.include_router(delivery_router)
+    app.include_router(share_router)
     app.include_router(telegram_router)
     app.include_router(admin_router)
 
