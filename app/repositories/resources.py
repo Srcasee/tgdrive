@@ -42,7 +42,7 @@ class ResourceRepository:
                 cursor.execute(
                     """
                     INSERT INTO resources(identity_key, filename, size, mime_type)
-                    VALUES(%s,%s,%s,%s,%s)
+                    VALUES(%s,%s,%s,%s)
                     ON CONFLICT (identity_key) DO UPDATE
                     SET filename=EXCLUDED.filename,
                         size=EXCLUDED.size,
@@ -114,24 +114,7 @@ class ResourceRepository:
                 target = cursor.fetchone()
                 if target and target["id"] != resource_id:
                     target_id = target["id"]
-                elif current["content_hash"] is None:
-                    # A metadata identity is only provisional. Verifying one
-                    # physical copy must not claim every other copy has the same
-                    # bytes, so promote this file into its own verified Resource.
-                    cursor.execute(
-                        """
-                        INSERT INTO resources(identity_key, content_hash, filename, size, mime_type)
-                        SELECT %s, %s, filename, size, mime_type
-                        FROM resources WHERE id=%s
-                        RETURNING id
-                        """,
-                        (identity_key, digest, resource_id),
-                    )
-                    target_id = cursor.fetchone()["id"]
                 else:
-                    # The current Resource was already verified with a different
-                    # digest. A newly verified file with another digest cannot
-                    # mutate that identity; it becomes a separate Resource.
                     cursor.execute(
                         """
                         INSERT INTO resources(identity_key, content_hash, filename, size, mime_type)
