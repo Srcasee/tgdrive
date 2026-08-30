@@ -44,19 +44,35 @@ def _upstream():
         missing = [name for name in required if not os.getenv(name)]
         if missing:
             raise RuntimeError("Missing VLESS settings: " + ", ".join(missing))
+        try:
+            port = int(os.getenv("TG_PROXY_VLESS_PORT", "443"))
+        except ValueError as exc:
+            raise RuntimeError("TG_PROXY_VLESS_PORT must be an integer") from exc
+        if not 1 <= port <= 65535:
+            raise RuntimeError("TG_PROXY_VLESS_PORT must be between 1 and 65535")
+        transport = {"type": "ws", "path": os.getenv("TG_PROXY_VLESS_WS_PATH", "/")}
+        ws_host = os.getenv("TG_PROXY_VLESS_WS_HOST", "").strip()
+        if ws_host:
+            transport["headers"] = {"Host": ws_host}
         return {
             "type": "vless", "tag": "proxy-out",
             "server": os.environ["TG_PROXY_VLESS_SERVER"],
-            "server_port": int(os.getenv("TG_PROXY_VLESS_PORT", "443")),
+            "server_port": port,
             "uuid": os.environ["TG_PROXY_VLESS_UUID"],
             "tls": {"enabled": True, "server_name": os.environ["TG_PROXY_VLESS_SERVER_NAME"]},
-            "transport": {"type": "ws", "path": os.getenv("TG_PROXY_VLESS_WS_PATH", "/")},
+            "transport": transport,
         }
     if kind in {"socks", "socks5", "http"}:
         host, port = os.getenv("TG_PROXY_UPSTREAM_HOST"), os.getenv("TG_PROXY_UPSTREAM_PORT")
         if not host or not port:
             raise RuntimeError("TG_PROXY_UPSTREAM_HOST and TG_PROXY_UPSTREAM_PORT are required")
-        return {"type": "http" if kind == "http" else "socks", "tag": "proxy-out", "server": host, "server_port": int(port)}
+        try:
+            port = int(port)
+        except ValueError as exc:
+            raise RuntimeError("TG_PROXY_UPSTREAM_PORT must be an integer") from exc
+        if not 1 <= port <= 65535:
+            raise RuntimeError("TG_PROXY_UPSTREAM_PORT must be between 1 and 65535")
+        return {"type": "http" if kind == "http" else "socks", "tag": "proxy-out", "server": host, "server_port": port}
     raise RuntimeError(f"Unsupported proxy upstream type: {kind}")
 
 
@@ -64,7 +80,10 @@ def generate_config(path):
     local_type = os.getenv("TG_PROXY_TYPE", "socks5").lower()
     if local_type not in {"socks5", "http"}:
         raise RuntimeError("TG_PROXY_TYPE must be socks5 or http")
-    port = int(os.getenv("TG_PROXY_PORT", "1080"))
+    try:
+        port = int(os.getenv("TG_PROXY_PORT", "1080"))
+    except ValueError as exc:
+        raise RuntimeError("TG_PROXY_PORT must be an integer") from exc
     if not 1 <= port <= 65535:
         raise RuntimeError("TG_PROXY_PORT must be between 1 and 65535")
     inbound_type = "http" if local_type == "http" else "socks"
