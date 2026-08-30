@@ -98,6 +98,19 @@ class FakeResources:
         return self.available.get(resource_id)
 
 
+class FakeShares:
+    def __init__(self):
+        self.tokens = {}
+
+    def create(self, resource_id):
+        token = "test-share-token"
+        self.tokens[token] = resource_id
+        return token
+
+    def get_resource_id(self, token):
+        return self.tokens.get(token)
+
+
 async def _noop_startup():
     return None
 
@@ -110,11 +123,13 @@ def make_client(monkeypatch):
     users = FakeUsers()
     categories = FakeCategories()
     resources = FakeResources()
+    shares = FakeShares()
     monkeypatch.setattr("auth.api.user_repository", users)
     monkeypatch.setattr("auth.dependencies.user_repository", users)
     monkeypatch.setattr("admin.api.category_repository", categories)
     monkeypatch.setattr("catalog.api.service", CatalogService(resources))
     monkeypatch.setattr("delivery.api.resource_repository", resources)
+    monkeypatch.setattr("delivery.api.share_repository", shares)
 
     app = create_app()
     lifecycle = ApplicationLifecycle()
@@ -172,3 +187,15 @@ def test_unavailable_resource_is_not_downloadable_or_streamable(monkeypatch):
     resources.available[1]["is_available"] = False
     assert client.get("/resources/1/download").status_code == 404
     assert client.get("/resources/1/stream").status_code == 404
+
+
+def test_share_link_can_be_created_without_expiry_or_revoke(monkeypatch):
+    client, _ = make_client(monkeypatch)
+    assert client.post("/resources/1/share").status_code == 401
+
+    client.post("/auth/login", json={"username": "user", "password": "user-pass"})
+    response = client.post("/resources/1/share")
+    assert response.status_code == 200
+    assert response.json() == {"url": "/share/test-share-token", "resource_id": 1}
+
+    assert client.get("/share/unknown-token").status_code == 404
