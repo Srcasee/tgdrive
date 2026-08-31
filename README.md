@@ -18,24 +18,33 @@ Telegram backing locations
 
 Telegram is the only content backend. Multiple Telegram accounts are access/redundancy paths, not storage-provider backends.
 
-## Quick start
+## Quick start — fresh server
+
+Prerequisites: a Linux host with Docker Engine and the Docker Compose plugin, plus Telegram API credentials from `my.telegram.org`.
+
+The supported fresh-server bootstrap is now one command:
 
 ```bash
 git clone https://github.com/Srcasee/tgdrive.git
 cd tgdrive
-cp .env.example .env
-# set TG_API_ID, TG_API_HASH, TG_PHONE, AUTH_SECRET
-docker compose up -d --build
+./deploy.sh
+```
+
+`deploy.sh` creates persistent data directories, interactively collects the required Telegram/Web credentials when `.env` is absent, generates deployment secrets, validates Compose, builds the Core image and starts PostgreSQL + tgdrive. Existing `.env` files are preserved.
+
+Then authorize an account explicitly:
+
+```bash
 ./login-account.sh default +1234567890
 ```
 
-Then open `http://<server>:8080/` and log in with the configured Web user. Configure the Telegram source through the Telegram management API/UI.
+Open `http://<server>:8080/`, log in with the configured Web administrator, discover the Telegram dialogs and configure the exact Telegram chat/source to scan.
 
 `login-account.sh` is only a deployment wrapper around the canonical `app/telegram/login.py` implementation. Account-named sessions are stored under `/data/accounts/<account_name>`. Multiple Telegram accounts/sessions are supported.
 
 Scanning is metadata-only: a large Telegram file is not downloaded to the server merely because it is indexed.
 
-See `docs/QUICKSTART.md` for the operator procedure.
+See `docs/QUICKSTART.md`, `docs/DEPLOYMENT-NOTES.md`, and `docs/PROJECT-STATUS.md` for the operator procedure and current real-device status.
 
 ## Core API
 
@@ -62,6 +71,8 @@ DELETE /api/admin/categories/{category_id}
 PUT  /api/admin/resources/{resource_id}/categories
 ```
 
+A batch Resource-classification API is planned; it is intentionally not represented as implemented until the backend and UI are complete.
+
 Telegram account lifecycle is explicit:
 
 ```text
@@ -74,7 +85,7 @@ POST /api/telegram/sources
 
 There are no compatibility `/files/*` HTTP endpoints. Physical Telegram locations are persistence details behind the Resource model.
 
-A complete non-range delivery hashes the emitted content with SHA-256 and promotes the consumed physical location to its canonical Resource identity.
+A complete non-range delivery hashes the emitted content with SHA-256 and promotes the consumed physical location to its canonical Resource identity. Real-device verification of this promotion remains pending.
 
 ## Optional proxy
 
@@ -86,30 +97,63 @@ docker compose --profile proxy up -d --build
 
 The Core application does not contain country/region detection or concrete proxy protocol logic. Proxy configuration is deployment-controlled. After changing proxy settings, use the administrator reconnect endpoint or restart the service so Telegram clients are rebuilt.
 
+## Resource model
+
+The public domain model is Resource-first:
+
+```text
+Telegram message
+      │
+      ├── account_id
+      ├── telegram_chat_id
+      ├── message_id
+      └── topic_id (when Telegram provides a topic)
+               │
+               ▼
+        physical `files` row
+               │
+          resource_id
+               ▼
+          logical Resource
+               │
+               ▼
+        categories/search
+```
+
+Physical Telegram identity is `(account_id, telegram_chat_id, message_id)`. The existing `topic_id` field is reserved for the planned Telegram Topic → Category mapping; it does not replace the physical identity.
+
 ## Video
 
-Video chunk caching is intentionally outside the current real-device testing scope. The optional Video plugin is not a Core dependency, is not mounted by the normal Compose service, and must not influence cataloging, scanning, Resource identity, or ordinary download delivery.
+Video chunk caching is intentionally outside the current Core delivery path and real-device test scope. The optional Video plugin is not a Core dependency and must not influence cataloging, scanning, Resource identity, or ordinary download delivery.
 
-## Development
+## Development and CI
 
 ```bash
 cp .env.example .env
+# fill required values
+
 docker compose up -d --build
 pytest -q
 ```
 
-## Current status
+GitHub Actions runs the PostgreSQL integration suite on Python 3.11 and 3.12 and validates the deployment scripts, Compose model, Core image and proxy image build.
 
-- Telegram-only Resource architecture: established.
-- Metadata-only recognition/Ingestion: implemented.
-- Logical Resource + physical Telegram backing locations: implemented.
-- Resource catalog, search and Resource-level classification: implemented.
-- Multi-account Telegram backing paths and pre-transfer failover: implemented.
-- Account enable/disable and runtime scanner reconciliation: implemented.
-- Resource-first Web UI: implemented for catalog/search/download/share and basic admin classification.
-- Legacy File-centric HTTP/admin paths: removed.
-- Complete non-range delivery verification and canonical Resource promotion: implemented.
-- Proxy boundary and explicit client reconnect: implemented.
-- Transport optimization and richer source scheduling: deferred until real-device measurements justify them.
+## Current real-device status
 
-See `docs/ARCHITECTURE.md`, `docs/PROJECT-STATUS.md`, and `docs/MIGRATION.md` for the current architecture and status.
+Verified on the current real server:
+
+- Telegram account login/session reuse: PASS (`default` and `Asada`).
+- Explicit Telegram source configuration and incremental scanning: PASS.
+- Resource catalog/search/category filtering: PASS.
+- Category create/delete: PASS.
+- Share-link creation, visible link, deletion and shared download: PASS.
+- Basic Resource download: PASS.
+
+Known pending work:
+
+- Download performance is currently unacceptable (roughly 100 KB/s observed on the tested deployment); benchmark-driven transport optimization is next.
+- Multi-account failover, Range, complete-download SHA-256 promotion and proxy smoke tests need explicit real-device validation.
+- Telegram supergroup Topic recognition and automatic Topic → Category mapping are planned.
+- Batch Resource classification is planned.
+
+See `docs/ARCHITECTURE.md` for the target architecture and `docs/PROJECT-STATUS.md` for the detailed implementation/real-device matrix.
