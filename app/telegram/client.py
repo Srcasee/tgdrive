@@ -1,3 +1,4 @@
+import asyncio
 import os
 
 from telethon import TelegramClient
@@ -44,9 +45,11 @@ def refresh_clients():
             continue
         client = clients.pop(name)
         if client.is_connected():
-            # Client disconnect is awaited by the lifecycle/admin caller when
-            # disabling an account; this branch only removes stale clients.
-            print(f"[ACCOUNT] disabled runtime client: {name}", flush=True)
+            try:
+                asyncio.get_running_loop().create_task(client.disconnect())
+            except RuntimeError:
+                pass
+        print(f"[ACCOUNT] disabled runtime client: {name}", flush=True)
 
     if not os.path.exists(session_dir):
         return clients
@@ -56,8 +59,13 @@ def refresh_clients():
         if not filename.endswith(".session"):
             continue
         name = filename[:-8]
-        if name not in enabled_sessions or name in clients:
+        if name not in enabled_sessions:
             continue
+        existing = clients.get(name)
+        if existing is not None and existing.is_connected():
+            continue
+        if existing is not None:
+            clients.pop(name, None)
         session = os.path.join(session_dir, name)
         proxy = proxy_plugin.get_proxy(name) if proxy_plugin else None
         clients[name] = TelegramClient(
@@ -66,6 +74,17 @@ def refresh_clients():
             settings.TG_API_HASH,
             proxy=proxy,
         )
+    return clients
+
+
+async def reconnect_clients():
+    """Rebuild Telegram clients so current proxy/account settings take effect."""
+    for name, client in list(clients.items()):
+        if client.is_connected():
+            await client.disconnect()
+        clients.pop(name, None)
+    plugin_runtime.refresh()
+    refresh_clients()
     return clients
 
 
