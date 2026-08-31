@@ -1,6 +1,6 @@
 # Project Status
 
-Updated 2026-08-31 after the Resource migration cleanup, delivery boundary cleanup, and account lifecycle work.
+Updated 2026-08-31 after the Resource migration cleanup, delivery boundary cleanup, account lifecycle work, and CI verification. The project is ready to enter the first real-device testing phase.
 
 ## Product definition
 
@@ -83,7 +83,7 @@ Video playback is deliberately absent from the current Core UI.
 
 ### Telegram accounts
 
-Accounts are redundant access paths, not storage providers. Enabled state is reconciled with runtime Telegram clients and scanner tasks. Administrators can enable/disable accounts and explicitly reconnect clients. Full automated health scoring remains outside the current core scope.
+Accounts are redundant access paths, not storage providers. Enabled state is reconciled with runtime Telegram clients and scanner tasks. Administrators can enable/disable accounts and explicitly reconnect clients. Automated health scoring remains deferred because it should be driven by real-device measurements.
 
 ### Proxy
 
@@ -103,11 +103,21 @@ Removed from the active surface:
 - Core chunk-cache/Video delivery implementation
 - obsolete single-session `TG_SESSION` configuration
 
-## Deferred work
+## CI gate
 
-### P1/P2 — delivery source policy
+The latest PostgreSQL integration workflow passed on both Python 3.11 and Python 3.12. The full test suite and proxy plugin image build passed in workflow run #312 on commit `d6a49b2574cfe397a6cf593c81219ca5a905b53d`.
 
-Failover currently uses basic source ordering. Health/latency scoring should be driven by real-device measurements before optimization. Issue #19.
+This is the code-level gate for entering real-device testing. CI success does not substitute for Telegram/network validation on real hardware.
+
+## Deferred work after real-device measurements
+
+### P2 — Resource-level source policy
+
+Failover currently uses basic source ordering. Add explicit health signals, transient retry policy, and richer ranking only after real-device measurements justify them. Issue #19.
+
+### P2 — Scanner/Ingestion boundary refinement
+
+The core boundary is sufficient for real-device testing. Further reduction of orchestration coupling is deferred unless deployment behavior demonstrates a concrete need. Issue #15.
 
 ### P2 — source scheduling
 
@@ -137,3 +147,7 @@ The top-level `telegram` Python package can collide with third-party packages. T
 ```
 
 Video is intentionally excluded from this sequence.
+
+## Real-device readiness
+
+**READY.** There are no remaining P1 architecture items that block the first real-device validation. Remaining open architecture work is deliberately P2 and should be informed by real-device observations rather than speculative optimization.
