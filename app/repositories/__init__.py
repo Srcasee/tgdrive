@@ -1,5 +1,5 @@
 from .accounts import AccountRepository
-from .files import FileRepository
 from .sources import SourceRepository
+from .telegram_files import TelegramFileRepository
 
-__all__ = ["AccountRepository", "FileRepository", "SourceRepository"]
+__all__ = ["AccountRepository", "SourceRepository", "TelegramFileRepository"]
