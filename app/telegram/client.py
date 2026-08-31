@@ -27,23 +27,36 @@ def sync_sessions():
 
 
 def get_clients():
-    if clients:
-        return clients
-
     validate_telegram_credentials()
     sync_sessions()
+    refresh_clients()
+    return clients
+
+
+def refresh_clients():
+    """Reconcile runtime Telegram clients with enabled account records."""
     session_dir = settings.TG_SESSION_DIR
+    enabled_accounts = account_repository.list_enabled_sessions()
+    enabled_sessions = {row["session"] for row in enabled_accounts}
+
+    for name in list(clients):
+        if name in enabled_sessions:
+            continue
+        client = clients.pop(name)
+        if client.is_connected():
+            # Client disconnect is awaited by the lifecycle/admin caller when
+            # disabling an account; this branch only removes stale clients.
+            print(f"[ACCOUNT] disabled runtime client: {name}", flush=True)
+
     if not os.path.exists(session_dir):
         return clients
 
     proxy_plugin = plugin_runtime.get_capability("telegram.proxy")
-    enabled_accounts = account_repository.list_enabled_sessions()
-    enabled_sessions = {row["session"] for row in enabled_accounts}
     for filename in os.listdir(session_dir):
         if not filename.endswith(".session"):
             continue
         name = filename[:-8]
-        if name not in enabled_sessions:
+        if name not in enabled_sessions or name in clients:
             continue
         session = os.path.join(session_dir, name)
         proxy = proxy_plugin.get_proxy(name) if proxy_plugin else None
