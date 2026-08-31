@@ -42,7 +42,7 @@ def _content_disposition(filename, disposition="attachment"):
     safe_ascii = "".join(ch if 32 <= ord(ch) < 127 and ch not in '\\"' else "_" for ch in filename)
     if not safe_ascii:
         safe_ascii = "download"
-    return f'{disposition}; filename="{safe_ascii}"; filename*=UTF-8\'\'{quote(filename, safe="")} '
+    return f'{disposition}; filename="{safe_ascii}"; filename*=UTF-8\'\'{quote(filename, safe="")}'
 
 
 def _stream_response(resource_id, range_header, disposition):
