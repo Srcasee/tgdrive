@@ -6,9 +6,9 @@ import pytest
 from database import init_database
 from database_pool import close_pool, open_pool
 from repositories.accounts import AccountRepository
-from repositories.files import FileRepository
 from repositories.resources import ResourceRepository
 from repositories.sources import SourceRepository
+from repositories.telegram_files import TelegramFileRepository
 from catalog.repository import CatalogRepository
 
 
@@ -40,7 +40,7 @@ def test_schema_and_repositories_are_transactional():
 
     init_database()
     accounts = AccountRepository()
-    files = FileRepository()
+    telegram_files = TelegramFileRepository()
     resources = ResourceRepository()
     sources = SourceRepository()
     catalog = CatalogRepository()
@@ -59,12 +59,12 @@ def test_schema_and_repositories_are_transactional():
             category_id = cur.fetchone()[0]
         conn.commit()
 
-    files.upsert_indexed_message(
+    telegram_files.upsert_indexed_message(
         filename="one.bin", size=123, mime_type="application/octet-stream",
         chat_id=10001, message_id=7, upload_time=1700000000,
         account_id=account_id, resource_id=resource_id, content_hash="a" * 64,
     )
-    files.upsert_indexed_message(
+    telegram_files.upsert_indexed_message(
         filename="one-renamed.bin", size=456, mime_type="application/octet-stream",
         chat_id=10001, message_id=7, upload_time=1700000001,
         account_id=account_id, resource_id=resource_id, content_hash="a" * 64,
@@ -74,7 +74,7 @@ def test_schema_and_repositories_are_transactional():
     assert assigned["category_ids"] == [category_id]
     assert catalog.get_resource(resource_id)["source_count"] == 1
 
-    first_file = files.get_by_telegram_location(account_id, 10001, 7)
+    first_file = telegram_files.get_by_telegram_location(account_id, 10001, 7)
     assert first_file is not None
     first_file_id = first_file["id"]
 
@@ -94,12 +94,12 @@ def test_schema_and_repositories_are_transactional():
         size=10,
         mime_type="application/octet-stream",
     )
-    files.upsert_indexed_message(
+    telegram_files.upsert_indexed_message(
         filename="same-metadata.bin", size=10, mime_type="application/octet-stream",
         chat_id=10001, message_id=8, upload_time=1700000002,
         account_id=account_id, resource_id=provisional_id, content_hash=None,
     )
-    second_file = files.get_by_telegram_location(account_id, 10001, 8)
+    second_file = telegram_files.get_by_telegram_location(account_id, 10001, 8)
     assert second_file is not None
     second_file_id = second_file["id"]
 
@@ -129,7 +129,7 @@ def test_schema_and_repositories_are_transactional():
             cur.execute("SELECT COUNT(*) FROM telegram_sources s LEFT JOIN accounts a ON a.id=s.account_id WHERE a.id IS NULL")
             assert cur.fetchone()[0] == 0
 
-    files.upsert_indexed_message(
+    telegram_files.upsert_indexed_message(
         filename="no-hash.bin", size=1, mime_type="application/octet-stream",
         chat_id=10001, message_id=9, upload_time=1700000003,
         account_id=None, resource_id=resource_id, content_hash=None,
