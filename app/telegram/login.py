@@ -5,6 +5,7 @@ from pathlib import Path
 
 from telethon import TelegramClient
 
+from database_pool import close_pool, initialize, open_pool
 from plugins.runtime import PluginRuntime
 from repositories.accounts import AccountRepository
 
@@ -33,21 +34,31 @@ async def main():
     session_dir.mkdir(parents=True, exist_ok=True)
     session = str(session_dir / args.account)
 
-    plugin_runtime = PluginRuntime()
-    proxy_plugin = plugin_runtime.get_capability("telegram.proxy")
-    proxy = proxy_plugin.get_proxy(args.account) if proxy_plugin else None
+    open_pool()
+    try:
+        initialize()
 
-    client = TelegramClient(session, api_id, api_hash, proxy=proxy)
+        plugin_runtime = PluginRuntime()
+        proxy_plugin = plugin_runtime.get_capability("telegram.proxy")
+        proxy = proxy_plugin.get_proxy(args.account) if proxy_plugin else None
 
-    print(f"[LOGIN] starting Telegram login account={args.account}", flush=True)
-    await client.start(phone=phone)
-    me = await client.get_me()
-    AccountRepository().upsert_session(args.account, me.username or me.first_name or args.account)
-    print(
-        f"[LOGIN] authorized account={args.account}: {me.username or me.first_name}",
-        flush=True,
-    )
-    await client.disconnect()
+        client = TelegramClient(session, api_id, api_hash, proxy=proxy)
+
+        print(f"[LOGIN] starting Telegram login account={args.account}", flush=True)
+        try:
+            await client.start(phone=phone)
+            me = await client.get_me()
+            AccountRepository().upsert_session(
+                args.account, me.username or me.first_name or args.account
+            )
+            print(
+                f"[LOGIN] authorized account={args.account}: {me.username or me.first_name}",
+                flush=True,
+            )
+        finally:
+            await client.disconnect()
+    finally:
+        close_pool()
 
 
 if __name__ == "__main__":
