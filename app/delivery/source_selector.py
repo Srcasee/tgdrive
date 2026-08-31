@@ -28,7 +28,7 @@ class TelegramSourceSelector:
                 print("[DELIVERY] source unavailable", row["id"], repr(exc), flush=True)
         raise RuntimeError("no available Telegram source") from last_error
 
-    async def stream_resource(self, resource_id, offset=0):
+    async def stream_resource(self, resource_id, offset=0, on_source=None):
         last_error = None
         for row in self.candidates(resource_id):
             account_id = row["account_id"]
@@ -38,6 +38,8 @@ class TelegramSourceSelector:
             try:
                 downloader = self.downloader_factory(self.client_factory(account_id))
                 info = await downloader.get_file_info(row["telegram_chat_id"], row["message_id"])
+                if on_source:
+                    on_source(row)
                 async for chunk in downloader.stream(info, offset=offset):
                     if chunk:
                         emitted = True
