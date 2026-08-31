@@ -4,12 +4,14 @@ from pydantic import BaseModel
 from auth.dependencies import require_admin
 from auth.models import Principal
 from repositories.accounts import AccountRepository
+from repositories.dialogs import DialogRepository
 from repositories.sources import SourceRepository
 from telegram.client import get_client, reconnect_clients, refresh_clients
 
 
 router = APIRouter(prefix="/api/telegram", tags=["telegram"])
 account_repository = AccountRepository()
+dialog_repository = DialogRepository()
 source_repository = SourceRepository()
 
 
@@ -44,26 +46,11 @@ async def reconnect_telegram(_: Principal = Depends(require_admin)):
 
 @router.get("/accounts/{account_id}/dialogs")
 async def list_dialogs(account_id: int, _: Principal = Depends(require_admin)):
-    try:
-        client = get_client(account_id)
-    except Exception as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
-
-    connected_here = False
-    if not client.is_connected():
-        await client.connect()
-        connected_here = True
-
-    try:
-        if not await client.is_user_authorized():
-            raise HTTPException(status_code=401, detail="telegram session not authorized")
-        return [
-            {"id": dialog.id, "name": dialog.name}
-            async for dialog in client.iter_dialogs(limit=200)
-        ]
-    finally:
-        if connected_here:
-            await client.disconnect()
+    if not account_repository.exists(account_id):
+        raise HTTPException(status_code=404, detail="account not found")
+    # Dialogs are refreshed automatically after Telegram authorization. Reading this
+    # endpoint never iterates messages and never triggers file/resource scanning.
+    return dialog_repository.list_for_account(account_id)
 
 
 class SourceCreate(BaseModel):
