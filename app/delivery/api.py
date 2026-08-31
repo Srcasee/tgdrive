@@ -11,15 +11,15 @@ from delivery.range import InvalidRange, parse_single_range
 from delivery.source_selector import TelegramSourceSelector
 from delivery.streaming import StreamService
 from plugins.runtime import PluginRuntime
-from repositories.files import FileRepository
 from repositories.resources import ResourceRepository
 from repositories.shares import ShareRepository
+from repositories.telegram_files import TelegramFileRepository
 
 router = APIRouter(prefix="/resources", tags=["delivery"])
-file_repository = FileRepository()
+telegram_file_repository = TelegramFileRepository()
 resource_repository = ResourceRepository()
 share_repository = ShareRepository()
-source_selector = TelegramSourceSelector(file_repository)
+source_selector = TelegramSourceSelector(telegram_file_repository)
 _plugin_runtime = PluginRuntime()
 _cache_plugin = _plugin_runtime.get_capability("delivery.chunk-cache")
 stream_service = StreamService(source_selector, _cache_plugin)
