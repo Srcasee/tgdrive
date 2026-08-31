@@ -1,6 +1,6 @@
 # Project Status
 
-Updated 2026-08-31 after the Resource migration cleanup and Web UI rewrite.
+Updated 2026-08-31 after the Resource migration cleanup, delivery boundary cleanup, and account lifecycle work.
 
 ## Product definition
 
@@ -32,6 +32,7 @@ No generic storage-provider abstraction is required or planned.
 - Full-sync failure-safe reconciliation: implemented.
 - Scanner failure state: implemented.
 - Traversal is metadata-only: implemented.
+- Enabled account state is reconciled with runtime clients and scanner tasks: implemented.
 
 ### Ingestion and Resource identity
 
@@ -41,7 +42,7 @@ No generic storage-provider abstraction is required or planned.
 - Logical Resource persistence: implemented.
 - Physical Telegram locations remain separate from logical Resources: implemented.
 - SHA-256 streaming verification utility: implemented.
-- End-to-end canonical Resource promotion after complete delivery: **not yet closed**; issue #24.
+- Complete non-range delivery performs content verification and canonical Resource promotion: implemented.
 
 ### Catalog and classification
 
@@ -58,10 +59,11 @@ No generic storage-provider abstraction is required or planned.
 
 - Resource-centric download: implemented.
 - HTTP Range: implemented.
-- Resource streaming: implemented.
+- Resource streaming: implemented through the same direct Telegram source path as download.
 - Multiple Telegram backing locations: implemented.
 - Safe pre-transfer failover: implemented.
-- Delivery no longer loads the Video plugin: implemented.
+- Complete non-range delivery verifies content after the response body is consumed.
+- Core delivery has no Video/chunk-cache dependency.
 
 ### Web UI
 
@@ -81,11 +83,11 @@ Video playback is deliberately absent from the current Core UI.
 
 ### Telegram accounts
 
-Accounts are redundant access paths, not storage providers. Enabled state is respected when clients are created. Complete administrator lifecycle and health behavior remains issue #18.
+Accounts are redundant access paths, not storage providers. Enabled state is reconciled with runtime Telegram clients and scanner tasks. Administrators can enable/disable accounts and explicitly reconnect clients. Full automated health scoring remains outside the current core scope.
 
 ### Proxy
 
-The external Proxy plugin boundary remains available. The normal Compose service mounts only the Proxy plugin; Video is not part of the Core runtime mount.
+The external Proxy plugin boundary remains optional. Proxy configuration changes can be applied by explicitly reconnecting Telegram clients. Video is not part of the Core runtime mount.
 
 ### Legacy cleanup
 
@@ -98,25 +100,10 @@ Removed from the active surface:
 - `CategoryRepository.assign_file()`
 - obsolete `FileRepository` naming/path in favor of `TelegramFileRepository`
 - unused `app/cache` package
-- Video cache dependency from Core delivery
+- Core chunk-cache/Video delivery implementation
+- obsolete single-session `TG_SESSION` configuration
 
-## Remaining gaps
-
-### P1 — canonical content identity promotion
-
-Complete the explicit full-byte verification → SHA-256 Resource promotion/merge lifecycle. Issue #24.
-
-### P1 — account lifecycle and health
-
-Complete enable/disable/retire/remove administration and explicit runtime reconnect/re-enable behavior. Issue #18.
-
-### P1 — ingestion separation
-
-Scanner still owns some scan orchestration. The target boundary remains Telegram traversal → observation, with Ingestion owning recognition/persistence semantics.
-
-### P1 — proxy reconnect
-
-Changing proxy configuration requires explicit Telegram client recreation/reconnect. Issue #20.
+## Deferred work
 
 ### P1/P2 — delivery source policy
 
@@ -124,7 +111,7 @@ Failover currently uses basic source ordering. Health/latency scoring should be 
 
 ### P2 — source scheduling
 
-`telegram_sources.scan_interval` is persisted but the scanner currently uses a global interval. Align scheduling only if real deployment requirements justify it.
+`telegram_sources.scan_interval` is persisted but the scanner currently uses a global account scan interval. Align scheduling only if real deployment requirements justify it.
 
 ### P2 — transport optimization
 
@@ -145,7 +132,8 @@ The top-level `telegram` Python package can collide with third-party packages. T
 6. Single-source download
 7. Multi-account failover
 8. HTTP Range behavior
-9. Proxy connectivity when required
+9. Complete-download SHA-256 promotion
+10. Proxy connectivity/reconnect when required
 ```
 
 Video is intentionally excluded from this sequence.
