@@ -5,6 +5,7 @@ from auth.security import hash_password
 from config import settings, validate_telegram_credentials
 from database_pool import close_pool, open_pool, initialize
 from repositories.accounts import AccountRepository
+from repositories.dialogs import DialogRepository
 from telegram.client import get_clients
 from telegram.scanner import scanner_loop
 
@@ -15,6 +16,7 @@ class ApplicationLifecycle:
         self.scanner_tasks = {}
         self.telegram_enabled = False
         self.account_repository = AccountRepository()
+        self.dialog_repository = DialogRepository()
         self.user_repository = UserRepository()
 
     async def startup(self):
@@ -45,11 +47,32 @@ class ApplicationLifecycle:
                 f"[TG] authorized: {name} / {me.username or me.first_name or me.id}",
                 flush=True,
             )
+            try:
+                await self._refresh_dialogs(client, self.account_repository.get_id_by_session(name), name)
+            except Exception as exc:
+                print(f"[TG] dialog refresh failed: {name}: {exc!r}", flush=True)
 
         self.telegram_enabled = connected
         if connected:
             self.scanner_task = asyncio.create_task(self._run_scanners())
             print("[SCAN] background scanner started", flush=True)
+
+    async def _refresh_dialogs(self, client, account_id, account_name):
+        if account_id is None:
+            return
+        dialogs = []
+        async for dialog in client.iter_dialogs():
+            entity = dialog.entity
+            dialogs.append({
+                "id": dialog.id,
+                "name": dialog.name,
+                "username": getattr(entity, "username", None),
+                "entity_type": type(entity).__name__,
+                "is_group": bool(dialog.is_group),
+                "is_channel": bool(dialog.is_channel),
+            })
+        self.dialog_repository.replace_for_account(account_id, dialogs)
+        print(f"[TG] dialogs refreshed: {account_name} ({len(dialogs)})", flush=True)
 
     @staticmethod
     def _telegram_configured():
