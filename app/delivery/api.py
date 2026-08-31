@@ -36,6 +36,15 @@ def _resource(resource_id):
     return resource
 
 
+def _content_disposition(filename, disposition="attachment"):
+    # RFC 6266/5987: keep the UTF-8 filename intact for Chinese and other
+    # non-ASCII names while retaining a conservative ASCII fallback.
+    safe_ascii = "".join(ch if 32 <= ord(ch) < 127 and ch not in '\\"' else "_" for ch in filename)
+    if not safe_ascii:
+        safe_ascii = "download"
+    return f'{disposition}; filename="{safe_ascii}"; filename*=UTF-8\'\'{quote(filename, safe="")} '
+
+
 def _stream_response(resource_id, range_header, disposition):
     resource = _resource(resource_id)
     if not resource:
@@ -113,7 +122,7 @@ async def download_resource(
     return _stream_response(
         resource_id,
         range_header,
-        f"attachment; filename*=UTF-8''{quote(resource['filename'])}",
+        _content_disposition(resource["filename"]),
     )
 
 
@@ -126,7 +135,7 @@ async def download_head(resource_id: int, _: Principal = Depends(require_user)):
         headers={
             "Accept-Ranges": "bytes",
             "Content-Length": str(resource["size"]),
-            "Content-Disposition": f"attachment; filename*=UTF-8''{quote(resource['filename'])}",
+            "Content-Disposition": _content_disposition(resource["filename"]),
             "Content-Type": resource["mime_type"] or "application/octet-stream",
         }
     )
@@ -164,4 +173,11 @@ async def shared_download(token: str, range_header: str | None = Header(None, al
     resource_id = share_repository.get_resource_id(token)
     if resource_id is None:
         return api_error("not_found", "share link not found", 404)
-    return _stream_response(resource_id, range_header, "attachment")
+    resource = _resource(resource_id)
+    if not resource:
+        return api_error("not_found", "resource not found", 404)
+    return _stream_response(
+        resource_id,
+        range_header,
+        _content_disposition(resource["filename"]),
+    )
