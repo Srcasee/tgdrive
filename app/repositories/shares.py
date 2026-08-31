@@ -16,7 +16,8 @@ class ShareRepository:
                     """,
                     (resource_id, token),
                 )
-                return cursor.fetchone()["token"]
+                row = cursor.fetchone()
+                return {"id": row["id"], "token": row["token"]}
 
     def list_for_resource(self, resource_id):
         with connection() as conn:
