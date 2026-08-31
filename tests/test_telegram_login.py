@@ -1,7 +1,6 @@
+import asyncio
 import sys
 from types import SimpleNamespace
-
-import pytest
 
 import telegram.login as login
 
@@ -36,15 +35,15 @@ class FakeRuntime:
 
 
 class FakeAccounts:
-    calls = []
+    def __init__(self):
+        self.calls = []
 
     def upsert_session(self, account, display_name):
         self.calls.append((account, display_name))
         return 1
 
 
-@pytest.mark.asyncio
-async def test_login_initializes_and_closes_database_pool(monkeypatch, tmp_path):
+def test_login_initializes_and_closes_database_pool(monkeypatch, tmp_path):
     events = []
     accounts = FakeAccounts()
 
@@ -61,7 +60,7 @@ async def test_login_initializes_and_closes_database_pool(monkeypatch, tmp_path)
     monkeypatch.setattr(login, "TelegramClient", FakeClient)
     monkeypatch.setattr(login, "AccountRepository", lambda: accounts)
 
-    await login.main()
+    asyncio.run(login.main())
 
     assert events == ["open", "initialize", "close"]
     assert accounts.calls == [("named-account", "test-user")]
