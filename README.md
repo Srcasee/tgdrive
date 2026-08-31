@@ -90,33 +90,54 @@ The resulting sessions are `/data/accounts/default.session` and `/data/accounts/
 
 ### Configure Telegram Source
 
-The scanner does **not** scan every Telegram dialog automatically. After the account is authorized, an administrator must explicitly configure each Telegram Source to scan.
+After Telegram login, the authorized Telegram account can be queried for its dialogs. **This dialog discovery is not the same as enabling a source.** Only dialogs explicitly selected by an administrator become scanner sources.
 
-Use the Web administrator interface/API in this order:
+The Source API requires the tgdrive Web-admin authentication cookie. A common mistake is to use `-b cookies.txt` before that file contains a valid `tgdrive_session`; that produces `401 authentication required`. First call `/auth/login` with `-c cookies.txt`, then reuse the cookie with `-b cookies.txt`.
 
-1. `GET /api/telegram/accounts` — find the account ID, for example `default` → account `1`.
-2. `GET /api/telegram/accounts/<account_id>/dialogs` — discover dialogs for that authorized Telegram account.
-3. Select the exact dialog by **numeric Telegram chat ID**. Do not identify a source by display name alone because names are not unique.
-4. `POST /api/telegram/sources` — add the selected chat as an enabled scanning source.
-5. Verify with PostgreSQL and scanner logs.
-
-For a fresh deployment, the API sequence can be exercised with an authenticated Web-admin session. The following is the exact source payload used by the current real-device test:
+Complete copy/paste flow for `default`:
 
 ```bash
-# 1) discover dialogs for default account (account_id=1)
-curl -sS \
-  -b cookies.txt \
+# 0) Start from a clean cookie jar.
+rm -f cookies.txt
+
+# 1) Log in to the tgdrive Web API and save the admin session cookie.
+#    Replace YOUR_ADMIN_PASSWORD with the value configured in .env.
+curl -sS -c cookies.txt \
+  -H 'Content-Type: application/json' \
+  -X POST http://127.0.0.1:8080/auth/login \
+  -d '{"username":"admin","password":"YOUR_ADMIN_PASSWORD"}'
+
+# 2) Verify the Web-admin session.
+curl -sS -b cookies.txt \
+  http://127.0.0.1:8080/auth/me
+
+# 3) List configured Telegram accounts and obtain the database account ID.
+curl -sS -b cookies.txt \
+  http://127.0.0.1:8080/api/telegram/accounts
+
+# 4) List all Telegram dialogs for default (replace 1 if its account ID differs).
+curl -sS -b cookies.txt \
   http://127.0.0.1:8080/api/telegram/accounts/1/dialogs
 
-# 2) configure the exact resource-bearing chat
+# 5) Add the selected Telegram chat as a scanner Source.
+#    Replace the chat ID/name with the dialog selected in step 4.
 curl -sS \
   -b cookies.txt \
   -H 'Content-Type: application/json' \
   -X POST http://127.0.0.1:8080/api/telegram/sources \
   -d '{"account_id":1,"telegram_chat_id":-1004413553797,"name":"My Documents"}'
+
+# 6) Verify the Source row.
+docker compose exec postgres psql -U tgdrive -d tgdrive \
+  -c 'SELECT id, account_id, telegram_chat_id, name, enabled, last_message_id FROM telegram_sources ORDER BY id;'
+
+# 7) Watch the scanner.
+docker compose logs --tail=200 telegram-drive | grep -E '\[SCAN\]|\[TG\]'
 ```
 
-The current real-device source is:
+For another account, first get its `id` from `/api/telegram/accounts`, then use that ID in steps 4–5. The Telegram chat is identified by its **numeric `telegram_chat_id`**, not by display name alone.
+
+The current real-device test uses:
 
 ```text
 account: default
@@ -126,6 +147,12 @@ chat id: -1004413553797
 ```
 
 Only explicitly configured sources are scanned. The scanner stores the physical Telegram identity as `(account_id, telegram_chat_id, message_id)` and also records `topic_id` when Telegram supplies topic metadata.
+
+### Automatic dialog discovery vs Source selection
+
+A future improvement may automatically refresh/cache the complete Telegram dialog list after an account is authorized, so an administrator does not need to invoke the dialog endpoint manually. That does **not** require changing the target Resource architecture: dialog discovery is account metadata, while Source selection remains an explicit administrative control over what gets indexed.
+
+Automatically scanning every dialog's messages/files would be a different behavior and is intentionally not part of the current architecture. It would remove the current Source allow-list boundary, increase Telegram API traffic and potentially ingest unintended chats. The preferred design is therefore: **automatic dialog discovery, manual Source selection, Source-scoped scanning**.
 
 ## Core API
 
@@ -149,7 +176,7 @@ GET  /api/admin/categories
 POST /api/admin/categories
 PUT  /api/admin/categories/{category_id}
 DELETE /api/admin/categories/{category_id}
-PUT /api/admin/resources/{resource_id}/categories
+PUT  /api/admin/resources/{resource_id}/categories
 ```
 
 A batch Resource-classification API is planned; it is intentionally not represented as implemented until the backend and UI are complete.
