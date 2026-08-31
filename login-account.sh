@@ -16,4 +16,4 @@ docker compose run --rm \
   -e TG_SESSION_DIR="${SESSION_DIR}" \
   -e TG_ACCOUNT_NAME="${ACCOUNT_NAME}" \
   telegram-drive \
-  python3 /app/telegram/login.py
+  python3 -m telegram.login
