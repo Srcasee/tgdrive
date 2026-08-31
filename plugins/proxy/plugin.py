@@ -6,7 +6,7 @@ from pathlib import Path
 
 class ProxyPlugin:
     name = "proxy"
-    version = "0.6.0"
+    version = "0.6.1"
     capabilities = frozenset({"telegram.proxy"})
 
     @staticmethod
@@ -28,10 +28,14 @@ class ProxyPlugin:
             raise RuntimeError("TG_PROXY_PORT must be an integer") from exc
         if not 1 <= port <= 65535:
             raise RuntimeError("TG_PROXY_PORT must be between 1 and 65535")
+        # Telethon expects the proxy_type/addr naming used by python-socks.
+        # The previous type/host form was passed as keyword arguments to
+        # Telethon's _parse_proxy() and fails with an unexpected-keyword error.
         return {
-            "type": proxy_type,
-            "host": host,
+            "proxy_type": proxy_type,
+            "addr": host,
             "port": port,
+            "rdns": True,
             "username": os.getenv("TG_PROXY_USERNAME") or None,
             "password": os.getenv("TG_PROXY_PASSWORD") or None,
         }
