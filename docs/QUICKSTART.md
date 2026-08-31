@@ -2,7 +2,7 @@
 
 ## Goal
 
-Get a fresh Docker host from zero to a working Telegram-backed tgdrive with one bootstrap command and no manual PostgreSQL setup.
+Get a fresh Docker host from zero to a working Telegram-backed tgdrive with one base bootstrap command and no manual PostgreSQL setup.
 
 ## 1. Fresh-server bootstrap
 
@@ -12,7 +12,7 @@ Prerequisites:
 - Telegram `api_id` and `api_hash` from `my.telegram.org`.
 - A Telegram account that can authorize the application.
 
-Clone and bootstrap:
+Clone and bootstrap the base system:
 
 ```bash
 git clone https://github.com/Srcasee/tgdrive.git
@@ -20,11 +20,11 @@ cd tgdrive
 ./deploy.sh
 ```
 
-When `.env` does not exist, `deploy.sh` prompts for the Telegram API ID/hash, phone number and Web admin password, generates `AUTH_SECRET` and the PostgreSQL password, creates persistent data directories, validates Compose, and starts PostgreSQL + Core.
+When `.env` does not exist, `deploy.sh` prompts for the Telegram API ID/hash and Web admin password, generates `AUTH_SECRET` and the PostgreSQL password, creates persistent data directories, validates Compose, and starts PostgreSQL + Core. It does **not** authorize a Telegram account and does **not** enable/configure the optional proxy.
 
-For unattended bootstrap, provide `TG_API_ID`, `TG_API_HASH`, `TG_PHONE` and `ADMIN_PASSWORD` in the environment before running `./deploy.sh`. An existing `.env` is never overwritten.
+For unattended base bootstrap, provide `TG_API_ID`, `TG_API_HASH` and `ADMIN_PASSWORD` in the environment before running `./deploy.sh`. `TG_PHONE` is not required by the current deployment script because Telegram accounts are authorized explicitly afterward. An existing `.env` is never overwritten.
 
-## 2. Verify the stack
+## 2. Verify the base stack
 
 ```bash
 docker compose ps
@@ -37,7 +37,7 @@ Open:
 http://<server>:8080/
 ```
 
-The normal service mounts the optional Proxy plugin only. The Video plugin is not part of the Core runtime.
+The normal service mounts the optional Proxy plugin only when the proxy profile is enabled. The Video plugin is not part of the Core runtime.
 
 ## 3. One-time Telegram login
 
@@ -73,7 +73,50 @@ chat: My Documents
 chat id: -1004413553797
 ```
 
-## 5. Verify scanning and catalog
+## 5. Optional proxy — recommended after deploy.sh
+
+Proxy is optional and deployment-controlled. The recommended order is:
+
+```text
+./deploy.sh
+  ↓
+configure Telegram account(s)
+  ↓
+configure source(s)
+  ↓
+if network requires proxy: configure .env + enable proxy
+```
+
+Edit `.env` and configure the proxy values, then start the proxy profile:
+
+```bash
+# edit .env first
+# set TG_PROXY_ENABLED=true and configure TG_PROXY_*
+docker compose --profile proxy up -d --build
+```
+
+Typical local proxy endpoint values are:
+
+```env
+TG_PROXY_ENABLED=true
+TG_PROXY_TYPE=socks5
+TG_PROXY_HOST=proxy
+TG_PROXY_PORT=1080
+```
+
+The external proxy plugin may use a sing-box upstream. Core does not contain region detection or proxy protocol logic.
+
+**Important:** proxy can technically be prepared before `deploy.sh` by creating a complete `.env` first; `deploy.sh` preserves an existing `.env`. Do not put real proxy credentials into the repository or `.env.example`. If no `.env` exists, let `deploy.sh` create it first, then configure the proxy.
+
+After changing proxy configuration, rebuild the Telegram clients explicitly:
+
+```bash
+curl -X POST http://127.0.0.1:8080/api/telegram/reconnect
+```
+
+The endpoint requires administrator authentication. A full application restart is also sufficient.
+
+## 6. Verify scanning and catalog
 
 The scanner indexes Telegram metadata only. It does not download complete files during scanning.
 
@@ -97,7 +140,7 @@ curl -sS 'http://127.0.0.1:8080/catalog/search?q=example'
 
 The current real-device test has verified catalog browsing, filename search, category filtering, category creation and category deletion.
 
-## 6. Verify Resource delivery
+## 7. Verify Resource delivery
 
 A Resource is delivered through its Resource ID:
 
@@ -120,7 +163,7 @@ Delivery selects among available Telegram backing locations. If the first locati
 
 A complete non-range delivery also verifies the emitted content with SHA-256 and promotes the physical source to its canonical Resource identity; this promotion still needs explicit real-device validation.
 
-## 7. Verify sharing
+## 8. Verify sharing
 
 ```text
 POST /resources/<resource-id>/share
@@ -128,35 +171,6 @@ GET  /share/<token>
 ```
 
 The current real-device test has verified share-link generation, visible concrete link, administrator deletion and shared download.
-
-## 8. Optional proxy deployment
-
-Only enable the proxy profile when the server's network requires it.
-
-Set the proxy environment values in `.env`, then:
-
-```bash
-docker compose --profile proxy up -d --build
-```
-
-Typical local proxy endpoint values are:
-
-```env
-TG_PROXY_ENABLED=true
-TG_PROXY_TYPE=socks5
-TG_PROXY_HOST=proxy
-TG_PROXY_PORT=1080
-```
-
-The external proxy plugin may use a sing-box upstream. Core does not contain region detection or proxy protocol logic.
-
-After changing proxy configuration, rebuild the Telegram clients explicitly:
-
-```bash
-curl -X POST http://127.0.0.1:8080/api/telegram/reconnect
-```
-
-The endpoint requires administrator authentication. A full application restart is also sufficient.
 
 ## 9. Current real-device test plan
 
