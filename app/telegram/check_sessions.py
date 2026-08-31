@@ -1,57 +1,47 @@
+import argparse
 import asyncio
-import os
 
-from telethon import TelegramClient
-
-from config import settings, proxy
+from telegram.client import get_clients
 
 
-async def check(name):
+def parse_args():
+    parser = argparse.ArgumentParser(description="Check Telegram account sessions")
+    parser.add_argument("--account", help="check only this session/account name")
+    return parser.parse_args()
 
-    path = f"/data/accounts/{name}"
 
-    client = TelegramClient(
-        path,
-        settings.TG_API_ID,
-        settings.TG_API_HASH,
-        proxy=proxy
-    )
-
+async def check(name, client):
     await client.connect()
-
-    authorized = await client.is_user_authorized()
-
-    print(
-        name,
-        "authorized:",
-        authorized
-    )
-
-    if authorized:
-
-        me = await client.get_me()
-
-        print(
-            " id:",
-            me.id,
-            "username:",
-            me.username,
-            "name:",
-            me.first_name
-        )
-
-    await client.disconnect()
-
+    try:
+        authorized = await client.is_user_authorized()
+        print(f"{name} authorized: {authorized}", flush=True)
+        if authorized:
+            me = await client.get_me()
+            print(
+                f" id: {me.id} username: {me.username!r} name: {me.first_name!r}",
+                flush=True,
+            )
+    finally:
+        await client.disconnect()
 
 
 async def main():
+    args = parse_args()
+    clients = get_clients()
+    if args.account:
+        client = clients.get(args.account)
+        if client is None:
+            raise RuntimeError(f"Telegram account {args.account!r} not found or disabled")
+        await check(args.account, client)
+        return
 
-    for s in [
-        "larsniel",
-        "test_session"
-    ]:
-        await check(s)
+    if not clients:
+        print("No Telegram sessions found", flush=True)
+        return
+
+    for name, client in clients.items():
+        await check(name, client)
 
 
-
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())
