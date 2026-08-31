@@ -20,10 +20,6 @@ class FakeSourceRepository:
         return [self.source]
 
 
-class FakeFileRepository:
-    pass
-
-
 class FakeIngestionService:
     def __init__(self):
         self.calls = []
@@ -74,7 +70,6 @@ def test_full_sync_is_metadata_only(monkeypatch):
     ingestion = FakeIngestionService()
     monkeypatch.setattr(scanner, "source_repository", sources)
     monkeypatch.setattr(scanner, "ingestion_service", ingestion)
-    monkeypatch.setattr(scanner, "file_repository", FakeFileRepository())
 
     count = asyncio.run(scanner.scan_dialogs(FakeClient([make_message(5), make_message(20)]), 1))
 
@@ -91,7 +86,6 @@ def test_failed_full_sync_notifies_ingestion(monkeypatch):
     ingestion = FakeIngestionService()
     monkeypatch.setattr(scanner, "source_repository", sources)
     monkeypatch.setattr(scanner, "ingestion_service", ingestion)
-    monkeypatch.setattr(scanner, "file_repository", FakeFileRepository())
 
     with pytest.raises(RuntimeError):
         asyncio.run(scanner.scan_dialogs(FakeClient([], fail=True), 1))
