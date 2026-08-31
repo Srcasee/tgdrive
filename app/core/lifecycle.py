@@ -12,6 +12,7 @@ from telegram.scanner import scanner_loop
 class ApplicationLifecycle:
     def __init__(self):
         self.scanner_task = None
+        self.scanner_tasks = {}
         self.telegram_enabled = False
         self.account_repository = AccountRepository()
         self.user_repository = UserRepository()
@@ -68,21 +69,47 @@ class ApplicationLifecycle:
             )
 
     async def _run_scanners(self):
-        tasks = []
-        for name, client in get_clients().items():
-            account_id = self.account_repository.get_id_by_session(name)
-            if account_id is None:
-                print(f"[SCAN] account not found: {name}", flush=True)
-                continue
-            if not client.is_connected() or not await client.is_user_authorized():
-                continue
-            tasks.append(asyncio.create_task(self._run_one(account_id, name, client)))
-        if tasks:
-            await asyncio.gather(*tasks)
+        while True:
+            try:
+                clients = get_clients()
+                enabled = {
+                    row["session"]: row["id"]
+                    for row in self.account_repository.list_enabled_sessions()
+                }
+
+                for name, account_id in enabled.items():
+                    client = clients.get(name)
+                    if client is None or not client.is_connected():
+                        continue
+                    if not await client.is_user_authorized():
+                        continue
+                    task = self.scanner_tasks.get(name)
+                    if task is None or task.done():
+                        self.scanner_tasks[name] = asyncio.create_task(
+                            self._run_one(account_id, name, client)
+                        )
+                        print(f"[SCAN] starting: {name}", flush=True)
+
+                for name, task in list(self.scanner_tasks.items()):
+                    if name in enabled:
+                        continue
+                    task.cancel()
+                    try:
+                        await task
+                    except asyncio.CancelledError:
+                        pass
+                    self.scanner_tasks.pop(name, None)
+                    print(f"[SCAN] stopped: {name}", flush=True)
+
+                await asyncio.sleep(10)
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                print(f"[SCAN] account reconciliation error: {exc!r}", flush=True)
+                await asyncio.sleep(10)
 
     async def _run_one(self, account_id, account_name, client):
         try:
-            print(f"[SCAN] starting: {account_name}", flush=True)
             await scanner_loop(client, account_id)
         except asyncio.CancelledError:
             raise
@@ -96,6 +123,14 @@ class ApplicationLifecycle:
                 await self.scanner_task
             except asyncio.CancelledError:
                 pass
+
+        for name, task in list(self.scanner_tasks.items()):
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+        self.scanner_tasks.clear()
 
         if self.telegram_enabled:
             for name, client in get_clients().items():
