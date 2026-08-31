@@ -24,67 +24,18 @@ When `.env` does not exist, `deploy.sh` prompts for the Telegram API ID/hash and
 
 For unattended base bootstrap, provide `TG_API_ID`, `TG_API_HASH` and `ADMIN_PASSWORD` in the environment before running `./deploy.sh`. `TG_PHONE` is not required by the current deployment script because Telegram accounts are authorized explicitly afterward. An existing `.env` is never overwritten.
 
-## 2. Verify the base stack
+## 2. Configure Proxy before Telegram login when required
 
-```bash
-docker compose ps
-docker compose logs --tail=100 telegram-drive
-```
-
-Open:
-
-```text
-http://<server>:8080/
-```
-
-The normal service mounts the optional Proxy plugin only when the proxy profile is enabled. The Video plugin is not part of the Core runtime.
-
-## 3. One-time Telegram login
-
-Use an explicit account name:
-
-```bash
-./login-account.sh default +1234567890
-```
-
-A second account can use a different name:
-
-```bash
-./login-account.sh Asada +861234567890
-```
-
-The resulting sessions are `/data/accounts/default.session` and `/data/accounts/Asada.session`. Account naming is intentional; do not rename sessions to change application behavior.
-
-The Telethon session is reused by the application. Multiple account names may be configured independently.
-
-`login-account.sh` is only a deployment convenience wrapper; `app/telegram/login.py` is the single login implementation.
-
-## 4. Configure a Telegram source
-
-Log in as the Web administrator and use the Telegram management API/UI to discover dialogs. Select the exact Telegram chat by numeric chat ID; display names are not unique.
-
-Create/enable a source for the selected chat. The scanner only processes explicitly configured Telegram sources.
-
-Example source used in the current real-device test:
-
-```text
-account: default
-chat: My Documents
-chat id: -1004413553797
-```
-
-## 5. Optional proxy — recommended after deploy.sh
-
-Proxy is optional and deployment-controlled. The recommended order is:
+This ordering is mandatory for deployments that need a Telegram proxy. Do not perform a Telegram login first and configure the proxy only after a connection failure.
 
 ```text
 ./deploy.sh
   ↓
-configure Telegram account(s)
+if proxy is required: edit .env + enable proxy
   ↓
-configure source(s)
+docker compose --profile proxy up -d --build
   ↓
-if network requires proxy: configure .env + enable proxy
+Telegram login
 ```
 
 Edit `.env` and configure the proxy values, then start the proxy profile:
@@ -106,7 +57,7 @@ TG_PROXY_PORT=1080
 
 The external proxy plugin may use a sing-box upstream. Core does not contain region detection or proxy protocol logic.
 
-**Important:** proxy can technically be prepared before `deploy.sh` by creating a complete `.env` first; `deploy.sh` preserves an existing `.env`. Do not put real proxy credentials into the repository or `.env.example`. If no `.env` exists, let `deploy.sh` create it first, then configure the proxy.
+**Important:** `deploy.sh` creates `.env` if it does not exist and preserves an existing `.env`. The normal safe order is therefore `./deploy.sh` → proxy configuration → Telegram login. Do not put real proxy credentials into the repository or `.env.example`.
 
 After changing proxy configuration, rebuild the Telegram clients explicitly:
 
@@ -115,6 +66,80 @@ curl -X POST http://127.0.0.1:8080/api/telegram/reconnect
 ```
 
 The endpoint requires administrator authentication. A full application restart is also sufficient.
+
+## 3. Verify the base stack
+
+```bash
+docker compose ps
+docker compose logs --tail=100 telegram-drive
+```
+
+Open:
+
+```text
+http://<server>:8080/
+```
+
+The normal service mounts the optional Proxy plugin only when the proxy profile is enabled. The Video plugin is not part of the Core runtime.
+
+## 4. One-time Telegram login
+
+Use an explicit account name:
+
+```bash
+./login-account.sh default +1234567890
+```
+
+A second account can use a different name:
+
+```bash
+./login-account.sh Asada +861234567890
+```
+
+The resulting sessions are `/data/accounts/default.session` and `/data/accounts/Asada.session`. Account naming is intentional; do not rename sessions to change application behavior.
+
+The Telethon session is reused by the application. Multiple account names may be configured independently.
+
+`login-account.sh` is only a deployment convenience wrapper; `app/telegram/login.py` is the single login implementation.
+
+## 5. Configure a Telegram Source
+
+The scanner does **not** scan every Telegram dialog automatically. After the account is authorized, an administrator must explicitly configure each Telegram Source to scan.
+
+Use the Web administrator interface/API in this order:
+
+1. `GET /api/telegram/accounts` — find the account ID, for example `default` → account `1`.
+2. `GET /api/telegram/accounts/<account_id>/dialogs` — discover dialogs for that authorized Telegram account.
+3. Select the exact dialog by **numeric Telegram chat ID**. Do not identify a source by display name alone because names are not unique.
+4. `POST /api/telegram/sources` — add the selected chat as an enabled scanning source.
+5. Verify with PostgreSQL and scanner logs.
+
+For an authenticated Web-admin session, the source configuration calls are:
+
+```bash
+# 1) discover dialogs for default account (account_id=1)
+curl -sS \
+  -b cookies.txt \
+  http://127.0.0.1:8080/api/telegram/accounts/1/dialogs
+
+# 2) configure the exact resource-bearing chat
+curl -sS \
+  -b cookies.txt \
+  -H 'Content-Type: application/json' \
+  -X POST http://127.0.0.1:8080/api/telegram/sources \
+  -d '{"account_id":1,"telegram_chat_id":-1004413553797,"name":"My Documents"}'
+```
+
+The current real-device source is:
+
+```text
+account: default
+account_id: 1
+chat: My Documents
+chat id: -1004413553797
+```
+
+Only explicitly configured sources are scanned. The scanner stores the physical Telegram identity as `(account_id, telegram_chat_id, message_id)` and also records `topic_id` when Telegram supplies topic metadata.
 
 ## 6. Verify scanning and catalog
 
