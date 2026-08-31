@@ -14,6 +14,7 @@ class ApplicationLifecycle:
     def __init__(self):
         self.scanner_task = None
         self.scanner_tasks = {}
+        self.dialogs_refreshed = set()
         self.telegram_enabled = False
         self.account_repository = AccountRepository()
         self.dialog_repository = DialogRepository()
@@ -43,12 +44,10 @@ class ApplicationLifecycle:
                 continue
             connected = True
             me = await client.get_me()
-            print(
-                f"[TG] authorized: {name} / {me.username or me.first_name or me.id}",
-                flush=True,
-            )
+            print(f"[TG] authorized: {name} / {me.username or me.first_name or me.id}", flush=True)
             try:
                 await self._refresh_dialogs(client, self.account_repository.get_id_by_session(name), name)
+                self.dialogs_refreshed.add(name)
             except Exception as exc:
                 print(f"[TG] dialog refresh failed: {name}: {exc!r}", flush=True)
 
@@ -86,19 +85,13 @@ class ApplicationLifecycle:
         if not settings.AUTH_SECRET:
             raise RuntimeError("AUTH_SECRET must be configured")
         if settings.ADMIN_USERNAME and settings.ADMIN_PASSWORD:
-            self.user_repository.ensure_admin(
-                settings.ADMIN_USERNAME,
-                hash_password(settings.ADMIN_PASSWORD),
-            )
+            self.user_repository.ensure_admin(settings.ADMIN_USERNAME, hash_password(settings.ADMIN_PASSWORD))
 
     async def _run_scanners(self):
         while True:
             try:
                 clients = get_clients()
-                enabled = {
-                    row["session"]: row["id"]
-                    for row in self.account_repository.list_enabled_sessions()
-                }
+                enabled = {row["session"]: row["id"] for row in self.account_repository.list_enabled_sessions()}
 
                 for name, account_id in enabled.items():
                     client = clients.get(name)
@@ -106,11 +99,16 @@ class ApplicationLifecycle:
                         continue
                     if not await client.is_user_authorized():
                         continue
+                    if name not in self.dialogs_refreshed:
+                        try:
+                            await self._refresh_dialogs(client, account_id, name)
+                            self.dialogs_refreshed.add(name)
+                        except Exception as exc:
+                            print(f"[TG] dialog refresh failed: {name}: {exc!r}", flush=True)
+                            continue
                     task = self.scanner_tasks.get(name)
                     if task is None or task.done():
-                        self.scanner_tasks[name] = asyncio.create_task(
-                            self._run_one(account_id, name, client)
-                        )
+                        self.scanner_tasks[name] = asyncio.create_task(self._run_one(account_id, name, client))
                         print(f"[SCAN] starting: {name}", flush=True)
 
                 for name, task in list(self.scanner_tasks.items()):
@@ -122,6 +120,7 @@ class ApplicationLifecycle:
                     except asyncio.CancelledError:
                         pass
                     self.scanner_tasks.pop(name, None)
+                    self.dialogs_refreshed.discard(name)
                     print(f"[SCAN] stopped: {name}", flush=True)
 
                 await asyncio.sleep(10)
@@ -154,6 +153,7 @@ class ApplicationLifecycle:
             except asyncio.CancelledError:
                 pass
         self.scanner_tasks.clear()
+        self.dialogs_refreshed.clear()
 
         if self.telegram_enabled:
             for name, client in get_clients().items():
