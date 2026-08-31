@@ -1,63 +1,70 @@
-# Stage 1 — Architecture Convergence
+# Stage 1 — Architecture Convergence Record
 
-## Status
+Updated 2026-08-31.
 
-**Phase 1 is complete.** The Core business path is authenticated, authorized, administrable, performance-bounded and covered by the full CI test suite.
+This document is a historical phase record. The current source of truth is `README.md`, `docs/ARCHITECTURE.md`, and `docs/PROJECT-STATUS.md`.
 
-## Completed scope
+## Converged Core
 
-- Web users and roles (`user` / `admin`)
-- PBKDF2-SHA256 password hashing
-- HMAC-signed, expiring HttpOnly Web sessions
-- `/auth/login`, `/auth/me`, `/auth/logout`
-- Explicit `require_user` / `require_admin` authorization dependencies
-- Protected file list/search/download/HEAD/stream endpoints
-- Protected Telegram account/source administration
-- Telegram session credentials removed from account API responses
-- Category repository, CRUD API, admin UI and file assignment
-- Source account validation and `(account_id, telegram_chat_id)` uniqueness
-- Full-sync reconciliation semantics hardened
-- Scanner failure state transitions hardened
-- HTTP Range parsing and 416 handling hardened
-- Integration coverage for auth/admin/category/file permissions
-- Full CI suite (`pytest -q`) passing
-- Telegram transport request sizing constrained to Telethon's 512 KiB request limit
-- `cryptg` added for faster Telegram media decryption
+The active Core path is now:
+
+```text
+Telegram metadata
+   ↓
+Recognition / Ingestion
+   ↓
+Logical Resource
+   ↓
+Catalog / classification / search
+   ↓
+Resource download / Range delivery
+   ↓
+Telegram backing locations
+```
+
+The public API and browser UI are Resource-first. The physical `files` table remains only as the persistence representation of Telegram-backed locations.
+
+## Cleanup completed after Stage 1
+
+- Removed legacy `/files/*` browser/API paths.
+- Removed the old file-level category admin endpoint.
+- Removed `files.category_id` from the live schema.
+- Renamed the physical Telegram file persistence adapter to `TelegramFileRepository`.
+- Replaced the old File-oriented Web UI with a Resource-first UI.
+- Updated account login to use account-named sessions.
+- Removed the Video cache dependency from Core delivery.
+- Normal Compose runtime mounts only the optional Proxy plugin.
 
 ## Video decision
 
-Video streaming remains a Core capability during Stage 1 and is intentionally frozen.
+Video playback and chunk caching are not part of the current real-device testing scope.
 
-`VideoStreamService` already provides a service boundary between the HTTP file API and Telegram download/cache mechanics. This is sufficient to defer speculative `MediaPlugin` extraction without creating a significant migration penalty.
+The optional Video plugin remains outside Core and is not mounted by the normal service. Core cataloging, scanning, Resource identity and ordinary download/Range delivery do not require Video.
 
-When Media Plugin becomes the final architecture phase, the existing service can be wrapped behind a stable media interface without forcing authentication, admin, file or Telegram domains to depend on concrete media implementations.
+If Video work resumes later, it must be integrated around the delivery boundary without adding Video-specific state or behavior to Core.
 
-**Rule:** do not add new media implementations to Core before the Media Plugin phase.
+## Real-device focus
 
-## Download performance boundary
-
-The public download and video-stream APIs are not the content-source bottleneck themselves. Both ultimately depend on `TelegramDownloader.stream()`, which calls Telethon `iter_download()` against Telegram.
-
-The important layers are:
+The active test sequence is intentionally:
 
 ```text
-Browser
-  -> FastAPI file/stream endpoint
-  -> TelegramDownloader.stream()
-  -> Telethon iter_download()
-  -> Telegram DC / network / proxy
+Core + PostgreSQL
+      ↓
+Telegram session reuse
+      ↓
+Explicit source configuration
+      ↓
+Metadata-only scan
+      ↓
+Resource catalog/search/classification
+      ↓
+Single-source delivery
+      ↓
+Multi-account failover
+      ↓
+HTTP Range
+      ↓
+Proxy only when required
 ```
 
-Video playback additionally has `VideoStreamService` and a 4 MiB application cache chunk. Normal downloads currently stream directly from Telegram and do not use the video cache.
-
-Stage 1 now applies two transport-level safeguards: Telegram request size is bounded to 512 KiB, and `cryptg` is installed for C-accelerated media decryption. These changes stay inside the Telegram transport layer and do not couple download performance to Proxy or Media plugins.
-
-A real-world throughput benchmark still needs to be run against the deployment's Telegram DC/network/proxy path. The dominant runtime limiter may be Telegram DC throughput, proxy bandwidth/latency, or CPU decryption; code inspection alone cannot assign a Mbps ceiling.
-
-## Phase 2 boundary
-
-Phase 2 starts only after the Core path above is stable and CI is green after the transport changes. It focuses on infrastructure extensibility, especially account-scoped proxy selection and controlled proxy lifecycle/reload. Media Plugin extraction remains a later phase.
-
-## Architectural constraint
-
-Core business code must not import concrete Proxy or Media plugins. Optional infrastructure capabilities may implement stable Core interfaces, but Core must remain usable without any optional plugin installed.
+Transport optimization remains deferred until real-device measurements justify it.
