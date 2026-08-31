@@ -62,7 +62,15 @@ class FakeCategories:
 class FakeResources:
     def __init__(self):
         self.available = {
-            1: {"id": 1, "filename": "video.mp4", "size": 100, "mime_type": "video/mp4", "status": "active", "is_available": True},
+            1: {
+                "id": 1,
+                "filename": "video.mp4",
+                "size": 100,
+                "mime_type": "video/mp4",
+                "status": "active",
+                "is_available": True,
+                "shares": [],
+            },
         }
 
     def _rows(self):
@@ -101,14 +109,31 @@ class FakeResources:
 class FakeShares:
     def __init__(self):
         self.tokens = {}
+        self.next_id = 1
 
     def create(self, resource_id):
-        token = "test-share-token"
-        self.tokens[token] = resource_id
-        return token
+        share = {"id": self.next_id, "token": f"test-share-token-{self.next_id}"}
+        self.next_id += 1
+        self.tokens[share["token"]] = {"id": share["id"], "resource_id": resource_id}
+        return share
+
+    def list_for_resource(self, resource_id):
+        return [
+            {"id": item["id"], "resource_id": item["resource_id"], "token": token, "created_at": 0}
+            for token, item in self.tokens.items()
+            if item["resource_id"] == resource_id
+        ]
+
+    def delete(self, share_id):
+        for token, item in list(self.tokens.items()):
+            if item["id"] == share_id:
+                del self.tokens[token]
+                return True
+        return False
 
     def get_resource_id(self, token):
-        return self.tokens.get(token)
+        item = self.tokens.get(token)
+        return item["resource_id"] if item else None
 
 
 async def _noop_startup():
@@ -127,6 +152,7 @@ def make_client(monkeypatch):
     monkeypatch.setattr("auth.api.user_repository", users)
     monkeypatch.setattr("auth.dependencies.user_repository", users)
     monkeypatch.setattr("admin.api.category_repository", categories)
+    monkeypatch.setattr("admin.api.share_repository", shares)
     monkeypatch.setattr("catalog.api.service", CatalogService(resources))
     monkeypatch.setattr("delivery.api.resource_repository", resources)
     monkeypatch.setattr("delivery.api.share_repository", shares)
@@ -137,11 +163,11 @@ def make_client(monkeypatch):
     lifecycle.shutdown = _noop_shutdown
     app.state.lifecycle = lifecycle
 
-    return TestClient(app), resources
+    return TestClient(app), resources, shares
 
 
 def test_auth_and_authorization(monkeypatch):
-    client, _ = make_client(monkeypatch)
+    client, _, _ = make_client(monkeypatch)
     assert client.get("/auth/me").status_code == 401
 
     response = client.post("/auth/login", json={"username": "user", "password": "user-pass"})
@@ -156,7 +182,7 @@ def test_auth_and_authorization(monkeypatch):
 
 
 def test_category_admin_crud(monkeypatch):
-    client, _ = make_client(monkeypatch)
+    client, _, _ = make_client(monkeypatch)
     client.post("/auth/login", json={"username": "admin", "password": "admin-pass"})
 
     created = client.post("/api/admin/categories", json={"name": "Movies"})
@@ -168,7 +194,7 @@ def test_category_admin_crud(monkeypatch):
 
 
 def test_protected_catalog_and_delivery_apis(monkeypatch):
-    client, _ = make_client(monkeypatch)
+    client, _, _ = make_client(monkeypatch)
     assert client.get("/catalog").status_code == 401
     assert client.get("/catalog/search?q=video").status_code == 401
     assert client.get("/resources/1/download").status_code == 401
@@ -182,20 +208,35 @@ def test_protected_catalog_and_delivery_apis(monkeypatch):
 
 
 def test_unavailable_resource_is_not_downloadable_or_streamable(monkeypatch):
-    client, resources = make_client(monkeypatch)
+    client, resources, _ = make_client(monkeypatch)
     client.post("/auth/login", json={"username": "user", "password": "user-pass"})
     resources.available[1]["is_available"] = False
     assert client.get("/resources/1/download").status_code == 404
     assert client.get("/resources/1/stream").status_code == 404
 
 
-def test_share_link_can_be_created_without_expiry_or_revoke(monkeypatch):
-    client, _ = make_client(monkeypatch)
+def test_share_link_creation_and_admin_revoke(monkeypatch):
+    client, resources, shares = make_client(monkeypatch)
     assert client.post("/resources/1/share").status_code == 401
 
     client.post("/auth/login", json={"username": "user", "password": "user-pass"})
     response = client.post("/resources/1/share")
     assert response.status_code == 200
-    assert response.json() == {"url": "/share/test-share-token", "resource_id": 1}
+    payload = response.json()
+    assert payload["id"] == 1
+    assert payload["url"] == "/share/test-share-token-1"
+    assert payload["resource_id"] == 1
 
+    token = "test-share-token-1"
     assert client.get("/share/unknown-token").status_code == 404
+    assert shares.get_resource_id(token) == 1
+
+    catalog = client.get("/catalog").json()
+    assert catalog["data"]["items"][0]["shares"] == []
+
+    assert client.delete("/api/admin/shares/1").status_code == 403
+
+    client.post("/auth/login", json={"username": "admin", "password": "admin-pass"})
+    assert client.delete("/api/admin/shares/1").status_code == 200
+    assert client.delete("/api/admin/shares/1").status_code == 404
+    assert shares.get_resource_id(token) is None

@@ -95,8 +95,10 @@ async def create_share(resource_id: int, _: Principal = Depends(require_user)):
     resource = _resource(resource_id)
     if not resource:
         return api_error("not_found", "resource not found", 404)
-    token = share_repository.create(resource_id)
-    return {"url": f"/share/{token}", "resource_id": resource_id}
+    share = share_repository.create(resource_id)
+    token = share["token"] if isinstance(share, dict) else share
+    share_id = share.get("id") if isinstance(share, dict) else None
+    return {"id": share_id, "url": f"/share/{token}", "resource_id": resource_id}
 
 
 @router.get("/{resource_id}/download")

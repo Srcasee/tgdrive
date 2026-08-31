@@ -1,6 +1,25 @@
 from database_pool import connection, transaction
 
 
+_SHARE_SQL = """
+COALESCE(
+    (
+        SELECT json_agg(
+            json_build_object(
+                'id', s.id,
+                'token', s.token,
+                'url', '/share/' || s.token,
+                'created_at', s.created_at
+            ) ORDER BY s.id DESC
+        )
+        FROM shares s
+        WHERE s.resource_id = r.id
+    ),
+    '[]'::json
+) AS shares
+"""
+
+
 class CatalogRepository:
     def list_resources(self, limit, offset, category_id=None):
         with connection() as conn:
@@ -15,7 +34,8 @@ class CatalogRepository:
                 cursor.execute(f"""
                     SELECT r.id, r.content_hash, r.filename, r.size, r.mime_type,
                            COALESCE(array_agg(DISTINCT c.id) FILTER (WHERE c.id IS NOT NULL), '{{}}') AS category_ids,
-                           COUNT(DISTINCT f.id) AS source_count
+                           COUNT(DISTINCT f.id) AS source_count,
+                           {_SHARE_SQL}
                     FROM resources r
                     LEFT JOIN resource_categories rc ON rc.resource_id=r.id
                     LEFT JOIN categories c ON c.id=rc.category_id
@@ -37,7 +57,8 @@ class CatalogRepository:
                 cursor.execute(f"""
                     SELECT r.id, r.content_hash, r.filename, r.size, r.mime_type,
                            COALESCE(array_agg(DISTINCT c.id) FILTER (WHERE c.id IS NOT NULL), '{{}}') AS category_ids,
-                           COUNT(DISTINCT f.id) AS source_count
+                           COUNT(DISTINCT f.id) AS source_count,
+                           {_SHARE_SQL}
                     FROM resources r
                     LEFT JOIN resource_categories rc ON rc.resource_id=r.id
                     LEFT JOIN categories c ON c.id=rc.category_id
@@ -51,10 +72,11 @@ class CatalogRepository:
     def get_resource(self, resource_id):
         with connection() as conn:
             with conn.cursor() as cursor:
-                cursor.execute("""
+                cursor.execute(f"""
                     SELECT r.id, r.content_hash, r.filename, r.size, r.mime_type, r.status,
-                           COALESCE(array_agg(DISTINCT c.id) FILTER (WHERE c.id IS NOT NULL), '{}') AS category_ids,
-                           COUNT(DISTINCT f.id) FILTER (WHERE f.is_available=TRUE AND f.status='active') AS source_count
+                           COALESCE(array_agg(DISTINCT c.id) FILTER (WHERE c.id IS NOT NULL), '{{}}') AS category_ids,
+                           COUNT(DISTINCT f.id) FILTER (WHERE f.is_available=TRUE AND f.status='active') AS source_count,
+                           {_SHARE_SQL}
                     FROM resources r
                     LEFT JOIN resource_categories rc ON rc.resource_id=r.id
                     LEFT JOIN categories c ON c.id=rc.category_id

@@ -32,6 +32,11 @@ button.danger { border-color: #b42318; }
 .category-row { display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
 .category-row label { display: inline-flex; gap: 5px; align-items: center; }
 .category-item { display: inline-flex; gap: 6px; align-items: center; }
+.share-list { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+.share-item { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 8px 10px; border: 1px solid color-mix(in srgb, CanvasText 12%, transparent); border-radius: 8px; }
+.share-url { flex: 1 1 320px; overflow-wrap: anywhere; word-break: break-all; }
+.share-url a { color: inherit; }
+.share-actions { display: flex; gap: 6px; align-items: center; }
 .pagination { display: flex; justify-content: center; gap: 10px; align-items: center; margin-top: 18px; }
 small { opacity: .7; }
 </style>
@@ -267,6 +272,88 @@ function renderResources() {
   renderPagination();
 }
 
+function renderShareLinks(resource) {
+  const shares = Array.isArray(resource.shares) ? resource.shares : [];
+  if (!shares.length) return null;
+
+  const section = document.createElement("div");
+  const title = document.createElement("div");
+  title.className = "meta";
+  title.textContent = `分享链接（${shares.length}）`;
+  section.appendChild(title);
+
+  const list = document.createElement("div");
+  list.className = "share-list";
+  for (const share of shares) {
+    const item = document.createElement("div");
+    item.className = "share-item";
+
+    const urlBox = document.createElement("div");
+    urlBox.className = "share-url";
+    const link = document.createElement("a");
+    link.href = share.url;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = new URL(share.url, window.location.origin).href;
+    urlBox.appendChild(link);
+
+    const actions = document.createElement("div");
+    actions.className = "share-actions";
+    const copy = document.createElement("button");
+    copy.type = "button";
+    copy.textContent = "复制";
+    copy.onclick = () => copyShareLink(new URL(share.url, window.location.origin).href, copy);
+    actions.appendChild(copy);
+
+    if (state.isAdmin) {
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "danger";
+      remove.textContent = "删除链接";
+      remove.onclick = () => deleteShareLink(resource, share.id, remove);
+      actions.appendChild(remove);
+    }
+
+    item.append(urlBox, actions);
+    list.appendChild(item);
+  }
+  section.appendChild(list);
+  return section;
+}
+
+async function copyShareLink(url, button) {
+  try {
+    if (!navigator.clipboard || !window.isSecureContext) throw new Error("当前浏览器不允许自动复制");
+    await navigator.clipboard.writeText(url);
+    button.textContent = "已复制";
+    setTimeout(() => { button.textContent = "复制"; }, 1800);
+  } catch (error) {
+    setStatus(`复制失败，请手动复制链接：${url}`, true);
+  }
+}
+
+async function deleteShareLink(resource, shareId, button) {
+  if (!window.confirm("确定删除这个分享链接吗？删除后该链接立即失效。")) return;
+  button.disabled = true;
+  try {
+    const response = await request(`/api/admin/shares/${shareId}`, { method: "DELETE" });
+    if (!response.ok) {
+      let detail = "删除分享链接失败";
+      try {
+        const payload = await response.json();
+        if (payload.detail) detail = payload.detail;
+      } catch (_) {}
+      throw new Error(detail);
+    }
+    resource.shares = (resource.shares || []).filter(share => Number(share.id) !== Number(shareId));
+    renderResources();
+    setStatus("分享链接已删除");
+  } catch (error) {
+    setStatus(error.message, true);
+    button.disabled = false;
+  }
+}
+
 function renderResource(resource) {
   const card = document.createElement("article");
   card.className = "card";
@@ -302,8 +389,13 @@ function renderResource(resource) {
   const share = document.createElement("button");
   share.type = "button";
   share.textContent = "创建分享链接";
-  share.onclick = () => createShare(resource.id, share);
+  share.onclick = () => createShare(resource, share);
   actions.appendChild(share);
+
+  card.append(title, meta, badges);
+
+  const shareSection = renderShareLinks(resource);
+  if (shareSection) card.appendChild(shareSection);
 
   if (state.isAdmin) {
     const categoryRow = document.createElement("div");
@@ -322,23 +414,23 @@ function renderResource(resource) {
     save.textContent = "保存分类";
     save.onclick = () => saveCategories(resource.id, categoryRow, save);
     categoryRow.appendChild(save);
-    card.append(title, meta, badges, categoryRow, actions);
+    card.append(categoryRow, actions);
   } else {
-    card.append(title, meta, badges, actions);
+    card.appendChild(actions);
   }
   return card;
 }
 
-async function createShare(resourceId, button) {
+async function createShare(resource, button) {
   button.disabled = true;
   try {
-    const response = await request(`/resources/${resourceId}/share`, { method: "POST" });
+    const response = await request(`/resources/${resource.id}/share`, { method: "POST" });
     if (!response.ok) throw new Error("创建分享链接失败");
     const data = await response.json();
-    const url = new URL(data.url, window.location.origin).href;
-    await navigator.clipboard?.writeText(url);
-    button.textContent = "链接已复制";
-    setTimeout(() => { button.textContent = "创建分享链接"; }, 1800);
+    if (!Array.isArray(resource.shares)) resource.shares = [];
+    resource.shares.unshift({ id: data.id, url: data.url });
+    renderResources();
+    setStatus("分享链接已创建，具体链接已显示在资源下方");
   } catch (error) {
     setStatus(error.message, true);
   } finally {

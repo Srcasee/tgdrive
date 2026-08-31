@@ -5,10 +5,12 @@ from auth.dependencies import require_admin
 from auth.models import Principal
 from catalog.repository import CatalogRepository
 from repositories.categories import CategoryRepository
+from repositories.shares import ShareRepository
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 category_repository = CategoryRepository()
 catalog_repository = CatalogRepository()
+share_repository = ShareRepository()
 
 
 class CategoryInput(BaseModel):
@@ -45,6 +47,13 @@ def delete_category(category_id: int, _: Principal = Depends(require_admin)):
     deleted = category_repository.delete(category_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="category not found")
+    return {"status": "ok"}
+
+
+@router.delete("/shares/{share_id}")
+def delete_share(share_id: int, _: Principal = Depends(require_admin)):
+    if not share_repository.delete(share_id):
+        raise HTTPException(status_code=404, detail="share link not found")
     return {"status": "ok"}
 
 
