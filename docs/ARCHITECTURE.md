@@ -140,14 +140,16 @@ The optional Video plugin is not part of the Core runtime or normal Compose serv
 | Recognition/identity | `app/ingestion/*`, `app/repositories/resources.py` | Implemented; provisional metadata identity and verified SHA-256 identity are distinct. |
 | Logical Resource | `resources` + `app/repositories/resources.py` | Implemented; independent of physical Telegram locations. |
 | Physical Telegram location persistence | `files` + `app/repositories/telegram_files.py` | Implemented; physical storage details stay behind the Resource boundary. |
+| Telegram Topic metadata | `files.topic_id` + Telegram message observation | Partially implemented at persistence level; automatic Topic recognition/mapping to Categories is planned. |
 | Catalog | `app/catalog/*` | Implemented; listing/search operate on logical Resources. |
-| Classification | `resource_categories` + `app/admin/api.py` + `CatalogRepository.set_categories()` | Implemented at Resource level; `files.category_id` is removed. |
+| Classification | `resource_categories` + `app/admin/api.py` + `CatalogRepository.set_categories()` | Implemented at Resource level; `files.category_id` is removed. Batch Resource classification is planned. |
 | Delivery | `app/delivery/*` | Implemented; Resource IDs are the public delivery key. |
 | Source selection/failover | `app/delivery/source_selector.py` | Implemented for failures before response bytes are emitted. |
-| Content verification | `app/ingestion/verification.py`, `ResourceRepository.verify_file()` | Implemented for complete non-range delivery; successful full delivery promotes the physical location to SHA-256 identity. |
+| Content verification | `app/ingestion/verification.py`, `ResourceRepository.verify_file()` | Implemented for complete non-range delivery; real-device verification of canonical promotion remains pending. |
 | Proxy | `plugins/proxy/`, `app/plugins/runtime.py` | Optional and deployment-controlled; explicit `/api/telegram/reconnect` rebuilds clients after proxy changes. |
 | Web UI | `app/web/index.html` | Resource-first, responsive, no dependency on Video. |
 | Web Auth | `app/auth/*` | Cross-cutting and isolated from content semantics. |
+| Deployment | `deploy.sh`, `docker-compose.yml`, `Dockerfile` | One-command fresh-host bootstrap is implemented; CI validates deployment syntax/model and image builds. |
 
 ## Resource and physical-location model
 
@@ -168,7 +170,7 @@ accounts
                          categories
 ```
 
-Physical Telegram identity is `(account_id, telegram_chat_id, message_id)`. A logical Resource may have multiple physical locations.
+Physical Telegram identity is `(account_id, telegram_chat_id, message_id)`. A logical Resource may have multiple physical locations. `topic_id` is additional Telegram metadata and must not replace the physical identity.
 
 Resource identity has two stages:
 
@@ -249,7 +251,15 @@ Per-source scheduling and richer health/latency scoring can be improved after re
 
 ### P2 — transport optimization
 
-Do not optimize concurrency or add caching before Resource source selection and real-device delivery behavior are measured.
+Real-device testing has now shown unacceptable download throughput on the current deployment. The next step is a repeatable Telegram → VPS → FastAPI → browser benchmark before changing concurrency, request sizing or caching. Issue #21 tracks this work.
+
+### P2 — Telegram Topic classification
+
+The existing `files.topic_id` persistence field provides the metadata hook. Add Topic normalization and an explicit Topic → Category mapping layer without changing the Resource/physical-location architecture.
+
+### P2 — batch Resource classification
+
+Add a transactional Resource-level batch category API and corresponding admin UI. This is a catalog/admin optimization and does not change the Resource domain boundary.
 
 ## Intentionally excluded from Core
 
