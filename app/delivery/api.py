@@ -10,7 +10,6 @@ from common.response import api_error
 from delivery.range import InvalidRange, parse_single_range
 from delivery.source_selector import TelegramSourceSelector
 from delivery.streaming import StreamService
-from plugins.runtime import PluginRuntime
 from repositories.resources import ResourceRepository
 from repositories.shares import ShareRepository
 from repositories.telegram_files import TelegramFileRepository
@@ -20,9 +19,7 @@ telegram_file_repository = TelegramFileRepository()
 resource_repository = ResourceRepository()
 share_repository = ShareRepository()
 source_selector = TelegramSourceSelector(telegram_file_repository)
-_plugin_runtime = PluginRuntime()
-_cache_plugin = _plugin_runtime.get_capability("delivery.chunk-cache")
-stream_service = StreamService(source_selector, _cache_plugin)
+stream_service = StreamService(source_selector)
 
 
 def _parse_range_or_416(value, size):
@@ -150,7 +147,7 @@ share_router = APIRouter(prefix="/share", tags=["delivery"])
 
 
 @share_router.get("/{token}")
-async def shared_download(token: str, range_header: str | None = Header(default=None, alias="Range")):
+async def shared_download(token: str, range_header: str | None = Header(None, alias="Range")):
     resource_id = share_repository.get_resource_id(token)
     if resource_id is None:
         return api_error("not_found", "share link not found", 404)
