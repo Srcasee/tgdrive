@@ -19,7 +19,7 @@ Set the required values:
 - `TG_PHONE`
 - `AUTH_SECRET`
 
-The normal deployment is direct Telegram connectivity. Do **not** configure a proxy unless the server/network actually needs one.
+Direct Telegram connectivity is the default. Do not configure a proxy unless the server/network actually needs one.
 
 ## 2. Start the core stack
 
@@ -34,19 +34,29 @@ docker compose ps
 docker compose logs --tail=100 telegram-drive
 ```
 
-This starts PostgreSQL and tgdrive Core. The optional proxy service is not started by the normal command.
+The normal service mounts only the optional Proxy plugin. The Video plugin is not part of the Core runtime.
 
 ## 3. One-time Telegram login
 
+Use the account-named login helper:
+
 ```bash
-docker compose exec telegram-drive python -m telegram.login
+./login-account.sh default +1234567890
+```
+
+Or invoke the module directly:
+
+```bash
+docker compose run --rm \
+  -e TG_PHONE="+1234567890" \
+  -e TG_ACCOUNT_NAME="default" \
+  telegram-drive \
+  python3 /app/telegram/login.py
 ```
 
 Complete the Telegram code/2FA prompts when requested.
 
-The Telethon session is stored under the configured session directory (`/data/accounts` by default) and is reused by the application.
-
-If an authorized session already exists, no new login is required.
+The Telethon session is stored under `/data/accounts/<account_name>` by default and is reused by the application. Multiple account names may be configured independently.
 
 ## 4. Verify the application
 
@@ -56,7 +66,7 @@ Open:
 http://<server>:8080/
 ```
 
-The normal setup automatically discovers the Telegram session and creates the corresponding account metadata. No manual PostgreSQL SQL or account-row creation is required.
+The Resource-first Web UI supports catalog browsing/search, download, share links and administrator Resource classification. No manual PostgreSQL SQL or account-row creation is required for the normal bootstrap.
 
 ## 5. Configure a Telegram source
 
@@ -64,9 +74,9 @@ Use the authenticated Telegram management API/UI to discover dialogs and select 
 
 Create/enable a source for the chat. The scanner only processes explicitly configured Telegram sources.
 
-## 6. Verify Resource catalog
+## 6. Verify the Resource catalog
 
-Catalog endpoints are Resource-centric:
+The active catalog API is Resource-centric:
 
 ```bash
 curl -sS http://127.0.0.1:8080/catalog?page=1\&size=50
@@ -120,36 +130,23 @@ TG_PROXY_HOST=proxy
 TG_PROXY_PORT=1080
 ```
 
-The Proxy plugin embeds a pinned sing-box release instead of using the upstream GHCR image as a Docker build stage. This avoids making production builds depend on access to `ghcr.io`.
-
-The default build source is GitHub Releases:
-
-```env
-SING_BOX_VERSION=1.13.19
-SING_BOX_DOWNLOAD_BASE=https://github.com/SagerNet/sing-box/releases/download
-```
-
-If the deployment network cannot reliably reach GitHub Releases, the administrator may set `SING_BOX_DOWNLOAD_BASE` to a trusted mirror that preserves the release path and filenames. The sing-box version remains pinned and the downloaded archive is verified against the checksum embedded in the Proxy Dockerfile.
-
-The proxy build currently supports Linux `amd64` and `arm64`. Unsupported architectures fail during the image build instead of silently installing an incompatible binary.
-
 The external proxy plugin may use a sing-box upstream. Core does not contain region detection or proxy protocol logic.
 
-After changing proxy configuration, restart/recreate tgdrive so existing Telegram clients are rebuilt with the new connectivity settings.
+After changing proxy configuration, restart/recreate tgdrive so existing Telegram clients are rebuilt with the new connectivity settings. Explicit reconnect lifecycle remains tracked separately.
 
-## Optional Video plugin
+## Video
 
-Video chunk caching is an optional plugin capability. It is not required for cataloging, scanning or normal download/stream delivery. A deployment may omit it without changing the Core architecture.
+Video playback/chunk caching is outside the current real-device testing scope. The optional plugin is kept outside the Core delivery path and is not mounted by the normal service.
 
 ## Recovery
 
-To force a fresh Telegram login, stop Core first and remove only the intended session file:
+To force a fresh login for one account, stop Core first and remove only that account's session path:
 
 ```bash
 docker compose stop telegram-drive
-docker compose exec telegram-drive sh -c 'rm -f /data/accounts/default.session'
+docker compose exec telegram-drive sh -c 'rm -f /data/accounts/<account_name>.session'
 docker compose start telegram-drive
-docker compose exec telegram-drive python -m telegram.login
+./login-account.sh <account_name> <phone>
 ```
 
 Do not delete the PostgreSQL volume just to re-authenticate Telegram.
