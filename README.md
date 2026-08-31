@@ -22,7 +22,7 @@ Telegram is the only content backend. Multiple Telegram accounts are access/redu
 
 Prerequisites: a Linux host with Docker Engine and the Docker Compose plugin, plus Telegram API credentials from `my.telegram.org`.
 
-The supported fresh-server bootstrap is now one command:
+The supported fresh-server bootstrap is:
 
 ```bash
 git clone https://github.com/Srcasee/tgdrive.git
@@ -30,7 +30,40 @@ cd tgdrive
 ./deploy.sh
 ```
 
-`deploy.sh` creates persistent data directories, interactively collects the required Telegram/Web credentials when `.env` is absent, generates deployment secrets, validates Compose, builds the Core image and starts PostgreSQL + tgdrive. Existing `.env` files are preserved.
+`deploy.sh` performs only the base infrastructure bootstrap: checks Docker, creates persistent directories, creates `.env` when needed, generates deployment secrets, validates Compose, builds Core and starts PostgreSQL + tgdrive. It does **not** log in a Telegram account and does **not** enable or configure the optional proxy. Existing `.env` files are preserved.
+
+### Deployment order
+
+Follow this order on a new server:
+
+```text
+1. ./deploy.sh
+       │
+       ├─ creates/validates .env
+       ├─ starts PostgreSQL + Core
+       └─ prints the next manual configuration steps
+
+2. Configure Telegram account(s)
+       │
+       └─ ./login-account.sh <account_name> <phone>
+
+3. Configure Telegram source(s)
+       │
+       └─ Web administrator discovers dialogs and selects exact chat IDs
+
+4. Optional: configure Proxy
+       │
+       ├─ edit .env with TG_PROXY_* values
+       ├─ set TG_PROXY_ENABLED=true
+       └─ docker compose --profile proxy up -d --build
+
+5. Verify
+       │
+       ├─ docker compose ps
+       └─ docker compose logs --tail=100 telegram-drive
+```
+
+**Proxy can be configured either before or after `deploy.sh`, but the recommended and supported procedure is after `deploy.sh`.** The reason is that `deploy.sh` creates the initial `.env` when it does not exist. If proxy settings are prepared beforehand, they should be supplied through an existing `.env` so `deploy.sh` preserves them; otherwise configure them after the bootstrap. Never put real proxy credentials into the repository or `.env.example`.
 
 Then authorize an account explicitly:
 
@@ -91,7 +124,11 @@ A complete non-range delivery hashes the emitted content with SHA-256 and promot
 
 Direct Telegram connectivity is the default. Proxy is an external plugin and should only be enabled when the deployment/network requires it.
 
+Recommended procedure after the base deployment:
+
 ```bash
+# edit .env first
+# set TG_PROXY_ENABLED=true and configure TG_PROXY_*
 docker compose --profile proxy up -d --build
 ```
 
