@@ -20,6 +20,13 @@ class FakeTelegramClient:
     def __init__(self, session, api_id, api_hash, proxy=None):
         self.session = session
         self.proxy = proxy
+        self.connected = False
+
+    def is_connected(self):
+        return self.connected
+
+    async def disconnect(self):
+        self.connected = False
 
 
 def test_client_loading_ignores_disabled_sessions(monkeypatch, tmp_path):
