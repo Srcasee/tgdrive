@@ -47,8 +47,10 @@ jobs:
           sh -n deploy.sh
           sh -n login-account.sh
           cp .env.example .env.ci
+          cp .env.ci .env
           DATABASE_URL=postgresql://tgdrive:tgdrive@postgres:5432/tgdrive_test \
             docker compose --env-file .env.ci config >/dev/null
+          rm -f .env
       - name: Build Core image
         run: docker build -t tgdrive-core-ci .
       - name: Build proxy plugin image
