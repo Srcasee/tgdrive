@@ -30,54 +30,102 @@ cd tgdrive
 ./deploy.sh
 ```
 
-`deploy.sh` performs only the base infrastructure bootstrap: checks Docker, creates persistent directories, creates `.env` when needed, generates deployment secrets, validates Compose, builds Core and starts PostgreSQL + tgdrive. It does **not** log in a Telegram account and does **not** enable or configure the optional proxy. Existing `.env` files are preserved.
+`deploy.sh` performs only the base infrastructure bootstrap: checks Docker, creates persistent directories, creates `.env` when needed, generates deployment secrets, validates Compose, builds Core and starts PostgreSQL + tgdrive. It does **not** log in a Telegram account and does **not** configure the optional proxy.
 
 ### Deployment order
 
-Follow this order on a new server:
+The order below is mandatory when a Telegram proxy is required. **Configure and enable the proxy before the first Telegram login.** Do not wait for a failed Telegram login to discover that the proxy is needed.
 
 ```text
-1. ./deploy.sh
-       │
-       ├─ creates/validates .env
-       ├─ starts PostgreSQL + Core
-       └─ prints the next manual configuration steps
-
-2. Configure Telegram account(s)
-       │
-       └─ ./login-account.sh <account_name> <phone>
-
-3. Configure Telegram source(s)
-       │
-       └─ Web administrator discovers dialogs and selects exact chat IDs
-
-4. Optional: configure Proxy
-       │
-       ├─ edit .env with TG_PROXY_* values
-       ├─ set TG_PROXY_ENABLED=true
-       └─ docker compose --profile proxy up -d --build
-
-5. Verify
-       │
-       ├─ docker compose ps
-       └─ docker compose logs --tail=100 telegram-drive
+New server
+   │
+   ▼
+./deploy.sh
+   │
+   ├── Docker 检查
+   ├── 创建 data/
+   ├── 创建 .env
+   ├── Compose 校验
+   ├── 构建 Core
+   └── 启动 PostgreSQL + Core
+   │
+   ▼
+如果需要 Proxy
+   │
+   ├── 编辑 .env
+   ├── TG_PROXY_ENABLED=true
+   ├── 配置 TG_PROXY_*
+   └── docker compose --profile proxy up -d --build
+   │
+   ▼
+Telegram 登录
+./login-account.sh default <phone>
+   │
+   ▼
+配置 Telegram Source
+   │
+   ▼
+验证
 ```
 
-**Proxy can be configured either before or after `deploy.sh`, but the recommended and supported procedure is after `deploy.sh`.** The reason is that `deploy.sh` creates the initial `.env` when it does not exist. If proxy settings are prepared beforehand, they should be supplied through an existing `.env` so `deploy.sh` preserves them; otherwise configure them after the bootstrap. Never put real proxy credentials into the repository or `.env.example`.
+`deploy.sh` creates the initial `.env` when it does not exist and preserves an existing `.env`. Therefore the normal procedure is: run `./deploy.sh` first, configure the proxy immediately afterward if required, then log in Telegram accounts. Never put real proxy credentials into the repository or `.env.example`.
 
-Then authorize an account explicitly:
+### Telegram account login
+
+Authorize an account explicitly:
 
 ```bash
 ./login-account.sh default +1234567890
 ```
 
-Open `http://<server>:8080/`, log in with the configured Web administrator, discover the Telegram dialogs and configure the exact Telegram chat/source to scan.
+A second account can use a different account name:
+
+```bash
+./login-account.sh Asada +861234567890
+```
+
+The resulting sessions are `/data/accounts/default.session` and `/data/accounts/Asada.session`. Account naming is intentional and the account name passed to `login-account.sh` is the session basename.
 
 `login-account.sh` is only a deployment wrapper around the canonical `app/telegram/login.py` implementation. Account-named sessions are stored under `/data/accounts/<account_name>`. Multiple Telegram accounts/sessions are supported.
 
-Scanning is metadata-only: a large Telegram file is not downloaded to the server merely because it is indexed.
+### Configure Telegram Source
 
-See `docs/QUICKSTART.md`, `docs/DEPLOYMENT-NOTES.md`, and `docs/PROJECT-STATUS.md` for the operator procedure and current real-device status.
+The scanner does **not** scan every Telegram dialog automatically. After the account is authorized, an administrator must explicitly configure each Telegram Source to scan.
+
+Use the Web administrator interface/API in this order:
+
+1. `GET /api/telegram/accounts` — find the account ID, for example `default` → account `1`.
+2. `GET /api/telegram/accounts/<account_id>/dialogs` — discover dialogs for that authorized Telegram account.
+3. Select the exact dialog by **numeric Telegram chat ID**. Do not identify a source by display name alone because names are not unique.
+4. `POST /api/telegram/sources` — add the selected chat as an enabled scanning source.
+5. Verify with PostgreSQL and scanner logs.
+
+For a fresh deployment, the API sequence can be exercised with an authenticated Web-admin session. The following is the exact source payload used by the current real-device test:
+
+```bash
+# 1) discover dialogs for default account (account_id=1)
+curl -sS \
+  -b cookies.txt \
+  http://127.0.0.1:8080/api/telegram/accounts/1/dialogs
+
+# 2) configure the exact resource-bearing chat
+curl -sS \
+  -b cookies.txt \
+  -H 'Content-Type: application/json' \
+  -X POST http://127.0.0.1:8080/api/telegram/sources \
+  -d '{"account_id":1,"telegram_chat_id":-1004413553797,"name":"My Documents"}'
+```
+
+The current real-device source is:
+
+```text
+account: default
+account_id: 1
+chat: My Documents
+chat id: -1004413553797
+```
+
+Only explicitly configured sources are scanned. The scanner stores the physical Telegram identity as `(account_id, telegram_chat_id, message_id)` and also records `topic_id` when Telegram supplies topic metadata.
 
 ## Core API
 
@@ -101,7 +149,7 @@ GET  /api/admin/categories
 POST /api/admin/categories
 PUT  /api/admin/categories/{category_id}
 DELETE /api/admin/categories/{category_id}
-PUT  /api/admin/resources/{resource_id}/categories
+PUT /api/admin/resources/{resource_id}/categories
 ```
 
 A batch Resource-classification API is planned; it is intentionally not represented as implemented until the backend and UI are complete.
@@ -124,7 +172,7 @@ A complete non-range delivery hashes the emitted content with SHA-256 and promot
 
 Direct Telegram connectivity is the default. Proxy is an external plugin and should only be enabled when the deployment/network requires it.
 
-Recommended procedure after the base deployment:
+Configure it **before Telegram login**:
 
 ```bash
 # edit .env first
@@ -173,7 +221,7 @@ docker compose up -d --build
 pytest -q
 ```
 
-GitHub Actions runs the PostgreSQL integration suite on Python 3.11 and 3.12 and validates the deployment scripts, Compose model, Core image and proxy image build.
+GitHub Actions defines the PostgreSQL integration workflow for Python 3.11 and 3.12, including the full test suite, deployment-script/Compose validation, Core image build and proxy image build. The latest main commit currently has **no reported GitHub Actions workflow run/status exposed through the repository integration**, so there is no CI error log to diagnose from that commit yet.
 
 ## Current real-device status
 
@@ -185,6 +233,7 @@ Verified on the current real server:
 - Category create/delete: PASS.
 - Share-link creation, visible link, deletion and shared download: PASS.
 - Basic Resource download: PASS.
+- Current test source `default / My Documents / -1004413553797` has produced indexed Resources.
 
 Known pending work:
 
@@ -192,5 +241,6 @@ Known pending work:
 - Multi-account failover, Range, complete-download SHA-256 promotion and proxy smoke tests need explicit real-device validation.
 - Telegram supergroup Topic recognition and automatic Topic → Category mapping are planned.
 - Batch Resource classification is planned.
+- Large-file behavior above Telegram per-file limits needs explicit real-device validation.
 
 See `docs/ARCHITECTURE.md` for the target architecture and `docs/PROJECT-STATUS.md` for the detailed implementation/real-device matrix.
