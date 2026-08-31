@@ -31,7 +31,7 @@ docker compose up -d --build
 
 Then open `http://<server>:8080/` and log in with the configured Web user. Configure the Telegram source through the Telegram management API/UI.
 
-The login helper uses account-named sessions under `/data/accounts/<account_name>`. It is safe to maintain more than one Telegram account/session.
+`login-account.sh` is only a deployment wrapper around the canonical `app/telegram/login.py` implementation. Account-named sessions are stored under `/data/accounts/<account_name>`. Multiple Telegram accounts/sessions are supported.
 
 Scanning is metadata-only: a large Telegram file is not downloaded to the server merely because it is indexed.
 
@@ -62,7 +62,19 @@ DELETE /api/admin/categories/{category_id}
 PUT  /api/admin/resources/{resource_id}/categories
 ```
 
+Telegram account lifecycle is explicit:
+
+```text
+GET  /api/telegram/accounts
+PUT  /api/telegram/accounts/{account_id}/enabled
+POST /api/telegram/reconnect
+GET  /api/telegram/accounts/{account_id}/dialogs
+POST /api/telegram/sources
+```
+
 There are no compatibility `/files/*` HTTP endpoints. Physical Telegram locations are persistence details behind the Resource model.
+
+A complete non-range delivery hashes the emitted content with SHA-256 and promotes the consumed physical location to its canonical Resource identity.
 
 ## Optional proxy
 
@@ -72,7 +84,7 @@ Direct Telegram connectivity is the default. Proxy is an external plugin and sho
 docker compose --profile proxy up -d --build
 ```
 
-The Core application does not contain country/region detection or concrete proxy protocol logic. Proxy configuration is deployment-controlled; changing it requires rebuilding/reconnecting Telegram clients.
+The Core application does not contain country/region detection or concrete proxy protocol logic. Proxy configuration is deployment-controlled. After changing proxy settings, use the administrator reconnect endpoint or restart the service so Telegram clients are rebuilt.
 
 ## Video
 
@@ -93,11 +105,11 @@ pytest -q
 - Logical Resource + physical Telegram backing locations: implemented.
 - Resource catalog, search and Resource-level classification: implemented.
 - Multi-account Telegram backing paths and pre-transfer failover: implemented.
+- Account enable/disable and runtime scanner reconciliation: implemented.
 - Resource-first Web UI: implemented for catalog/search/download/share and basic admin classification.
 - Legacy File-centric HTTP/admin paths: removed.
-- Content verification utility: implemented; canonical post-download promotion remains tracked in issue #24.
-- Telegram account lifecycle/health: tracked in issue #18.
-- Proxy boundary: implemented; explicit reconnect lifecycle remains tracked.
-- Transport optimization: deferred until real-device measurements justify it.
+- Complete non-range delivery verification and canonical Resource promotion: implemented.
+- Proxy boundary and explicit client reconnect: implemented.
+- Transport optimization and richer source scheduling: deferred until real-device measurements justify them.
 
 See `docs/ARCHITECTURE.md`, `docs/PROJECT-STATUS.md`, and `docs/MIGRATION.md` for the current architecture and status.
