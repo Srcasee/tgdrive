@@ -3,15 +3,15 @@ import os
 
 from ingestion.recognizer import TelegramMessageRecognizer
 from ingestion.service import IngestionService
-from repositories.files import FileRepository
 from repositories.resources import ResourceRepository
 from repositories.sources import SourceRepository
+from repositories.telegram_files import TelegramFileRepository
 
 
 SCAN_INTERVAL = int(os.getenv("SCAN_INTERVAL", "300"))
 
 source_repository = SourceRepository()
-file_repository = FileRepository()
+file_repository = TelegramFileRepository()
 resource_repository = ResourceRepository()
 ingestion_service = IngestionService(source_repository, file_repository, resource_repository)
 recognizer = TelegramMessageRecognizer()
