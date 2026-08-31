@@ -15,10 +15,6 @@ class CategoryInput(BaseModel):
     name: str = Field(min_length=1, max_length=100)
 
 
-class FileCategoryInput(BaseModel):
-    category_id: int | None
-
-
 class ResourceCategoriesInput(BaseModel):
     category_ids: list[int] = Field(default_factory=list, max_length=100)
 
@@ -64,14 +60,4 @@ def set_resource_categories(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     if not updated:
         raise HTTPException(status_code=404, detail="resource not found")
-    return updated
-
-
-@router.put("/files/{file_id}/category")
-def assign_file_category(file_id: int, data: FileCategoryInput, _: Principal = Depends(require_admin)):
-    if data.category_id is not None and not category_repository.get(data.category_id):
-        raise HTTPException(status_code=404, detail="category not found")
-    updated = category_repository.assign_file(file_id, data.category_id)
-    if not updated:
-        raise HTTPException(status_code=404, detail="file not found")
     return updated
