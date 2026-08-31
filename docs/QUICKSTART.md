@@ -44,7 +44,7 @@ Use the account-named login helper:
 ./login-account.sh default +1234567890
 ```
 
-Or invoke the module directly:
+Or invoke the canonical login module directly:
 
 ```bash
 docker compose run --rm \
@@ -57,6 +57,8 @@ docker compose run --rm \
 Complete the Telegram code/2FA prompts when requested.
 
 The Telethon session is stored under `/data/accounts/<account_name>` by default and is reused by the application. Multiple account names may be configured independently.
+
+`login-account.sh` is only a deployment convenience wrapper; `app/telegram/login.py` is the single login implementation.
 
 ## 4. Verify the application
 
@@ -111,6 +113,8 @@ Expected response: `206 Partial Content` with a correct `Content-Range`.
 
 Delivery selects among available Telegram backing locations. If the first location is unavailable before transfer begins, another usable Telegram account/location can be selected.
 
+A complete non-range delivery also verifies the emitted content with SHA-256 and promotes the physical source to its canonical Resource identity.
+
 ## Optional proxy deployment
 
 Only enable the proxy profile when the server's network requires it.
@@ -132,7 +136,13 @@ TG_PROXY_PORT=1080
 
 The external proxy plugin may use a sing-box upstream. Core does not contain region detection or proxy protocol logic.
 
-After changing proxy configuration, restart/recreate tgdrive so existing Telegram clients are rebuilt with the new connectivity settings. Explicit reconnect lifecycle remains tracked separately.
+After changing proxy configuration, rebuild the Telegram clients explicitly:
+
+```bash
+curl -X POST http://127.0.0.1:8080/api/telegram/reconnect
+```
+
+The endpoint requires administrator authentication. A full application restart is also sufficient.
 
 ## Video
 
@@ -140,13 +150,13 @@ Video playback/chunk caching is outside the current real-device testing scope. T
 
 ## Recovery
 
-To force a fresh login for one account, stop Core first and remove only that account's session path:
+To force a fresh login for one account, stop Core first and remove only that account's session file from the mounted data directory:
 
 ```bash
 docker compose stop telegram-drive
-docker compose exec telegram-drive sh -c 'rm -f /data/accounts/<account_name>.session'
-docker compose start telegram-drive
+rm -f ./data/accounts/<account_name>.session
 ./login-account.sh <account_name> <phone>
+docker compose up -d telegram-drive
 ```
 
 Do not delete the PostgreSQL volume just to re-authenticate Telegram.
