@@ -104,7 +104,10 @@ docker compose up -d postgres telegram-drive
 sleep 5
 docker compose ps
 
-echo "[DEPLOY] step 7/7: bootstrap complete"
-echo "[DEPLOY] Telegram account setup: ./login-account.sh <account_name> <phone>"
-echo "[DEPLOY] Proxy setup: edit .env, set TG_PROXY_ENABLED=true and configure TG_PROXY_* values, then: docker compose --profile proxy up -d --build"
-echo "[DEPLOY] Verify: docker compose logs --tail=100 telegram-drive"
+echo "[DEPLOY] step 7/7: base bootstrap complete"
+echo "[DEPLOY] NEXT 1/3: configure Proxy BEFORE Telegram login when proxy is required"
+echo "[DEPLOY]   edit .env: TG_PROXY_ENABLED=true and configure TG_PROXY_* values"
+echo "[DEPLOY]   then run: docker compose --profile proxy up -d --build"
+echo "[DEPLOY] NEXT 2/3: Telegram login: ./login-account.sh <account_name> <phone>"
+echo "[DEPLOY] NEXT 3/3: configure Telegram Source in Web admin (discover dialog, select exact chat ID, add source)"
+echo "[DEPLOY] Verify: docker compose ps && docker compose logs --tail=100 telegram-drive"
