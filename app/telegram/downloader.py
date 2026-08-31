@@ -3,8 +3,6 @@ from dataclasses import dataclass
 
 
 # Telegram file download requests are capped at 512 KiB by Telethon/MTProto.
-# Keep this transport size separate from the 4 MiB application-level video
-# cache chunk used by VideoStreamService.
 TELEGRAM_REQUEST_SIZE = 512 * 1024
 
 
