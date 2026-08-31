@@ -1,69 +1,135 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Telegram Drive</title>
 <style>
-body { font-family: Arial, sans-serif; margin: 30px; }
-input { width: 300px; padding: 8px; }
-button { padding: 6px 12px; margin: 5px; cursor: pointer; }
-.card { border: 1px solid #ddd; padding: 15px; margin: 15px 0; border-radius: 8px; }
-.name { font-weight: bold; margin-bottom: 8px; }
-.info { color: #666; margin-bottom: 10px; }
-video { margin-top: 10px; max-width: 800px; }
-.video-box { margin-top: 10px; }
-.hidden { display: none; }
+:root { color-scheme: light dark; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+body { margin: 0; background: Canvas; color: CanvasText; }
+main { width: min(1100px, calc(100% - 32px)); margin: 0 auto; padding: 28px 0 48px; }
+header { display: flex; justify-content: space-between; gap: 16px; align-items: center; flex-wrap: wrap; margin-bottom: 24px; }
+h1, h2, h3 { margin: 0; }
+.panel { border: 1px solid color-mix(in srgb, CanvasText 18%, transparent); border-radius: 12px; padding: 18px; margin-bottom: 18px; }
+.toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+input, select, button { font: inherit; }
+input, select { min-height: 38px; padding: 0 10px; border: 1px solid color-mix(in srgb, CanvasText 25%, transparent); border-radius: 8px; background: Canvas; color: CanvasText; box-sizing: border-box; }
+input[type="search"] { flex: 1 1 260px; }
+button { min-height: 38px; padding: 0 13px; border: 1px solid color-mix(in srgb, CanvasText 25%, transparent); border-radius: 8px; background: ButtonFace; color: ButtonText; cursor: pointer; }
+button:disabled { cursor: wait; opacity: .6; }
+button.danger { border-color: #b42318; }
+.status { min-height: 22px; margin: 10px 0; opacity: .8; }
+.error { color: #b42318; }
+.hidden { display: none !important; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+.card { border: 1px solid color-mix(in srgb, CanvasText 15%, transparent); border-radius: 10px; padding: 15px; display: flex; flex-direction: column; gap: 10px; }
+.filename { font-weight: 700; overflow-wrap: anywhere; }
+.meta { opacity: .7; font-size: .9rem; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: auto; }
+.actions a { display: inline-flex; align-items: center; text-decoration: none; }
+.badges { display: flex; gap: 6px; flex-wrap: wrap; }
+.badge { border: 1px solid color-mix(in srgb, CanvasText 18%, transparent); border-radius: 999px; padding: 3px 8px; font-size: .8rem; }
+.category-row { display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
+.category-row label { display: inline-flex; gap: 5px; align-items: center; }
+.pagination { display: flex; justify-content: center; gap: 10px; align-items: center; margin-top: 18px; }
+small { opacity: .7; }
 </style>
 </head>
 <body>
-<h2>Telegram Drive</h2>
+<main>
+<header>
+  <div>
+    <h1>Telegram Drive</h1>
+    <small id="identity">未登录</small>
+  </div>
+  <button id="logout" class="hidden" type="button">退出</button>
+</header>
 
-<section id="login-panel">
-  <h3>登录</h3>
-  <input id="username" placeholder="用户名" autocomplete="username">
-  <input id="password" type="password" placeholder="密码" autocomplete="current-password">
-  <button onclick="login()">登录</button>
-  <div id="login-error"></div>
+<section id="login-panel" class="panel">
+  <h2>登录</h2>
+  <form id="login-form" class="toolbar" style="margin-top:12px">
+    <input id="username" autocomplete="username" placeholder="用户名" required>
+    <input id="password" type="password" autocomplete="current-password" placeholder="密码" required>
+    <button type="submit">登录</button>
+  </form>
+  <div id="login-error" class="status error"></div>
 </section>
 
 <section id="app-panel" class="hidden">
-  <div>
-    <span id="identity"></span>
-    <button onclick="logout()">退出</button>
-  </div>
-  <input id="search" placeholder="搜索文件">
-  <button onclick="searchFiles()">搜索</button>
-  <button onclick="loadFiles()">刷新</button>
-  <div id="admin-panel" class="hidden">
-    <h3>分类管理</h3>
-    <input id="category-name" placeholder="新分类名称">
-    <button onclick="createCategory()">创建分类</button>
-    <div id="categories"></div>
-  </div>
-  <div id="files"></div>
+  <section class="panel">
+    <div class="toolbar">
+      <input id="search" type="search" placeholder="搜索 Resource 文件名">
+      <select id="category-filter" aria-label="分类过滤">
+        <option value="">全部分类</option>
+      </select>
+      <button id="search-button" type="button">搜索</button>
+      <button id="refresh-button" type="button">刷新</button>
+    </div>
+    <div id="status" class="status"></div>
+  </section>
+
+  <section id="admin-panel" class="panel hidden">
+    <h2>分类管理</h2>
+    <form id="category-form" class="toolbar" style="margin-top:12px">
+      <input id="category-name" placeholder="新分类名称" maxlength="100" required>
+      <button type="submit">创建分类</button>
+    </form>
+    <div id="categories" class="badges" style="margin-top:12px"></div>
+  </section>
+
+  <section>
+    <div id="files" class="grid"></div>
+    <div id="pagination" class="pagination"></div>
+  </section>
 </section>
+</main>
 
 <script>
+const state = { page: 1, size: 50, total: 0, items: [], categories: [], isAdmin: false };
+
 async function request(url, options = {}) {
-  const res = await fetch(url, options);
-  if (res.status === 401) {
+  const response = await fetch(url, options);
+  if (response.status === 401) {
     showLogin();
     throw new Error("authentication required");
   }
-  return res;
+  return response;
 }
 
-async function login() {
+function setStatus(message, error = false) {
+  const box = document.getElementById("status");
+  box.textContent = message || "";
+  box.className = error ? "status error" : "status";
+}
+
+function showLogin() {
+  document.getElementById("login-panel").classList.remove("hidden");
+  document.getElementById("app-panel").classList.add("hidden");
+  document.getElementById("logout").classList.add("hidden");
+  document.getElementById("identity").textContent = "未登录";
+}
+
+function showApp(user) {
+  state.isAdmin = user.role === "admin";
+  document.getElementById("login-panel").classList.add("hidden");
+  document.getElementById("app-panel").classList.remove("hidden");
+  document.getElementById("logout").classList.remove("hidden");
+  document.getElementById("identity").textContent = `${user.username} (${user.role})`;
+  document.getElementById("admin-panel").classList.toggle("hidden", !state.isAdmin);
+}
+
+async function login(event) {
+  event.preventDefault();
   const response = await fetch("/auth/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      username: document.getElementById("username").value,
+      username: document.getElementById("username").value.trim(),
       password: document.getElementById("password").value
     })
   });
   if (!response.ok) {
-    document.getElementById("login-error").textContent = "用户名或密码错误";
+    document.getElementById("login-error").textContent = "登录失败，请检查用户名和密码。";
     return;
   }
   document.getElementById("login-error").textContent = "";
@@ -72,16 +138,13 @@ async function login() {
 
 async function loadIdentity() {
   const response = await fetch("/auth/me");
-  if (!response.ok) { showLogin(); return; }
-  const user = await response.json();
-  document.getElementById("identity").textContent = `${user.username} (${user.role})`;
-  document.getElementById("login-panel").classList.add("hidden");
-  document.getElementById("app-panel").classList.remove("hidden");
-  if (user.role === "admin") {
-    document.getElementById("admin-panel").classList.remove("hidden");
-    loadCategories();
+  if (!response.ok) {
+    showLogin();
+    return;
   }
-  loadFiles();
+  const user = await response.json();
+  showApp(user);
+  await Promise.all([loadCategories(), loadResources()]);
 }
 
 async function logout() {
@@ -89,103 +152,217 @@ async function logout() {
   showLogin();
 }
 
-function showLogin() {
-  document.getElementById("login-panel").classList.remove("hidden");
-  document.getElementById("app-panel").classList.add("hidden");
-}
-
-async function loadFiles() {
-  const res = await request("/files?page=1&size=50");
-  const data = await res.json();
-  renderFiles(data.data?.items || []);
-}
-
-async function searchFiles() {
-  const q = document.getElementById("search").value.trim();
-  if (!q) return loadFiles();
-  const res = await request("/files/search?q=" + encodeURIComponent(q));
-  const data = await res.json();
-  renderFiles(data.data?.items || data);
-}
-
-function renderFiles(files) {
-  const box = document.getElementById("files");
-  box.replaceChildren();
-  for (const f of files) {
-    const card = document.createElement("div");
-    card.className = "card";
-    const name = document.createElement("div");
-    name.className = "name";
-    name.textContent = f.filename;
-    const info = document.createElement("div");
-    info.className = "info";
-    info.textContent = `${(f.size / 1024 / 1024).toFixed(2)} MB | ${f.mime_type || "unknown"}`;
-    const link = document.createElement("a");
-    link.href = `/files/${f.id}/download`;
-    const download = document.createElement("button");
-    download.textContent = "下载";
-    link.appendChild(download);
-    card.append(name, info, link);
-    if (f.mime_type && f.mime_type.startsWith("video")) {
-      const play = document.createElement("button");
-      play.textContent = "播放";
-      const videoBox = document.createElement("div");
-      videoBox.className = "video-box";
-      play.onclick = () => playVideo(videoBox, f.id, f.mime_type);
-      card.append(play, videoBox);
-    }
-    box.appendChild(card);
-  }
-}
-
-function playVideo(box, id, mime) {
-  if (box.querySelector("video")) return;
-  const video = document.createElement("video");
-  video.controls = true;
-  video.playsInline = true;
-  video.preload = "metadata";
-  video.src = `/files/${id}/stream`;
-  video.type = mime;
-  box.appendChild(video);
-  video.play().catch(() => {});
-}
-
 async function loadCategories() {
-  const res = await request("/api/admin/categories");
-  if (!res.ok) return;
-  const categories = await res.json();
+  if (!state.isAdmin) return;
+  const response = await request("/api/admin/categories");
+  if (!response.ok) throw new Error("failed to load categories");
+  state.categories = await response.json();
+  const filter = document.getElementById("category-filter");
+  filter.replaceChildren(new Option("全部分类", ""));
+  for (const category of state.categories) filter.add(new Option(category.name, category.id));
+  renderCategories();
+}
+
+function renderCategories() {
   const box = document.getElementById("categories");
   box.replaceChildren();
-  for (const category of categories) {
-    const row = document.createElement("div");
-    const label = document.createElement("span");
-    label.textContent = category.name;
-    const remove = document.createElement("button");
-    remove.textContent = "删除";
-    remove.onclick = () => deleteCategory(category.id);
-    row.append(label, remove);
-    box.appendChild(row);
+  for (const category of state.categories) {
+    const badge = document.createElement("span");
+    badge.className = "badge";
+    badge.textContent = category.name;
+    box.appendChild(badge);
   }
 }
 
-async function createCategory() {
-  const name = document.getElementById("category-name").value.trim();
+async function loadResources() {
+  setStatus("正在加载……");
+  const categoryId = document.getElementById("category-filter").value;
+  const q = document.getElementById("search").value.trim();
+  let url;
+  if (q) {
+    const params = new URLSearchParams({ q, limit: String(state.size) });
+    if (categoryId) params.set("category_id", categoryId);
+    url = `/catalog/search?${params}`;
+  } else {
+    const params = new URLSearchParams({ page: String(state.page), size: String(state.size) });
+    if (categoryId) params.set("category_id", categoryId);
+    url = `/catalog?${params}`;
+  }
+  try {
+    const response = await request(url);
+    if (!response.ok) throw new Error("catalog request failed");
+    const payload = await response.json();
+    if (q) {
+      state.items = payload.data || [];
+      state.total = state.items.length;
+    } else {
+      state.items = payload.data?.items || [];
+      state.total = payload.data?.total || 0;
+    }
+    renderResources();
+    setStatus(`${state.total} 个 Resource`);
+  } catch (error) {
+    setStatus(error.message, true);
+  }
+}
+
+function formatSize(size) {
+  if (!Number.isFinite(Number(size))) return "未知大小";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let value = Number(size), index = 0;
+  while (value >= 1024 && index < units.length - 1) { value /= 1024; index++; }
+  return `${value.toFixed(index ? 2 : 0)} ${units[index]}`;
+}
+
+function renderResources() {
+  const box = document.getElementById("files");
+  box.replaceChildren();
+  if (!state.items.length) {
+    const empty = document.createElement("div");
+    empty.className = "panel";
+    empty.textContent = "没有找到 Resource。";
+    box.appendChild(empty);
+  }
+  for (const resource of state.items) box.appendChild(renderResource(resource));
+  renderPagination();
+}
+
+function renderResource(resource) {
+  const card = document.createElement("article");
+  card.className = "card";
+
+  const title = document.createElement("div");
+  title.className = "filename";
+  title.textContent = resource.filename || `Resource #${resource.id}`;
+
+  const meta = document.createElement("div");
+  meta.className = "meta";
+  meta.textContent = `${formatSize(resource.size)} · ${resource.mime_type || "application/octet-stream"} · ${resource.source_count ?? 0} 个 Telegram 来源`;
+
+  const badges = document.createElement("div");
+  badges.className = "badges";
+  for (const id of resource.category_ids || []) {
+    const category = state.categories.find(item => Number(item.id) === Number(id));
+    if (category) {
+      const badge = document.createElement("span");
+      badge.className = "badge";
+      badge.textContent = category.name;
+      badges.appendChild(badge);
+    }
+  }
+
+  const actions = document.createElement("div");
+  actions.className = "actions";
+  const download = document.createElement("a");
+  download.href = `/resources/${resource.id}/download`;
+  download.textContent = "下载";
+  download.setAttribute("download", "");
+  actions.appendChild(download);
+
+  const share = document.createElement("button");
+  share.type = "button";
+  share.textContent = "创建分享链接";
+  share.onclick = () => createShare(resource.id, share);
+  actions.appendChild(share);
+
+  if (state.isAdmin) {
+    const categoryRow = document.createElement("div");
+    categoryRow.className = "category-row";
+    for (const category of state.categories) {
+      const label = document.createElement("label");
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.value = category.id;
+      checkbox.checked = (resource.category_ids || []).some(id => Number(id) === Number(category.id));
+      label.append(checkbox, document.createTextNode(category.name));
+      categoryRow.appendChild(label);
+    }
+    const save = document.createElement("button");
+    save.type = "button";
+    save.textContent = "保存分类";
+    save.onclick = () => saveCategories(resource.id, categoryRow, save);
+    categoryRow.appendChild(save);
+    card.append(title, meta, badges, categoryRow, actions);
+  } else {
+    card.append(title, meta, badges, actions);
+  }
+  return card;
+}
+
+async function createShare(resourceId, button) {
+  button.disabled = true;
+  try {
+    const response = await request(`/resources/${resourceId}/share`, { method: "POST" });
+    if (!response.ok) throw new Error("创建分享链接失败");
+    const data = await response.json();
+    const url = new URL(data.url, window.location.origin).href;
+    await navigator.clipboard?.writeText(url);
+    button.textContent = "链接已复制";
+    setTimeout(() => { button.textContent = "创建分享链接"; }, 1800);
+  } catch (error) {
+    setStatus(error.message, true);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function saveCategories(resourceId, row, button) {
+  const categoryIds = [...row.querySelectorAll("input[type=checkbox]:checked")].map(input => Number(input.value));
+  button.disabled = true;
+  try {
+    const response = await request(`/api/admin/resources/${resourceId}/categories`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ category_ids: categoryIds })
+    });
+    if (!response.ok) throw new Error("保存分类失败");
+    await loadResources();
+  } catch (error) {
+    setStatus(error.message, true);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function renderPagination() {
+  const box = document.getElementById("pagination");
+  box.replaceChildren();
+  if (document.getElementById("search").value.trim()) return;
+  const pages = Math.max(1, Math.ceil(state.total / state.size));
+  const previous = document.createElement("button");
+  previous.textContent = "上一页";
+  previous.disabled = state.page <= 1;
+  previous.onclick = () => { state.page--; loadResources(); };
+  const label = document.createElement("span");
+  label.textContent = `${state.page} / ${pages}`;
+  const next = document.createElement("button");
+  next.textContent = "下一页";
+  next.disabled = state.page >= pages;
+  next.onclick = () => { state.page++; loadResources(); };
+  box.append(previous, label, next);
+}
+
+document.getElementById("login-form").addEventListener("submit", login);
+document.getElementById("logout").addEventListener("click", logout);
+document.getElementById("search-button").addEventListener("click", () => { state.page = 1; loadResources(); });
+document.getElementById("refresh-button").addEventListener("click", () => loadResources());
+document.getElementById("search").addEventListener("keydown", event => { if (event.key === "Enter") { state.page = 1; loadResources(); } });
+document.getElementById("category-filter").addEventListener("change", () => { state.page = 1; loadResources(); });
+document.getElementById("category-form").addEventListener("submit", async event => {
+  event.preventDefault();
+  const input = document.getElementById("category-name");
+  const name = input.value.trim();
   if (!name) return;
-  const res = await request("/api/admin/categories", {
+  const response = await request("/api/admin/categories", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name })
   });
-  if (res.ok) {
-    document.getElementById("category-name").value = "";
-    loadCategories();
-  }
-}
-
-async function deleteCategory(id) {
-  const res = await request(`/api/admin/categories/${id}`, { method: "DELETE" });
-  if (res.ok) loadCategories();
-}
+  if (!response.ok) { setStatus("创建分类失败", true); return; }
+  input.value = "";
+  await loadCategories();
+  await loadResources();
+});
 
 loadIdentity();
 </script>
