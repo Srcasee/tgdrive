@@ -37,12 +37,3 @@ class CategoryRepository:
             with conn.cursor() as cursor:
                 cursor.execute("DELETE FROM categories WHERE id=%s RETURNING id", (category_id,))
                 return cursor.fetchone()
-
-    def assign_file(self, file_id, category_id):
-        with transaction() as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(
-                    "UPDATE files SET category_id=%s WHERE id=%s RETURNING id, category_id",
-                    (category_id, file_id),
-                )
-                return cursor.fetchone()
