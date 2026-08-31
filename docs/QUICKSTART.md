@@ -62,10 +62,11 @@ The external proxy plugin may use a sing-box upstream. Core does not contain reg
 After changing proxy configuration, rebuild the Telegram clients explicitly:
 
 ```bash
+# This endpoint requires an authenticated Web-admin session.
 curl -X POST http://127.0.0.1:8080/api/telegram/reconnect
 ```
 
-The endpoint requires administrator authentication. A full application restart is also sufficient.
+A full application restart is also sufficient.
 
 ## 3. Verify the base stack
 
@@ -102,27 +103,75 @@ The Telethon session is reused by the application. Multiple account names may be
 
 `login-account.sh` is only a deployment convenience wrapper; `app/telegram/login.py` is the single login implementation.
 
-## 5. Configure a Telegram Source
+## 5. Configure a Telegram Source — complete command flow
 
-The scanner does **not** scan every Telegram dialog automatically. After the account is authorized, an administrator must explicitly configure each Telegram Source to scan.
+A Telegram Source is an **explicit administrator selection** of a Telegram chat to scan. The scanner does not ingest every dialog merely because the account is authorized.
 
-Use the Web administrator interface/API in this order:
+The Source API is protected by the tgdrive Web-admin session cookie. Therefore, creating an empty `cookies.txt` and sending `-b cookies.txt` is **not** authentication. First log in to tgdrive itself and save the returned cookie with `-c cookies.txt`.
 
-1. `GET /api/telegram/accounts` — find the account ID, for example `default` → account `1`.
-2. `GET /api/telegram/accounts/<account_id>/dialogs` — discover dialogs for that authorized Telegram account.
-3. Select the exact dialog by **numeric Telegram chat ID**. Do not identify a source by display name alone because names are not unique.
-4. `POST /api/telegram/sources` — add the selected chat as an enabled scanning source.
-5. Verify with PostgreSQL and scanner logs.
+### 5.1 Log in to the tgdrive Web API
 
-For an authenticated Web-admin session, the source configuration calls are:
+Use the Web-admin username/password configured in `.env`:
 
 ```bash
-# 1) discover dialogs for default account (account_id=1)
+rm -f cookies.txt
+
+curl -sS -c cookies.txt \
+  -H 'Content-Type: application/json' \
+  -X POST http://127.0.0.1:8080/auth/login \
+  -d '{"username":"admin","password":"YOUR_ADMIN_PASSWORD"}'
+```
+
+Verify that the cookie is valid:
+
+```bash
+curl -sS -b cookies.txt http://127.0.0.1:8080/auth/me
+```
+
+Expected result contains the admin identity, for example:
+
+```json
+{"id":1,"username":"admin","role":"admin","enabled":true}
+```
+
+If your admin username is not `admin`, replace it in the login payload. Do not put the real password into Git or documentation.
+
+### 5.2 Find the Telegram account ID
+
+```bash
+curl -sS \
+  -b cookies.txt \
+  http://127.0.0.1:8080/api/telegram/accounts
+```
+
+Find the object whose `name` is the Telegram account you logged in, for example `default`. Record its numeric `id` as `ACCOUNT_ID`.
+
+For the current real-device test, `default` is account ID `1`.
+
+### 5.3 List all Telegram dialogs for that account
+
+Replace `1` below if your `default` account has a different database ID:
+
+```bash
 curl -sS \
   -b cookies.txt \
   http://127.0.0.1:8080/api/telegram/accounts/1/dialogs
+```
 
-# 2) configure the exact resource-bearing chat
+The response lists dialogs with their numeric Telegram IDs and names. **Choose the target by numeric ID**, not by name alone, because Telegram dialog names are not unique.
+
+For example, the current real-device test contains:
+
+```text
+My Documents  -> -1004413553797
+Documents     -> -1004368336866
+```
+
+### 5.4 Add the selected dialog as a Telegram Source
+
+Replace the values with the account ID and Telegram chat ID selected above:
+
+```bash
 curl -sS \
   -b cookies.txt \
   -H 'Content-Type: application/json' \
@@ -130,26 +179,46 @@ curl -sS \
   -d '{"account_id":1,"telegram_chat_id":-1004413553797,"name":"My Documents"}'
 ```
 
-The current real-device source is:
+This creates an enabled source. It does not require manually entering a Telegram username or invite link.
 
-```text
-account: default
-account_id: 1
-chat: My Documents
-chat id: -1004413553797
-```
-
-Only explicitly configured sources are scanned. The scanner stores the physical Telegram identity as `(account_id, telegram_chat_id, message_id)` and also records `topic_id` when Telegram supplies topic metadata.
-
-## 6. Verify scanning and catalog
-
-The scanner indexes Telegram metadata only. It does not download complete files during scanning.
-
-Check the service log:
+### 5.5 Verify the Source in PostgreSQL
 
 ```bash
-docker compose logs --tail=150 telegram-drive | grep -E '\[SCAN\]|\[TG\]'
+docker compose exec postgres psql \
+  -U tgdrive \
+  -d tgdrive \
+  -c 'SELECT id, account_id, telegram_chat_id, name, enabled, last_message_id FROM telegram_sources ORDER BY id;'
 ```
+
+The selected source should show `enabled = t`. `last_message_id` starts at `0` for a new source and advances as messages are indexed.
+
+### 5.6 Verify scanner activity
+
+```bash
+docker compose logs --tail=200 telegram-drive | grep -E '\[SCAN\]|\[TG\]'
+```
+
+A healthy source scan includes output similar to:
+
+```text
+[SCAN] starting: default
+[SCAN] dialog: My Documents id: -1004413553797
+[SCAN] finished N files
+[SCAN] sleep 300s
+```
+
+Then verify indexed records:
+
+```bash
+docker compose exec postgres psql \
+  -U tgdrive \
+  -d tgdrive \
+  -c 'SELECT id, filename, size, telegram_chat_id, message_id, topic_id, account_id, scan_status, is_available FROM files ORDER BY id DESC LIMIT 20;'
+```
+
+The scanner is metadata-first: it records Telegram message/file metadata without downloading the complete file merely to build the catalog.
+
+## 6. Verify scanning and catalog
 
 Catalog:
 
