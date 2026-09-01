@@ -54,6 +54,11 @@ async def list_dialogs(account_id: int, _: Principal = Depends(require_admin)):
     return dialog_repository.list_for_account(account_id)
 
 
+@router.get("/sources")
+def list_sources(_: Principal = Depends(require_admin)):
+    return source_repository.list_all_enabled()
+
+
 class SourceCreate(BaseModel):
     account_id: int
     telegram_chat_id: int
