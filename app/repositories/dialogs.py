@@ -27,8 +27,16 @@ class DialogRepository:
             dialog for dialog in dialogs
             if dialog.get("is_group", False) or dialog.get("is_channel", False)
         ]
+        current_ids = {dialog["id"] for dialog in resource_dialogs}
         with transaction() as conn:
             with conn.cursor() as cursor:
+                cursor.execute(
+                    "SELECT telegram_chat_id FROM telegram_dialogs WHERE account_id=%s",
+                    (account_id,),
+                )
+                previous_ids = {row["telegram_chat_id"] for row in cursor.fetchall()}
+                removed_ids = sorted(previous_ids - current_ids)
+
                 cursor.execute("DELETE FROM telegram_dialogs WHERE account_id=%s", (account_id,))
                 for dialog in resource_dialogs:
                     cursor.execute(
@@ -49,6 +57,7 @@ class DialogRepository:
                             dialog.get("is_channel", False),
                         ),
                     )
+        return removed_ids
 
     def list_for_account(self, account_id):
         self.ensure_table()
