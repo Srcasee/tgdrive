@@ -33,6 +33,42 @@ class SourceRepository:
                 )
                 return cursor.fetchall()
 
+    def get(self, source_id):
+        with connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "SELECT id, account_id, telegram_chat_id, name, enabled FROM telegram_sources WHERE id=%s",
+                    (source_id,),
+                )
+                return cursor.fetchone()
+
+    def set_enabled(self, source_id, enabled):
+        with transaction() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    UPDATE telegram_sources
+                    SET enabled=%s, scan_status='idle', updated_at=EXTRACT(EPOCH FROM NOW())::BIGINT
+                    WHERE id=%s
+                    RETURNING id, account_id, telegram_chat_id, name, enabled
+                    """,
+                    (enabled, source_id),
+                )
+                row = cursor.fetchone()
+                if row is None:
+                    raise ValueError("source not found")
+                return row
+
+    def delete(self, source_id):
+        with transaction() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("SELECT account_id, telegram_chat_id FROM telegram_sources WHERE id=%s", (source_id,))
+                row = cursor.fetchone()
+                if row is None:
+                    return None
+                cursor.execute("DELETE FROM telegram_sources WHERE id=%s", (source_id,))
+                return row
+
     def remove_missing_dialogs(self, account_id, dialog_ids):
         """Disable sources whose chat is no longer present in Telegram dialogs."""
         with transaction() as conn:
