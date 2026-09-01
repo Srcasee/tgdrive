@@ -7,6 +7,7 @@ from database_pool import close_pool, open_pool, initialize
 from repositories.accounts import AccountRepository
 from repositories.dialogs import DialogRepository
 from repositories.sources import SourceRepository
+from catalog.repository import CatalogRepository
 from telegram.client import get_clients
 from telegram.scanner import scanner_loop
 from telegram.runtime_events import initialize_source_change_event, wait_for_source_change
@@ -25,6 +26,7 @@ class ApplicationLifecycle:
         self.account_repository = AccountRepository()
         self.dialog_repository = DialogRepository()
         self.source_repository = SourceRepository()
+        self.catalog_repository = CatalogRepository()
         self.user_repository = UserRepository()
 
     async def startup(self):
@@ -64,8 +66,24 @@ class ApplicationLifecycle:
                 f"group={row['is_group']} channel={row['is_channel']}",
                 flush=True,
             )
-        self.dialog_repository.replace_for_account(account_id, dialogs)
+
         selectable = [row for row in dialogs if row["is_group"] or row["is_channel"]]
+        selectable_ids = [row["id"] for row in selectable]
+        removed_chat_ids = self.source_repository.remove_missing_dialogs(account_id, selectable_ids)
+        if removed_chat_ids:
+            self.catalog_repository.deactivate_telegram_chats(account_id, removed_chat_ids)
+            print(
+                f"[TG] removed stale sources: {account_name} "
+                f"({len(removed_chat_ids)})",
+                flush=True,
+            )
+            print(
+                f"[TG] deactivated stale resources: {account_name} "
+                f"({len(removed_chat_ids)} chat(s))",
+                flush=True,
+            )
+
+        self.dialog_repository.replace_for_account(account_id, selectable)
         print(f"[TG] resource candidates: {account_name} ({len(selectable)})", flush=True)
         for row in selectable:
             print(
@@ -75,7 +93,7 @@ class ApplicationLifecycle:
                 f"group={row['is_group']} channel={row['is_channel']}",
                 flush=True,
             )
-        print(f"[TG] dialogs refreshed: {account_name} ({len(dialogs)})", flush=True)
+        print(f"[TG] dialogs refreshed: {account_name} ({len(selectable)})", flush=True)
 
     @staticmethod
     def _telegram_configured():
@@ -161,7 +179,6 @@ class ApplicationLifecycle:
                             except asyncio.CancelledError:
                                 pass
                             print(f"[SCAN] stopped: {name} (no enabled sources)", flush=True)
-                        print(f"[TG] scanner idle: {name} (no enabled sources)", flush=True)
 
                 for name, task in list(self.scanner_tasks.items()):
                     if name in enabled:
