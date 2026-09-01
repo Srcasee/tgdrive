@@ -65,13 +65,29 @@ class DialogRepository:
             with conn.cursor() as cursor:
                 cursor.execute(
                     """
-                    SELECT telegram_chat_id AS id, name, username,
-                           entity_type, is_group, is_channel, updated_at
-                    FROM telegram_dialogs
-                    WHERE account_id=%s
-                      AND (is_group=TRUE OR is_channel=TRUE)
-                    ORDER BY name NULLS LAST, telegram_chat_id
+                    SELECT d.telegram_chat_id AS id, d.name, d.username,
+                           d.entity_type, d.is_group, d.is_channel, d.updated_at,
+                           COALESCE(s.enabled, FALSE) AS source_enabled,
+                           s.id AS source_id,
+                           s.scan_status
+                    FROM telegram_dialogs d
+                    LEFT JOIN telegram_sources s
+                      ON s.account_id=d.account_id
+                     AND s.telegram_chat_id=d.telegram_chat_id
+                    WHERE d.account_id=%s
+                      AND (d.is_group=TRUE OR d.is_channel=TRUE)
+                    ORDER BY d.name NULLS LAST, d.telegram_chat_id
                     """,
                     (account_id,),
                 )
                 return cursor.fetchall()
+
+    def delete(self, account_id, telegram_chat_id):
+        self.ensure_table()
+        with transaction() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "DELETE FROM telegram_dialogs WHERE account_id=%s AND telegram_chat_id=%s",
+                    (account_id, telegram_chat_id),
+                )
+                return cursor.rowcount > 0
