@@ -38,7 +38,15 @@ class SourceRepository:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "SELECT id, account_id, telegram_chat_id, name, enabled FROM telegram_sources WHERE id=%s",
-                    (source_id,),
+                    (source_id,))
+                return cursor.fetchone()
+
+    def get_for_chat(self, account_id, telegram_chat_id):
+        with connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "SELECT id, account_id, telegram_chat_id, name, enabled FROM telegram_sources WHERE account_id=%s AND telegram_chat_id=%s",
+                    (account_id, telegram_chat_id),
                 )
                 return cursor.fetchone()
 
