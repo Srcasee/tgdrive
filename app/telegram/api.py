@@ -77,11 +77,11 @@ def add_source(data: SourceCreate, _: Principal = Depends(require_admin)):
     if not account_repository.exists(data.account_id):
         raise HTTPException(status_code=404, detail="account not found")
     try:
-        source_repository.add(data.account_id, data.telegram_chat_id, data.name)
+        source = source_repository.ensure_enabled(data.account_id, data.telegram_chat_id, data.name)
     except Exception as exc:
         raise HTTPException(status_code=409, detail="source already exists or is invalid") from exc
     notify_source_change()
-    return {"status": "ok"}
+    return {"status": "ok", "source": source}
 
 
 class SourceEnabledInput(BaseModel):
