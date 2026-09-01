@@ -1,5 +1,6 @@
 (() => {
   const panelId = "telegram-admin-panel";
+  let initialized = false;
 
   function panelMarkup() {
     return `
@@ -135,20 +136,30 @@
   }
 
   async function init() {
+    if (initialized) return;
     const appPanel = document.getElementById("app-panel");
-    if (!appPanel || document.getElementById(panelId)) return;
+    if (!appPanel || appPanel.classList.contains("hidden")) return;
 
     const me = await fetch("/auth/me");
     if (!me.ok) return;
     const user = await me.json();
     if (user.role !== "admin") return;
 
+    initialized = true;
     appPanel.insertAdjacentHTML("afterbegin", panelMarkup());
     document.getElementById(panelId).classList.remove("hidden");
     document.getElementById("telegram-refresh").addEventListener("click", () => loadAccounts().catch(error => setStatus(error.message, true)));
     await loadAccounts();
   }
 
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", () => init().catch(console.error));
-  else init().catch(console.error);
+  function watchLoginState() {
+    const appPanel = document.getElementById("app-panel");
+    if (!appPanel) return;
+    const observer = new MutationObserver(() => init().catch(console.error));
+    observer.observe(appPanel, { attributes: true, attributeFilter: ["class"] });
+    init().catch(console.error);
+  }
+
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", watchLoginState);
+  else watchLoginState();
 })();
