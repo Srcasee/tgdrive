@@ -20,22 +20,31 @@ Telegram is the only content backend. Multiple Telegram accounts are access/redu
 
 ## Quick start — fresh server
 
+For a completely new server, clone the repository and run the deployment script:
+
 ```bash
 git clone https://github.com/Srcasee/tgdrive.git
 cd tgdrive
+chmod +x deploy.sh
 ./deploy.sh
 ```
 
 `deploy.sh` performs the base infrastructure bootstrap only: Docker checks, persistent directories, `.env`, secrets, Compose validation, Core build, and PostgreSQL + Core startup. It does **not** log in Telegram and does **not** configure the optional proxy.
 
-### Deployment order
+### Fresh server deployment
 
-If a Telegram proxy is required, configure it **before the first Telegram login**:
+The recommended deployment sequence is:
 
 ```text
 New server
    ↓
+git clone https://github.com/Srcasee/tgdrive.git
+   ↓
+cd tgdrive
+   ↓
 ./deploy.sh
+   ↓
+Base deployment completed
    ↓
 If proxy is required: edit .env → TG_PROXY_ENABLED=true → configure TG_PROXY_* → docker compose --profile proxy up -d --build
    ↓
@@ -50,6 +59,67 @@ Scanner scans Source only
    ↓
 Verify
 ```
+
+#### 1. Base deployment
+
+Run `./deploy.sh` on the new server. On first deployment it creates `.env` and the required persistent directories, validates Docker Compose, builds the Core image, initializes PostgreSQL, and starts PostgreSQL + Core.
+
+Verify the services:
+
+```bash
+docker compose ps
+docker compose logs --tail=100 telegram-drive
+```
+
+The Core Web service is exposed on port `8080` by the default Compose configuration.
+
+#### 2. Optional proxy
+
+Direct Telegram connectivity is the default. **Proxy is optional and must be enabled explicitly by an administrator.** If Telegram requires a proxy, configure it before the first Telegram login:
+
+```bash
+# Edit .env and set TG_PROXY_ENABLED=true, then configure TG_PROXY_*.
+# Start the optional proxy profile:
+docker compose --profile proxy up -d --build
+```
+
+The fixed sing-box version required by the proxy is included in the project repository, so enabling the proxy does not require a sing-box download during the Docker image build.
+
+Verify the proxy:
+
+```bash
+docker compose --profile proxy ps
+docker compose --profile proxy logs --tail=100 proxy
+```
+
+After the proxy is running, continue with Telegram login. If proxy settings are changed later, use the administrator reconnect endpoint or restart Core.
+
+#### 3. Telegram login
+
+Only after the base deployment is complete, and after the proxy has been enabled when required, log in the Telegram account:
+
+```bash
+./login-account.sh default +1234567890
+```
+
+Multiple accounts are supported; use a distinct account name for each session.
+
+#### 4. Verify the fresh deployment
+
+A successful fresh deployment should have PostgreSQL healthy and Core running:
+
+```bash
+docker compose ps
+curl -I http://127.0.0.1:8080
+```
+
+If the proxy is enabled, all three services should be running:
+
+```bash
+docker compose --profile proxy ps
+```
+
+For a clean deployment test, remove the old project directory and clone it again rather than relying on existing Docker images, build cache, containers, or persistent data.
 
 `deploy.sh` creates `.env` when absent and preserves an existing one. Never put real proxy credentials into the repository or `.env.example`.
 
