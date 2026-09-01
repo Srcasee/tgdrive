@@ -23,10 +23,14 @@ class DialogRepository:
 
     def replace_for_account(self, account_id, dialogs):
         self.ensure_table()
+        resource_dialogs = [
+            dialog for dialog in dialogs
+            if dialog.get("is_group", False) or dialog.get("is_channel", False)
+        ]
         with transaction() as conn:
             with conn.cursor() as cursor:
                 cursor.execute("DELETE FROM telegram_dialogs WHERE account_id=%s", (account_id,))
-                for dialog in dialogs:
+                for dialog in resource_dialogs:
                     cursor.execute(
                         """
                         INSERT INTO telegram_dialogs
@@ -56,6 +60,7 @@ class DialogRepository:
                            entity_type, is_group, is_channel, updated_at
                     FROM telegram_dialogs
                     WHERE account_id=%s
+                      AND (is_group=TRUE OR is_channel=TRUE)
                     ORDER BY name NULLS LAST, telegram_chat_id
                     """,
                     (account_id,),
