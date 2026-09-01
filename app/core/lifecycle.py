@@ -70,20 +70,21 @@ class ApplicationLifecycle:
         selectable = [row for row in dialogs if row["is_group"] or row["is_channel"]]
         selectable_ids = [row["id"] for row in selectable]
         removed_chat_ids = self.source_repository.remove_missing_dialogs(account_id, selectable_ids)
-        if removed_chat_ids:
-            self.catalog_repository.deactivate_telegram_chats(account_id, removed_chat_ids)
+        removed_dialog_ids = self.dialog_repository.replace_for_account(account_id, selectable)
+        stale_chat_ids = sorted(set(removed_chat_ids) | set(removed_dialog_ids))
+        if stale_chat_ids:
+            self.catalog_repository.deactivate_telegram_chats(account_id, stale_chat_ids)
             print(
-                f"[TG] removed stale sources: {account_name} "
-                f"({len(removed_chat_ids)})",
+                f"[TG] removed stale Telegram dialogs: {account_name} "
+                f"({len(stale_chat_ids)})",
                 flush=True,
             )
             print(
                 f"[TG] deactivated stale resources: {account_name} "
-                f"({len(removed_chat_ids)} chat(s))",
+                f"({len(stale_chat_ids)} chat(s))",
                 flush=True,
             )
 
-        self.dialog_repository.replace_for_account(account_id, selectable)
         print(f"[TG] resource candidates: {account_name} ({len(selectable)})", flush=True)
         for row in selectable:
             print(
@@ -151,9 +152,6 @@ class ApplicationLifecycle:
                             self.authorized_accounts.discard(name)
                             continue
 
-                    # Refresh the Telegram membership snapshot on every reconciliation.
-                    # This removes dialogs/sources/resources after a chat is left or deleted,
-                    # while the reconciliation itself remains hourly unless a source changes.
                     try:
                         await self._refresh_dialogs(client, account_id, name)
                         self.dialogs_refreshed.add(name)
