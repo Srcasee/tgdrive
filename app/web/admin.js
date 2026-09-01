@@ -8,9 +8,12 @@
         <h2>Telegram Source 管理</h2>
         <div id="telegram-admin-status" class="status"></div>
         <div class="toolbar" style="margin-top:12px">
-          <button id="telegram-refresh" type="button">刷新账号 / Dialogs</button>
+          <button id="telegram-refresh" type="button">刷新 Dialogs / Source</button>
+          <button id="telegram-tab-dialogs" type="button">Dialogs</button>
+          <button id="telegram-tab-sources" type="button">Source</button>
         </div>
-        <div id="telegram-accounts" style="margin-top:12px"></div>
+        <div id="telegram-dialogs-panel" style="margin-top:12px"></div>
+        <div id="telegram-sources-panel" style="margin-top:12px;display:none"></div>
       </section>`;
   }
 
@@ -27,24 +30,21 @@
     box.className = error ? "status error" : "status";
   }
 
-  async function loadAccounts() {
-    setStatus("正在加载 Telegram 账号和 Dialogs……");
-    const response = await request("/api/telegram/accounts");
-    if (!response.ok) throw new Error("加载 Telegram 账号失败");
-    const accounts = await response.json();
-    const root = document.getElementById("telegram-accounts");
+  function showTab(tab) {
+    const dialogs = document.getElementById("telegram-dialogs-panel");
+    const sources = document.getElementById("telegram-sources-panel");
+    if (!dialogs || !sources) return;
+    const showDialogs = tab === "dialogs";
+    dialogs.style.display = showDialogs ? "" : "none";
+    sources.style.display = showDialogs ? "none" : "";
+  }
+
+  async function loadDialogs(accounts) {
+    const root = document.getElementById("telegram-dialogs-panel");
     root.replaceChildren();
-
-    if (!accounts.length) {
-      root.textContent = "暂无 Telegram 账号，请先执行 login-account.sh。";
-      setStatus("");
-      return;
-    }
-
     for (const account of accounts) {
       const card = document.createElement("div");
       card.className = "card";
-
       const title = document.createElement("h3");
       title.textContent = `${account.name || "Account"} · ${account.username || "未设置 username"}`;
       card.appendChild(title);
@@ -54,33 +54,32 @@
       meta.textContent = `account_id=${account.id} · ${account.enabled ? "已启用" : "已禁用"}`;
       card.appendChild(meta);
 
-      const dialogBox = document.createElement("div");
-      dialogBox.className = "grid";
-      dialogBox.style.marginTop = "10px";
-      card.appendChild(dialogBox);
+      const box = document.createElement("div");
+      box.className = "grid";
+      box.style.marginTop = "10px";
+      card.appendChild(box);
 
       if (!account.enabled) {
         const note = document.createElement("div");
         note.className = "meta";
-        note.textContent = "账号未启用，无法配置 Source。";
-        dialogBox.appendChild(note);
+        note.textContent = "账号未启用。";
+        box.appendChild(note);
       } else {
         try {
           const response = await request(`/api/telegram/accounts/${account.id}/dialogs`);
           if (!response.ok) throw new Error("加载 Dialogs 失败");
           const dialogs = await response.json();
-          for (const dialog of dialogs) renderDialog(dialogBox, account, dialog);
-          if (!dialogs.length) dialogBox.textContent = "没有已刷新的 Dialog。";
+          for (const dialog of dialogs) renderDialog(box, account, dialog);
+          if (!dialogs.length) box.textContent = "没有可配置的资源群组 / 频道。";
         } catch (error) {
           const note = document.createElement("div");
           note.className = "error";
           note.textContent = error.message;
-          dialogBox.appendChild(note);
+          box.appendChild(note);
         }
       }
       root.appendChild(card);
     }
-    setStatus("Telegram Dialogs 已刷新。", false);
   }
 
   function renderDialog(root, account, dialog) {
@@ -97,12 +96,10 @@
     meta.textContent = `id=${dialog.id} · type=${dialog.entity_type || "unknown"}${dialog.username ? ` · @${dialog.username}` : ""}${dialog.is_group ? " · group" : ""}${dialog.is_channel ? " · channel" : ""}`;
     item.appendChild(meta);
 
-    if (dialog.is_group || dialog.is_channel) {
-      const badge = document.createElement("span");
-      badge.className = "badge";
-      badge.textContent = "资源候选";
-      item.appendChild(badge);
-    }
+    const badge = document.createElement("span");
+    badge.className = "badge";
+    badge.textContent = "资源候选";
+    item.appendChild(badge);
 
     const add = document.createElement("button");
     add.type = "button";
@@ -126,6 +123,7 @@
         }
         add.textContent = "Source 已配置";
         setStatus(`已配置 Source：${dialog.name || dialog.id}`);
+        await loadSources();
       } catch (error) {
         setStatus(error.message, true);
         add.disabled = false;
@@ -133,6 +131,41 @@
     };
     item.appendChild(add);
     root.appendChild(item);
+  }
+
+  async function loadSources() {
+    const root = document.getElementById("telegram-sources-panel");
+    root.replaceChildren();
+    const response = await request("/api/telegram/sources");
+    if (!response.ok) throw new Error("加载 Source 失败");
+    const sources = await response.json();
+    if (!sources.length) {
+      root.textContent = "暂无已启用 Source。请在 Dialogs 页配置资源群组 / 频道。";
+      return;
+    }
+    for (const source of sources) {
+      const item = document.createElement("div");
+      item.className = "card";
+      const title = document.createElement("div");
+      title.className = "filename";
+      title.textContent = source.name || String(source.telegram_chat_id);
+      item.appendChild(title);
+      const meta = document.createElement("div");
+      meta.className = "meta";
+      meta.textContent = `account=${source.account_name || source.account_id} · chat_id=${source.telegram_chat_id} · status=${source.scan_status || "idle"}`;
+      item.appendChild(meta);
+      root.appendChild(item);
+    }
+  }
+
+  async function loadAccounts() {
+    setStatus("正在加载 Telegram Dialogs / Source……");
+    const response = await request("/api/telegram/accounts");
+    if (!response.ok) throw new Error("加载 Telegram 账号失败");
+    const accounts = await response.json();
+    await loadDialogs(accounts);
+    await loadSources();
+    setStatus("Telegram Dialogs / Source 已刷新。", false);
   }
 
   async function init() {
@@ -149,6 +182,8 @@
     appPanel.insertAdjacentHTML("afterbegin", panelMarkup());
     document.getElementById(panelId).classList.remove("hidden");
     document.getElementById("telegram-refresh").addEventListener("click", () => loadAccounts().catch(error => setStatus(error.message, true)));
+    document.getElementById("telegram-tab-dialogs").addEventListener("click", () => showTab("dialogs"));
+    document.getElementById("telegram-tab-sources").addEventListener("click", () => showTab("sources"));
     await loadAccounts();
   }
 
