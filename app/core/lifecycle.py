@@ -151,13 +151,15 @@ class ApplicationLifecycle:
                             self.authorized_accounts.discard(name)
                             continue
 
-                    if name not in self.dialogs_refreshed:
-                        try:
-                            await self._refresh_dialogs(client, account_id, name)
-                            self.dialogs_refreshed.add(name)
-                        except Exception as exc:
-                            print(f"[TG] dialog refresh failed: {name}: {exc!r}", flush=True)
-                            continue
+                    # Refresh the Telegram membership snapshot on every reconciliation.
+                    # This removes dialogs/sources/resources after a chat is left or deleted,
+                    # while the reconciliation itself remains hourly unless a source changes.
+                    try:
+                        await self._refresh_dialogs(client, account_id, name)
+                        self.dialogs_refreshed.add(name)
+                    except Exception as exc:
+                        print(f"[TG] dialog refresh failed: {name}: {exc!r}", flush=True)
+                        continue
 
                     sources = self.source_repository.list_enabled_for_account(account_id)
                     if sources:
