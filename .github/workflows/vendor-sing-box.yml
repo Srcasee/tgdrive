@@ -1,0 +1,70 @@
+name: Vendor sing-box
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/vendor-sing-box.yml'
+      - 'plugins/proxy/bin/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  vendor:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Vendor pinned sing-box 1.13.19
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          version='1.13.19'
+          base="https://github.com/SagerNet/sing-box/releases/download/v${version}"
+          mkdir -p plugins/proxy/bin /tmp/sing-box
+
+          declare -A assets=(
+            [amd64]='sing-box-1.13.19-linux-amd64-musl.tar.gz 150456f94fcf936fc2519de28d856422fb671a1ff181cd909b78f20e208fdcb8'
+            [arm64]='sing-box-1.13.19-linux-arm64-musl.tar.gz 5146181884310ea2381e085ef504005c81bd09f80721542127efb0a73f12cd2f'
+          )
+
+          for arch in amd64 arm64; do
+            read -r asset sha256 <<< "${assets[$arch]}"
+            target="plugins/proxy/bin/sing-box-linux-${arch}"
+
+            if [[ -s "$target" ]]; then
+              echo "$target already exists; keeping the vendored binary unchanged"
+              continue
+            fi
+
+            curl --fail --location --retry 5 --retry-all-errors --retry-delay 3 \
+              "${base}/${asset}" -o "/tmp/${asset}"
+            echo "${sha256}  /tmp/${asset}" | sha256sum -c -
+            tar -xzf "/tmp/${asset}" -C /tmp/sing-box
+            install -m 0755 \
+              "/tmp/sing-box/sing-box-${version}-linux-${arch}-musl/sing-box" \
+              "$target"
+          done
+
+          file plugins/proxy/bin/sing-box-linux-*
+          sha256sum plugins/proxy/bin/sing-box-linux-*
+
+      - name: Commit vendored binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- plugins/proxy/bin; then
+            echo 'No vendored binary changes.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add plugins/proxy/bin
+          git commit -m 'chore(proxy): vendor pinned sing-box 1.13.19'
+          git push origin HEAD:main
