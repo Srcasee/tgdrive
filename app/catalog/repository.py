@@ -1,6 +1,19 @@
 from database_pool import connection, transaction
 
 
+_ACTIVE_SOURCE_EXISTS = """
+EXISTS (
+    SELECT 1 FROM files sf
+    JOIN telegram_sources ts
+      ON ts.account_id=sf.account_id
+     AND ts.telegram_chat_id=sf.telegram_chat_id
+     AND ts.enabled=TRUE
+    WHERE sf.resource_id=r.id
+      AND sf.is_available=TRUE
+      AND sf.status='active'
+)
+"""
+
 _SHARE_SQL = """
 COALESCE(
     (
@@ -24,7 +37,7 @@ class CatalogRepository:
     def list_resources(self, limit, offset, category_id=None):
         with connection() as conn:
             with conn.cursor() as cursor:
-                where = "WHERE r.status='active' AND EXISTS (SELECT 1 FROM files f WHERE f.resource_id=r.id AND f.is_available=TRUE AND f.status='active')"
+                where = f"WHERE r.status='active' AND {_ACTIVE_SOURCE_EXISTS}"
                 params = []
                 if category_id is not None:
                     where += " AND EXISTS (SELECT 1 FROM resource_categories rc WHERE rc.resource_id=r.id AND rc.category_id=%s)"
@@ -49,7 +62,7 @@ class CatalogRepository:
     def search_resources(self, query, limit=100, category_id=None):
         with connection() as conn:
             with conn.cursor() as cursor:
-                where = "r.status='active' AND r.filename ILIKE %s AND EXISTS (SELECT 1 FROM files f WHERE f.resource_id=r.id AND f.is_available=TRUE AND f.status='active')"
+                where = f"r.status='active' AND r.filename ILIKE %s AND {_ACTIVE_SOURCE_EXISTS}"
                 params = [f"%{query}%"]
                 if category_id is not None:
                     where += " AND EXISTS (SELECT 1 FROM resource_categories rc WHERE rc.resource_id=r.id AND rc.category_id=%s)"
