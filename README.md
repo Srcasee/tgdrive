@@ -42,6 +42,7 @@ git clone https://github.com/Srcasee/tgdrive.git
    ↓
 cd tgdrive
    ↓
+chmod +x /path/deploy.sh
 ./deploy.sh
    ↓
 PostgreSQL + Core healthy
