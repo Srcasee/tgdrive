@@ -6,6 +6,7 @@ from config import settings, validate_telegram_credentials
 from database_pool import close_pool, open_pool, initialize
 from repositories.accounts import AccountRepository
 from repositories.dialogs import DialogRepository
+from repositories.sources import SourceRepository
 from telegram.client import get_clients
 from telegram.scanner import scanner_loop
 
@@ -19,6 +20,7 @@ class ApplicationLifecycle:
         self.telegram_enabled = False
         self.account_repository = AccountRepository()
         self.dialog_repository = DialogRepository()
+        self.source_repository = SourceRepository()
         self.user_repository = UserRepository()
 
     async def startup(self):
@@ -61,6 +63,19 @@ class ApplicationLifecycle:
                 flush=True,
             )
         self.dialog_repository.replace_for_account(account_id, dialogs)
+        selectable = [row for row in dialogs if row["is_group"] or row["is_channel"]]
+        print(
+            f"[TG] resource candidates: {account_name} ({len(selectable)})",
+            flush=True,
+        )
+        for row in selectable:
+            print(
+                "[TG] candidate: "
+                f"id={row['id']} name={row['name']!r} "
+                f"type={row['entity_type']} "
+                f"group={row['is_group']} channel={row['is_channel']}",
+                flush=True,
+            )
         print(f"[TG] dialogs refreshed: {account_name} ({len(dialogs)})", flush=True)
 
     @staticmethod
@@ -134,12 +149,29 @@ class ApplicationLifecycle:
                             print(f"[TG] dialog refresh failed: {name}: {exc!r}", flush=True)
                             continue
 
-                    task = self.scanner_tasks.get(name)
-                    if task is None or task.done():
-                        self.scanner_tasks[name] = asyncio.create_task(
-                            self._run_one(account_id, name, client)
-                        )
-                        print(f"[SCAN] starting: {name}", flush=True)
+                    # Scanners are source-driven. A Telegram account can be
+                    # connected and its dialogs refreshed without scanning anything.
+                    sources = self.source_repository.list_enabled_for_account(account_id)
+                    if sources:
+                        task = self.scanner_tasks.get(name)
+                        if task is None or task.done():
+                            self.scanner_tasks[name] = asyncio.create_task(
+                                self._run_one(account_id, name, client)
+                            )
+                            print(
+                                f"[SCAN] starting: {name} ({len(sources)} source(s))",
+                                flush=True,
+                            )
+                    else:
+                        task = self.scanner_tasks.pop(name, None)
+                        if task is not None:
+                            task.cancel()
+                            try:
+                                await task
+                            except asyncio.CancelledError:
+                                pass
+                            print(f"[SCAN] stopped: {name} (no enabled sources)", flush=True)
+                        print(f"[TG] scanner idle: {name} (no enabled sources)", flush=True)
 
                 for name, task in list(self.scanner_tasks.items()):
                     if name in enabled:
