@@ -68,12 +68,8 @@
           const response = await request(`/api/telegram/accounts/${account.id}/dialogs`);
           if (!response.ok) throw new Error("加载 Dialogs 失败");
           const dialogs = await response.json();
-          for (const dialog of dialogs) {
-            renderDialog(dialogBox, account, dialog);
-          }
-          if (!dialogs.length) {
-            dialogBox.textContent = "没有可用 Dialog。";
-          }
+          for (const dialog of dialogs) renderDialog(dialogBox, account, dialog);
+          if (!dialogs.length) dialogBox.textContent = "没有已刷新的 Dialog。";
         } catch (error) {
           const note = document.createElement("div");
           note.className = "error";
@@ -92,15 +88,15 @@
 
     const title = document.createElement("div");
     title.className = "filename";
-    title.textContent = dialog.name || `Chat ${dialog.telegram_chat_id}`;
+    title.textContent = dialog.name || `Chat ${dialog.id}`;
     item.appendChild(title);
 
     const meta = document.createElement("div");
     meta.className = "meta";
-    meta.textContent = `id=${dialog.telegram_chat_id} · type=${dialog.type || "unknown"}${dialog.username ? ` · @${dialog.username}` : ""}`;
+    meta.textContent = `id=${dialog.id} · type=${dialog.entity_type || "unknown"}${dialog.username ? ` · @${dialog.username}` : ""}${dialog.is_group ? " · group" : ""}${dialog.is_channel ? " · channel" : ""}`;
     item.appendChild(meta);
 
-    if (dialog.resource_candidate) {
+    if (dialog.is_group || dialog.is_channel) {
       const badge = document.createElement("span");
       badge.className = "badge";
       badge.textContent = "资源候选";
@@ -118,8 +114,8 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             account_id: account.id,
-            telegram_chat_id: dialog.telegram_chat_id,
-            name: dialog.name || String(dialog.telegram_chat_id),
+            telegram_chat_id: dialog.id,
+            name: dialog.name || String(dialog.id),
           }),
         });
         if (!response.ok) {
@@ -128,7 +124,7 @@
           throw new Error(detail);
         }
         add.textContent = "Source 已配置";
-        setStatus(`已配置 Source：${dialog.name || dialog.telegram_chat_id}`);
+        setStatus(`已配置 Source：${dialog.name || dialog.id}`);
       } catch (error) {
         setStatus(error.message, true);
         add.disabled = false;
@@ -148,8 +144,7 @@
     if (user.role !== "admin") return;
 
     appPanel.insertAdjacentHTML("afterbegin", panelMarkup());
-    const panel = document.getElementById(panelId);
-    panel.classList.remove("hidden");
+    document.getElementById(panelId).classList.remove("hidden");
     document.getElementById("telegram-refresh").addEventListener("click", () => loadAccounts().catch(error => setStatus(error.message, true)));
     await loadAccounts();
   }
