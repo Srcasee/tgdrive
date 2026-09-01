@@ -59,7 +59,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if git diff --quiet -- plugins/proxy/bin; then
+          if [[ -z "$(git status --porcelain -- plugins/proxy/bin)" ]]; then
             echo 'No vendored binary changes.'
             exit 0
           fi
