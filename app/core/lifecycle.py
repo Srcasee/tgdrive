@@ -29,32 +29,11 @@ class ApplicationLifecycle:
             print("[TG] Telegram is not configured; Telegram runtime disabled", flush=True)
             return
 
-        clients = get_clients()
-        if not clients:
-            print("[TG] No Telegram sessions found; Telegram runtime idle", flush=True)
-            return
-
-        connected = False
-        for name, client in clients.items():
-            print(f"[TG] connecting: {name}", flush=True)
-            await client.connect()
-            if not await client.is_user_authorized():
-                print(f"[TG] session not authorized: {name}", flush=True)
-                await client.disconnect()
-                continue
-            connected = True
-            me = await client.get_me()
-            print(f"[TG] authorized: {name} / {me.username or me.first_name or me.id}", flush=True)
-            try:
-                await self._refresh_dialogs(client, self.account_repository.get_id_by_session(name), name)
-                self.dialogs_refreshed.add(name)
-            except Exception as exc:
-                print(f"[TG] dialog refresh failed: {name}: {exc!r}", flush=True)
-
-        self.telegram_enabled = connected
-        if connected:
-            self.scanner_task = asyncio.create_task(self._run_scanners())
-            print("[SCAN] background scanner started", flush=True)
+        # Keep the reconciliation loop alive even when no session exists yet.
+        # login-account.sh may create a session after the application has started;
+        # the loop will discover it without requiring an application restart.
+        self.scanner_task = asyncio.create_task(self._run_scanners())
+        print("[TG] Telegram runtime reconciliation started", flush=True)
 
     async def _refresh_dialogs(self, client, account_id, account_name):
         if account_id is None:
@@ -62,14 +41,24 @@ class ApplicationLifecycle:
         dialogs = []
         async for dialog in client.iter_dialogs():
             entity = dialog.entity
-            dialogs.append({
+            row = {
                 "id": dialog.id,
                 "name": dialog.name,
                 "username": getattr(entity, "username", None),
                 "entity_type": type(entity).__name__,
                 "is_group": bool(dialog.is_group),
                 "is_channel": bool(dialog.is_channel),
-            })
+            }
+            dialogs.append(row)
+            print(
+                "[TG] dialog: "
+                f"{account_name} id={row['id']} "
+                f"name={row['name']!r} "
+                f"username={row['username']!r} "
+                f"type={row['entity_type']} "
+                f"group={row['is_group']} channel={row['is_channel']}",
+                flush=True,
+            )
         self.dialog_repository.replace_for_account(account_id, dialogs)
         print(f"[TG] dialogs refreshed: {account_name} ({len(dialogs)})", flush=True)
 
@@ -90,15 +79,43 @@ class ApplicationLifecycle:
     async def _run_scanners(self):
         while True:
             try:
+                # get_clients() also reconciles newly-created .session files into
+                # the accounts table, so sessions created after startup are picked
+                # up on the next pass.
                 clients = get_clients()
-                enabled = {row["session"]: row["id"] for row in self.account_repository.list_enabled_sessions()}
+                enabled = {
+                    row["session"]: row["id"]
+                    for row in self.account_repository.list_enabled_sessions()
+                }
 
                 for name, account_id in enabled.items():
                     client = clients.get(name)
-                    if client is None or not client.is_connected():
+                    if client is None:
                         continue
-                    if not await client.is_user_authorized():
+
+                    if not client.is_connected():
+                        try:
+                            print(f"[TG] connecting: {name}", flush=True)
+                            await client.connect()
+                        except Exception as exc:
+                            print(f"[TG] connect failed: {name}: {exc!r}", flush=True)
+                            continue
+
+                    try:
+                        if not await client.is_user_authorized():
+                            print(f"[TG] session not authorized: {name}", flush=True)
+                            continue
+                        self.telegram_enabled = True
+                        me = await client.get_me()
+                        print(
+                            f"[TG] authorized: {name} / "
+                            f"{me.username or me.first_name or me.id}",
+                            flush=True,
+                        )
+                    except Exception as exc:
+                        print(f"[TG] authorization check failed: {name}: {exc!r}", flush=True)
                         continue
+
                     if name not in self.dialogs_refreshed:
                         try:
                             await self._refresh_dialogs(client, account_id, name)
@@ -106,9 +123,12 @@ class ApplicationLifecycle:
                         except Exception as exc:
                             print(f"[TG] dialog refresh failed: {name}: {exc!r}", flush=True)
                             continue
+
                     task = self.scanner_tasks.get(name)
                     if task is None or task.done():
-                        self.scanner_tasks[name] = asyncio.create_task(self._run_one(account_id, name, client))
+                        self.scanner_tasks[name] = asyncio.create_task(
+                            self._run_one(account_id, name, client)
+                        )
                         print(f"[SCAN] starting: {name}", flush=True)
 
                 for name, task in list(self.scanner_tasks.items()):
