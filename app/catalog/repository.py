@@ -86,6 +86,40 @@ class CatalogRepository:
                 """, (resource_id,))
                 return cursor.fetchone()
 
+    def deactivate_telegram_chats(self, account_id, chat_ids):
+        """Make files/resources from removed Telegram chats unavailable."""
+        if not chat_ids:
+            return
+        with transaction() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    UPDATE files
+                    SET is_available=FALSE, status='inactive', scan_status='idle'
+                    WHERE account_id=%s AND telegram_chat_id = ANY(%s)
+                    """,
+                    (account_id, chat_ids),
+                )
+                cursor.execute(
+                    """
+                    UPDATE resources r
+                    SET status='inactive', updated_at=EXTRACT(EPOCH FROM NOW())::BIGINT
+                    WHERE EXISTS (
+                        SELECT 1 FROM files f
+                        WHERE f.resource_id=r.id
+                          AND f.account_id=%s
+                          AND f.telegram_chat_id = ANY(%s)
+                    )
+                    AND NOT EXISTS (
+                        SELECT 1 FROM files f2
+                        WHERE f2.resource_id=r.id
+                          AND f2.is_available=TRUE
+                          AND f2.status='active'
+                    )
+                    """,
+                    (account_id, chat_ids),
+                )
+
     def set_categories(self, resource_id, category_ids):
         with transaction() as conn:
             with conn.cursor() as cursor:
