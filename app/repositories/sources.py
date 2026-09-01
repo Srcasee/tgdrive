@@ -16,6 +16,50 @@ class SourceRepository:
                 )
                 return cursor.fetchall()
 
+    def list_all_enabled(self):
+        with connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT s.id, s.account_id, s.telegram_chat_id, s.name,
+                           s.scan_interval, s.last_message_id, s.last_scan_time,
+                           s.sync_mode, s.scan_status, s.enabled,
+                           a.name AS account_name
+                    FROM telegram_sources s
+                    LEFT JOIN accounts a ON a.id=s.account_id
+                    WHERE s.enabled=TRUE
+                    ORDER BY a.name NULLS LAST, s.name NULLS LAST, s.id
+                    """
+                )
+                return cursor.fetchall()
+
+    def remove_missing_dialogs(self, account_id, dialog_ids):
+        """Disable sources whose chat is no longer present in Telegram dialogs."""
+        with transaction() as conn:
+            with conn.cursor() as cursor:
+                if dialog_ids:
+                    cursor.execute(
+                        """
+                        UPDATE telegram_sources
+                        SET enabled=FALSE, scan_status='idle', updated_at=EXTRACT(EPOCH FROM NOW())::BIGINT
+                        WHERE account_id=%s AND enabled=TRUE
+                          AND telegram_chat_id <> ALL(%s)
+                        RETURNING telegram_chat_id
+                        """,
+                        (account_id, dialog_ids),
+                    )
+                else:
+                    cursor.execute(
+                        """
+                        UPDATE telegram_sources
+                        SET enabled=FALSE, scan_status='idle', updated_at=EXTRACT(EPOCH FROM NOW())::BIGINT
+                        WHERE account_id=%s AND enabled=TRUE
+                        RETURNING telegram_chat_id
+                        """,
+                        (account_id,),
+                    )
+                return [row["telegram_chat_id"] for row in cursor.fetchall()]
+
     def mark_scanning(self, source_id):
         self._update_status(source_id, "scanning")
 
