@@ -18,6 +18,8 @@ tmp/
 
 # runtime data
 data/accounts/
+data/postgres/
+data/proxy/
 *.session
 *.session-journal
 *.db
