@@ -46,8 +46,7 @@ class SourceRepository:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "SELECT id, account_id, telegram_chat_id, name, enabled FROM telegram_sources WHERE account_id=%s AND telegram_chat_id=%s",
-                    (account_id, telegram_chat_id),
-                )
+                    (account_id, telegram_chat_id))
                 return cursor.fetchone()
 
     def set_enabled(self, source_id, enabled):
@@ -76,6 +75,12 @@ class SourceRepository:
                     return None
                 cursor.execute("DELETE FROM telegram_sources WHERE id=%s", (source_id,))
                 return row
+
+    def ensure_enabled(self, account_id, chat_id, name):
+        existing = self.get_for_chat(account_id, chat_id)
+        if existing is not None:
+            return self.set_enabled(existing["id"], True)
+        return {"id": self.add(account_id, chat_id, name), "account_id": account_id, "telegram_chat_id": chat_id, "name": name, "enabled": True}
 
     def remove_missing_dialogs(self, account_id, dialog_ids):
         """Disable sources whose chat is no longer present in Telegram dialogs."""
