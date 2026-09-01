@@ -29,11 +29,11 @@ chmod +x deploy.sh
 ./deploy.sh
 ```
 
-`deploy.sh` performs the base infrastructure bootstrap only: Docker checks, persistent directories, `.env`, secrets, Compose validation, Core build, and PostgreSQL + Core startup. It does **not** log in Telegram and does **not** configure the optional proxy.
+`deploy.sh` performs the base infrastructure bootstrap only: Docker checks, persistent directories, `.env`, secrets, Compose validation, Core build, and PostgreSQL + Core startup. It does **not** log in Telegram and does **not** enable the optional proxy.
 
 ### Fresh server deployment
 
-The recommended deployment sequence is:
+The complete recommended flow is:
 
 ```text
 New server
@@ -44,27 +44,31 @@ cd tgdrive
    ↓
 ./deploy.sh
    ↓
-Base deployment completed
+PostgreSQL + Core healthy
    ↓
-If proxy is required: edit .env → TG_PROXY_ENABLED=true → configure TG_PROXY_* → docker compose --profile proxy up -d --build
+If Telegram needs proxy: enable TG_PROXY_ENABLED and TG_PROXY_* in .env
+   ↓
+docker compose --profile proxy up -d --build
    ↓
 Telegram login
-./login-account.sh default <phone>
+./login-account.sh <account-name> <phone>
    ↓
-Automatic Telegram Dialog discovery/cache
+Core automatically refreshes Telegram dialogs
    ↓
-Administrator selects target dialog and creates Telegram Source
+Admin opens Web UI → Telegram → Dialogs
    ↓
-Scanner scans Source only
+Administrator enables a resource dialog
    ↓
-Verify
+Source is created/enabled and Scanner starts immediately
+   ↓
+Resources appear in the catalog / Source management
 ```
 
 #### 1. Base deployment
 
-Run `./deploy.sh` on the new server. On first deployment it creates `.env` and the required persistent directories, validates Docker Compose, builds the Core image, initializes PostgreSQL, and starts PostgreSQL + Core.
+Run `./deploy.sh` on a new Docker host. When `.env` does not exist, the script creates the required persistent directories, collects required credentials, generates deployment secrets, validates Compose, builds Core, initializes PostgreSQL and starts PostgreSQL + Core.
 
-Verify the services:
+Verify:
 
 ```bash
 docker compose ps
@@ -75,62 +79,81 @@ The Core Web service is exposed on port `8080` by the default Compose configurat
 
 #### 2. Optional proxy
 
-Direct Telegram connectivity is the default. **Proxy is optional and must be enabled explicitly by an administrator.** If Telegram requires a proxy, configure it before the first Telegram login:
+Direct Telegram connectivity is the default. **Proxy is optional and must be enabled explicitly by an administrator.** Configure it before Telegram login:
 
 ```bash
-# Edit .env and set TG_PROXY_ENABLED=true, then configure TG_PROXY_*.
-# Start the optional proxy profile:
+# Edit .env:
+# TG_PROXY_ENABLED=true
+# TG_PROXY_* = the required proxy settings
+
 docker compose --profile proxy up -d --build
 ```
 
-The fixed sing-box version required by the proxy is included in the project repository, so enabling the proxy does not require a sing-box download during the Docker image build.
+The fixed sing-box version required by the proxy is included in the repository, so the proxy image does not download sing-box during its build.
 
-Verify the proxy:
+Verify:
 
 ```bash
 docker compose --profile proxy ps
 docker compose --profile proxy logs --tail=100 proxy
 ```
 
-After the proxy is running, continue with Telegram login. If proxy settings are changed later, use the administrator reconnect endpoint or restart Core.
+If proxy settings change later, use the administrator reconnect operation or restart Core so Telegram clients are rebuilt with the current connectivity configuration.
 
 #### 3. Telegram login
 
-Only after the base deployment is complete, and after the proxy has been enabled when required, log in the Telegram account:
-
-```bash
-./login-account.sh default +1234567890
-```
-
-Multiple accounts are supported; use a distinct account name for each session.
-
-#### 4. Verify the fresh deployment
-
-A successful fresh deployment should have PostgreSQL healthy and Core running:
-
-```bash
-docker compose ps
-curl -I http://127.0.0.1:8080
-```
-
-If the proxy is enabled, all three services should be running:
-
-```bash
-docker compose --profile proxy ps
-```
-
-For a clean deployment test, remove the old project directory and clone it again rather than relying on existing Docker images, build cache, containers, or persistent data.
-
-`deploy.sh` creates `.env` when absent and preserves an existing one. Never put real proxy credentials into the repository or `.env.example`.
-
-## Telegram account login
+After Core is healthy, log in each Telegram account explicitly:
 
 ```bash
 ./login-account.sh default +1234567890
 ./login-account.sh Asada +861234567890
 ```
 
-The account name passed to `login-account.sh` is the session basename, e.g. `/data/accounts/default.session`. Multiple accounts/sessions are supported.
+Use a distinct account name for every session. The helper temporarily stops Core to avoid a SQLite session lock, performs the interactive login, then starts Core again.
+
+After authorization, Core automatically reconciles the account and refreshes its Telegram dialog metadata. No extra command is required to trigger dialog discovery.
+
+#### 4. Select a Telegram resource source
+
+Open the Web UI at `http://<server-ip>:8080`, sign in as the administrator, then open **Telegram → Dialogs**.
+
+Only selectable Telegram resource dialogs are presented. The current UI separates management into sidebar pages:
+
+```text
+Telegram
+├── Dialogs
+│   ├── Enable
+│   ├── Disable
+│   └── Delete
+├── Source
+└── Immediate reconciliation
+```
+
+Dialog semantics:
+
+- **Enable** creates or re-enables the corresponding Telegram Source and immediately makes it eligible for Scanner processing.
+- **Disable** disables the Source and removes that source's resources from the active catalog view.
+- **Delete** removes the Dialog/Source management record, stops scanning, and removes its active resources from the catalog view.
+- **Immediate reconciliation** forces Telegram dialog reconciliation without waiting for the normal periodic reconciliation interval.
+
+The normal Telegram runtime reconciliation interval is one hour. Administrator actions that change Source state do not wait for that interval.
+
+#### 5. Verify a fresh deployment
+
+```bash
+docker compose ps
+curl -I http://127.0.0.1:8080
+```
+
+With proxy enabled:
+
+```bash
+docker compose --profile proxy ps
+```
+
+For a true zero-to-one deployment test, remove the old checkout and its test data/images as appropriate, clone the repository again, and run the sequence above. Do not rely on an existing Docker image, build cache, container, or persistent database when validating fresh-server behavior.
+
+`deploy.sh` preserves an existing `.env`. Never put real proxy credentials or Telegram secrets into the repository or `.env.example`.
 
 ## Telegram Dialog discovery and Source selection
 
@@ -139,63 +162,24 @@ The Telegram flow has a strict security/data boundary:
 ```text
 Telegram login
       ↓
-Automatically iterate ALL Telegram dialogs
+Automatically iterate Telegram dialogs
       ↓
-Persist/refresh Dialog metadata only
+Persist/refresh selectable resource-dialog metadata only
       ↓
-Administrator views dialogs
+Administrator views Dialogs
       ↓
-Administrator explicitly selects a target group/channel
+Administrator explicitly enables a target dialog
       ↓
-POST /api/telegram/sources
+Telegram Source
       ↓
-Scanner reads messages ONLY from enabled Sources
+Scanner
 ```
 
-**Automatic Dialog discovery never scans message/file contents.** It only reads Telegram dialog metadata such as numeric chat ID, display name and entity type. An authorized Telegram account does not cause every conversation to be indexed.
+**Dialog discovery is metadata-only.** It reads Telegram dialog/entity information and does not download complete file payloads. Scanner processing starts only for enabled Sources.
 
-After each authorized account connects, Core automatically refreshes its complete dialog metadata cache. The existing `/api/telegram/accounts/{account_id}/dialogs` endpoint then reads that cache; invoking it does not trigger a message scan. Source selection remains an explicit administrator action.
+For each authorized account, Core refreshes the cached dialog metadata during runtime reconciliation. The Web/API dialog view reads that cache; opening the view does not itself start a message scan.
 
-### Complete Source configuration command flow
-
-The Source API requires the tgdrive Web-admin authentication cookie. First authenticate to tgdrive with `-c cookies.txt`; reusing an empty cookie jar with only `-b cookies.txt` returns `401 authentication required`.
-
-```bash
-# 0) Clean cookie jar.
-rm -f cookies.txt
-
-# 1) Log in to the tgdrive Web API. Replace YOUR_ADMIN_PASSWORD.
-curl -sS -c cookies.txt \
-  -H 'Content-Type: application/json' \
-  -X POST http://127.0.0.1:8080/auth/login \
-  -d '{"username":"admin","password":"YOUR_ADMIN_PASSWORD"}'
-
-# 2) Verify Web-admin authentication.
-curl -sS -b cookies.txt http://127.0.0.1:8080/auth/me
-
-# 3) List Telegram accounts and find the account ID for default.
-curl -sS -b cookies.txt http://127.0.0.1:8080/api/telegram/accounts
-
-# 4) Read the automatically cached dialogs. Replace 1 if default has another ID.
-curl -sS -b cookies.txt http://127.0.0.1:8080/api/telegram/accounts/1/dialogs
-
-# 5) Select ONE target dialog by its numeric Telegram chat ID and create a Source.
-curl -sS -b cookies.txt \
-  -H 'Content-Type: application/json' \
-  -X POST http://127.0.0.1:8080/api/telegram/sources \
-  -d '{"account_id":1,"telegram_chat_id":-1004413553797,"name":"My Documents"}'
-
-# 6) Verify configured Sources.
-docker compose exec postgres psql -U tgdrive -d tgdrive \
-  -c 'SELECT id, account_id, telegram_chat_id, name, enabled, last_message_id FROM telegram_sources ORDER BY id;'
-
-# 7) Watch scanning. Only the selected Source should produce a [SCAN] dialog line.
-docker compose logs --tail=200 telegram-drive | grep -E '\[SCAN\]|\[TG\]'
-```
-
-The current real-device test uses `default` account ID `1`, with `My Documents` chat ID `-1004413553797`. The important rule is: **Dialog discovery is automatic; Source selection is manual; file scanning is Source-scoped.**
-
-The scanner's physical Telegram identity remains `(account_id, telegram_chat_id, message_id)` and `topic_id` is recorded when Telegram supplies topic metadata.
+A Telegram dialog is represented with its Telegram numeric chat ID and entity metadata. A value such as `id=-100...` is a Telegram supergroup/channel-style identifier; `type`, `group`, and `channel` describe the entity kind exposed by Telegram. These are Telegram identity/metadata fields, not Resource IDs.
 
 ## Core API
 
@@ -227,21 +211,14 @@ GET  /api/telegram/accounts
 PUT  /api/telegram/accounts/{account_id}/enabled
 POST /api/telegram/reconnect
 GET  /api/telegram/accounts/{account_id}/dialogs
+GET  /api/telegram/sources
 POST /api/telegram/sources
+PUT  /api/telegram/sources/{source_id}/enabled
+DELETE /api/telegram/sources/{source_id}
+DELETE /api/telegram/accounts/{account_id}/dialogs/{telegram_chat_id}
 ```
 
 The dialog endpoint is a cached metadata view. It does not imply Source creation or scanning.
-
-## Optional proxy
-
-Direct Telegram connectivity is the default. Configure the optional proxy **before Telegram login**:
-
-```bash
-# edit .env: TG_PROXY_ENABLED=true and TG_PROXY_*
-docker compose --profile proxy up -d --build
-```
-
-Core does not contain region detection or concrete proxy protocol logic. After proxy changes, use the administrator reconnect endpoint or restart Core.
 
 ## Resource model
 
@@ -264,7 +241,18 @@ Telegram message
         categories/search
 ```
 
-Physical Telegram identity is `(account_id, telegram_chat_id, message_id)`. `topic_id` remains available for the planned Topic → Category mapping.
+Physical Telegram identity is `(account_id, telegram_chat_id, message_id)`. A logical Resource may have multiple Telegram-backed physical locations. `topic_id` is additional Telegram metadata and is reserved for Topic → Category mapping.
+
+## Optional proxy
+
+Direct Telegram connectivity is the default. Configure the optional proxy **before Telegram login**:
+
+```bash
+# edit .env: TG_PROXY_ENABLED=true and TG_PROXY_*
+docker compose --profile proxy up -d --build
+```
+
+Core does not contain region detection or concrete proxy protocol logic. After proxy changes, use the administrator reconnect endpoint or restart Core.
 
 ## Video
 
@@ -279,27 +267,43 @@ docker compose up -d --build
 pytest -q
 ```
 
-GitHub Actions covers PostgreSQL integration, Python 3.11/3.12, the full test suite, deployment/Compose validation, Core image build and proxy image build.
+GitHub Actions validates PostgreSQL integration, supported Python versions, the full test suite, deployment/Compose validation, Core image build and proxy image build. Recent feature work has focused on Telegram Source lifecycle and administrator management; download optimization is intentionally being treated as a separate measurement-driven phase.
 
-## Current real-device status
+## Current project status
 
-Verified:
+### Verified on a real server
 
-- Telegram account login/session reuse: PASS (`default` and `Asada`).
-- Automatic Telegram dialog discovery/cache: implemented; real-device restart verification pending.
-- Explicit Telegram Source configuration and incremental scanning: PASS.
-- Resource catalog/search/category filtering: PASS.
-- Category create/delete: PASS.
-- Share-link lifecycle and shared download: PASS.
-- Basic Resource download: PASS.
+- Fresh-server bootstrap: **PASS**.
+- Optional proxy deployment path: **PASS** in the previously validated deployment flow.
+- Telegram account login/session reuse: **PASS**.
+- Multiple account sessions: **PASS** (`default` and `Asada` were verified).
+- Automatic dialog discovery/cache after account authorization: **PASS**.
+- Resource-dialog filtering: **IMPLEMENTED**; only selectable resource groups/channels are persisted for admin selection.
+- Source enable/disable/delete lifecycle: **IMPLEMENTED**.
+- Scanner starts immediately for an enabled Source and remains idle when no Source is enabled: **PASS**.
+- Periodic Telegram reconciliation plus administrator-triggered immediate reconciliation: **IMPLEMENTED**.
+- Resource catalog/search/category filtering: **PASS**.
+- Category create/delete: **PASS**.
+- Share-link lifecycle and shared download: **PASS**.
+- Basic Resource download: **FUNCTIONAL**, but throughput is currently too slow and is the next optimization target.
 
-Pending:
+### Admin management status
 
-- Download performance benchmark and transport optimization (roughly 100 KB/s observed).
-- Real-device verification that every authorized account refreshes its complete dialog cache without indexing messages.
-- Multi-account failover, Range, complete-download SHA-256 promotion and proxy smoke tests.
-- Telegram Topic recognition and automatic Topic → Category mapping.
-- Batch Resource classification.
-- Large-file behavior above Telegram per-file limits.
+The current Web UI uses a Telegram management sidebar with separate **Dialogs** and **Source** pages. Dialog state is Source-backed: enabling a Dialog creates/re-enables its Source; disabling it stops scanning and hides resources belonging only to that source; deleting it removes the management record and associated active catalog visibility. Reconciliation can be triggered immediately from the administrator UI.
 
-See `docs/ARCHITECTURE.md` for target architecture and `docs/PROJECT-STATUS.md` for the implementation/real-device matrix.
+### Pending
+
+- Controlled download throughput benchmark and transport optimization (Issue #21).
+- Multi-account download throughput/failover benchmark.
+- Direct versus proxy throughput comparison where applicable.
+- HTTP Range and repeated-range performance validation.
+- Complete-download SHA-256 promotion validation on a large real file.
+- Richer source health/ranking after measurements (Issue #19).
+- Telegram Topic recognition and automatic Topic → Category mapping (Issue #29).
+- Batch Resource classification (Issue #30).
+- Telegram account health/retirement administration (Issue #18).
+- Scanner/Ingestion orchestration refinement (Issue #15).
+- Internal `telegram` package namespace cleanup (Issue #22).
+- Large-file behavior above Telegram/account-specific limits.
+
+See `docs/ARCHITECTURE.md` for the architectural invariants and `docs/PROJECT-STATUS.md` for the detailed implementation/real-device matrix.
