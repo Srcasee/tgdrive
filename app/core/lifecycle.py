@@ -15,6 +15,7 @@ class ApplicationLifecycle:
         self.scanner_task = None
         self.scanner_tasks = {}
         self.dialogs_refreshed = set()
+        self.authorized_accounts = set()
         self.telegram_enabled = False
         self.account_repository = AccountRepository()
         self.dialog_repository = DialogRepository()
@@ -94,6 +95,8 @@ class ApplicationLifecycle:
                         continue
 
                     if not client.is_connected():
+                        self.authorized_accounts.discard(name)
+                        self.dialogs_refreshed.discard(name)
                         try:
                             print(f"[TG] connecting: {name}", flush=True)
                             await client.connect()
@@ -101,20 +104,27 @@ class ApplicationLifecycle:
                             print(f"[TG] connect failed: {name}: {exc!r}", flush=True)
                             continue
 
-                    try:
-                        if not await client.is_user_authorized():
-                            print(f"[TG] session not authorized: {name}", flush=True)
+                    # Authorization is a session state, not a liveness check. Once
+                    # verified, do not call get_me() every reconciliation pass.
+                    # A disconnect clears this state so the next successful
+                    # connection performs the authorization check again.
+                    if name not in self.authorized_accounts:
+                        try:
+                            if not await client.is_user_authorized():
+                                print(f"[TG] session not authorized: {name}", flush=True)
+                                continue
+                            self.telegram_enabled = True
+                            me = await client.get_me()
+                            print(
+                                f"[TG] authorized: {name} / "
+                                f"{me.username or me.first_name or me.id}",
+                                flush=True,
+                            )
+                            self.authorized_accounts.add(name)
+                        except Exception as exc:
+                            print(f"[TG] authorization check failed: {name}: {exc!r}", flush=True)
+                            self.authorized_accounts.discard(name)
                             continue
-                        self.telegram_enabled = True
-                        me = await client.get_me()
-                        print(
-                            f"[TG] authorized: {name} / "
-                            f"{me.username or me.first_name or me.id}",
-                            flush=True,
-                        )
-                    except Exception as exc:
-                        print(f"[TG] authorization check failed: {name}: {exc!r}", flush=True)
-                        continue
 
                     if name not in self.dialogs_refreshed:
                         try:
@@ -140,6 +150,7 @@ class ApplicationLifecycle:
                     except asyncio.CancelledError:
                         pass
                     self.scanner_tasks.pop(name, None)
+                    self.authorized_accounts.discard(name)
                     self.dialogs_refreshed.discard(name)
                     print(f"[SCAN] stopped: {name}", flush=True)
 
@@ -173,6 +184,7 @@ class ApplicationLifecycle:
             except asyncio.CancelledError:
                 pass
         self.scanner_tasks.clear()
+        self.authorized_accounts.clear()
         self.dialogs_refreshed.clear()
 
         if self.telegram_enabled:
