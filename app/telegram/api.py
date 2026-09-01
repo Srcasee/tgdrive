@@ -7,6 +7,7 @@ from repositories.accounts import AccountRepository
 from repositories.dialogs import DialogRepository
 from repositories.sources import SourceRepository
 from telegram.client import get_client, reconnect_clients, refresh_clients
+from telegram.runtime_events import notify_source_change
 
 
 router = APIRouter(prefix="/api/telegram", tags=["telegram"])
@@ -33,6 +34,7 @@ async def set_account_enabled(
     try:
         account_repository.set_enabled(account_id, data.enabled)
         refresh_clients()
+        notify_source_change()
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return {"status": "ok", "account_id": account_id, "enabled": data.enabled}
@@ -41,6 +43,7 @@ async def set_account_enabled(
 @router.post("/reconnect")
 async def reconnect_telegram(_: Principal = Depends(require_admin)):
     clients = await reconnect_clients()
+    notify_source_change()
     return {"status": "ok", "accounts": sorted(clients)}
 
 
@@ -48,8 +51,6 @@ async def reconnect_telegram(_: Principal = Depends(require_admin)):
 async def list_dialogs(account_id: int, _: Principal = Depends(require_admin)):
     if not account_repository.exists(account_id):
         raise HTTPException(status_code=404, detail="account not found")
-    # Dialogs are refreshed automatically after Telegram authorization. Reading this
-    # endpoint never iterates messages and never triggers file/resource scanning.
     return dialog_repository.list_for_account(account_id)
 
 
@@ -67,4 +68,5 @@ def add_source(data: SourceCreate, _: Principal = Depends(require_admin)):
         source_repository.add(data.account_id, data.telegram_chat_id, data.name)
     except Exception as exc:
         raise HTTPException(status_code=409, detail="source already exists or is invalid") from exc
+    notify_source_change()
     return {"status": "ok"}

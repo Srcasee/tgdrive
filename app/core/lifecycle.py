@@ -9,6 +9,10 @@ from repositories.dialogs import DialogRepository
 from repositories.sources import SourceRepository
 from telegram.client import get_clients
 from telegram.scanner import scanner_loop
+from telegram.runtime_events import initialize_source_change_event, wait_for_source_change
+
+
+RECONCILIATION_INTERVAL = 3600
 
 
 class ApplicationLifecycle:
@@ -32,9 +36,7 @@ class ApplicationLifecycle:
             print("[TG] Telegram is not configured; Telegram runtime disabled", flush=True)
             return
 
-        # Keep the reconciliation loop alive even when no session exists yet.
-        # login-account.sh may create a session after the application has started;
-        # the loop will discover it without requiring an application restart.
+        initialize_source_change_event()
         self.scanner_task = asyncio.create_task(self._run_scanners())
         print("[TG] Telegram runtime reconciliation started", flush=True)
 
@@ -64,10 +66,7 @@ class ApplicationLifecycle:
             )
         self.dialog_repository.replace_for_account(account_id, dialogs)
         selectable = [row for row in dialogs if row["is_group"] or row["is_channel"]]
-        print(
-            f"[TG] resource candidates: {account_name} ({len(selectable)})",
-            flush=True,
-        )
+        print(f"[TG] resource candidates: {account_name} ({len(selectable)})", flush=True)
         for row in selectable:
             print(
                 "[TG] candidate: "
@@ -95,9 +94,6 @@ class ApplicationLifecycle:
     async def _run_scanners(self):
         while True:
             try:
-                # get_clients() also reconciles newly-created .session files into
-                # the accounts table, so sessions created after startup are picked
-                # up on the next pass.
                 clients = get_clients()
                 enabled = {
                     row["session"]: row["id"]
@@ -119,10 +115,6 @@ class ApplicationLifecycle:
                             print(f"[TG] connect failed: {name}: {exc!r}", flush=True)
                             continue
 
-                    # Authorization is a session state, not a liveness check. Once
-                    # verified, do not call get_me() every reconciliation pass.
-                    # A disconnect clears this state so the next successful
-                    # connection performs the authorization check again.
                     if name not in self.authorized_accounts:
                         try:
                             if not await client.is_user_authorized():
@@ -149,8 +141,6 @@ class ApplicationLifecycle:
                             print(f"[TG] dialog refresh failed: {name}: {exc!r}", flush=True)
                             continue
 
-                    # Scanners are source-driven. A Telegram account can be
-                    # connected and its dialogs refreshed without scanning anything.
                     sources = self.source_repository.list_enabled_for_account(account_id)
                     if sources:
                         task = self.scanner_tasks.get(name)
@@ -186,12 +176,14 @@ class ApplicationLifecycle:
                     self.dialogs_refreshed.discard(name)
                     print(f"[SCAN] stopped: {name}", flush=True)
 
-                await asyncio.sleep(10)
+                changed = await wait_for_source_change(RECONCILIATION_INTERVAL)
+                if changed:
+                    print("[SCAN] source configuration changed; reconciling now", flush=True)
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
                 print(f"[SCAN] account reconciliation error: {exc!r}", flush=True)
-                await asyncio.sleep(10)
+                await asyncio.sleep(60)
 
     async def _run_one(self, account_id, account_name, client):
         try:
