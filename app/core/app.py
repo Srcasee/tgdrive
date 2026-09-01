@@ -31,12 +31,16 @@ def create_app():
     app.include_router(telegram_router)
     app.include_router(admin_router)
 
-    @app.get("/")
+    @app.get("/", include_in_schema=False)
     async def home():
-        return FileResponse("/app/web/index.html")
+        return FileResponse("/app/web/index.html", headers={"Cache-Control": "no-store"})
 
-    @app.get("/web")
+    @app.get("/web", include_in_schema=False)
     async def web():
-        return FileResponse("/app/web/index.html")
+        return FileResponse("/app/web/index.html", headers={"Cache-Control": "no-store"})
+
+    @app.get("/admin.js", include_in_schema=False)
+    async def admin_js():
+        return FileResponse("/app/web/admin.js", media_type="application/javascript", headers={"Cache-Control": "no-store"})
 
     return app
