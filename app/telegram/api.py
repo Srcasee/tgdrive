@@ -6,7 +6,7 @@ from auth.models import Principal
 from repositories.accounts import AccountRepository
 from repositories.dialogs import DialogRepository
 from repositories.sources import SourceRepository
-from telegram.client import get_client, reconnect_clients, refresh_clients
+from telegram.client import reconnect_clients, refresh_clients
 from telegram.runtime_events import notify_source_change
 
 
@@ -26,11 +26,7 @@ class AccountEnabledInput(BaseModel):
 
 
 @router.put("/accounts/{account_id}/enabled")
-async def set_account_enabled(
-    account_id: int,
-    data: AccountEnabledInput,
-    _: Principal = Depends(require_admin),
-):
+async def set_account_enabled(account_id: int, data: AccountEnabledInput, _: Principal = Depends(require_admin)):
     try:
         account_repository.set_enabled(account_id, data.enabled)
         refresh_clients()
@@ -89,11 +85,7 @@ class SourceEnabledInput(BaseModel):
 
 
 @router.put("/sources/{source_id}/enabled")
-async def set_source_enabled(
-    source_id: int,
-    data: SourceEnabledInput,
-    _: Principal = Depends(require_admin),
-):
+async def set_source_enabled(source_id: int, data: SourceEnabledInput, _: Principal = Depends(require_admin)):
     try:
         source = source_repository.set_enabled(source_id, data.enabled)
     except ValueError as exc:
@@ -112,18 +104,19 @@ async def delete_source(source_id: int, _: Principal = Depends(require_admin)):
 
 
 @router.delete("/accounts/{account_id}/dialogs/{telegram_chat_id}")
-async def delete_dialog(
-    account_id: int,
-    telegram_chat_id: int,
-    _: Principal = Depends(require_admin),
-):
+async def delete_dialog(account_id: int, telegram_chat_id: int, _: Principal = Depends(require_admin)):
     if not account_repository.exists(account_id):
         raise HTTPException(status_code=404, detail="account not found")
+
+    # Dialog is a Telegram discovery cache. It must not implicitly delete Source.
+    # Enabled dialogs cannot be removed until the scanning relationship is disabled.
     source = source_repository.get_for_chat(account_id, telegram_chat_id)
-    if source is not None:
-        source_repository.delete(source["id"])
+    if source is not None and source.get("enabled"):
+        raise HTTPException(status_code=409, detail="disable source before deleting dialog")
+
     deleted = dialog_repository.delete(account_id, telegram_chat_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="dialog not found")
+
     notify_source_change()
     return {"status": "ok", "account_id": account_id, "telegram_chat_id": telegram_chat_id}
