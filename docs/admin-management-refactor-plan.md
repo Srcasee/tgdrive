@@ -1,67 +1,71 @@
 # Admin Management Interface Refactor Plan
 
-## Goal
+This document defines the future admin panel architecture. The existing tgdrive deployment architecture remains unchanged.
 
-Refactor the management panel without changing tgdrive core architecture.
+Core architecture:
 
-Core modules remain:
+- Telegram runtime handles login and reconciliation.
+- Scanner indexes enabled Telegram sources.
+- Database Resource/File model remains unchanged.
+- Admin panel operates through APIs.
 
-- Telegram runtime: authentication and dialog reconciliation
-- Scanner: indexing enabled Telegram sources
-- Database: existing Resource/File model
-- Download pipeline: independent module
+## Sidebar
 
-The admin panel only manages configuration and operations through APIs.
-
-## Sidebar Layout
-
-```
 Dashboard
-Telegram
- ├─ Dialogs
- ├─ Sources
- └─ Recycle Bin
-Resources
- ├─ Resource List
- ├─ Categories
- └─ Batch Operations
+
+Telegram:
+- Dialogs
+- Sources
+- Recycle Bin
+
+Resources:
+- Resource List
+- Categories
+- Batch Operations
+
 Downloads
 System
 Settings
-```
 
 ## Dialogs
 
-Dialogs page only shows resource containers:
+Only show Telegram resource containers:
 
-- Telegram supergroups
-- Telegram channels
+- supergroups
+- channels
 
-Exclude users, bots and private chats.
+Exclude:
 
-Each dialog has one status switch.
+- users
+- bots
+- private chats
+
+Each dialog uses one status switch.
 
 Enabled:
-- create telegram_source
+
+- create Source
 - enable scanner
-- trigger immediate scan
-- show resources in Sources
+- immediately trigger scan
+- display resources in Sources page
 
 Disabled:
+
 - disable scanner
 - stop indexing
 - hide related source resources
 
 Delete:
+
 - stop scanning
 - remove dialog configuration
 - remove source relationship
-- move data to recycle bin
+- move related data to recycle bin
 - trigger reconciliation refresh
 
 ## Sources
 
-Independent page showing enabled sources only.
+Separate page displaying enabled sources only.
 
 Functions:
 
@@ -73,21 +77,22 @@ Functions:
 
 ## Recycle Bin
 
-First-level menu.
+All frontend deletions enter recycle bin.
 
-All frontend deleted objects enter recycle bin.
+Supports:
 
-Supports restore and permanent deletion.
+- restore
+- permanent deletion
+
+This prevents deleted Telegram resources returning after reconciliation.
 
 ## Scanner Flow
 
 Telegram Login -> Dialog Reconciliation -> Enable Dialog -> Create Source -> Immediate Scanner Start -> Resource Index
 
-Disabled or deleted dialogs must never be scanned.
-
 ## Future
 
-Topic based automatic classification:
+Topic automatic classification:
 
 - detect forum topics
 - analyze topic title
@@ -98,7 +103,7 @@ Topic based automatic classification:
 1. Stabilize download pipeline.
 2. Keep deployment architecture unchanged.
 3. Refactor admin APIs.
-4. Implement sidebar navigation.
+4. Implement sidebar frontend.
 5. Separate Dialogs and Sources.
 6. Add recycle bin.
 7. Add batch operations.
