@@ -1,13 +1,14 @@
 # Admin Management Interface Refactor Plan
 
-## Goal
+The management refactor keeps tgdrive core architecture unchanged.
 
-Refactor management panel without changing tgdrive core architecture.
+Modules:
+- Telegram runtime: authentication and reconciliation
+- Scanner: enabled source indexing
+- Database: existing Resource/File model
+- Download pipeline: independent
 
-## Structure
-
-Sidebar:
-
+Admin sidebar:
 - Dashboard
 - Telegram
   - Dialogs
@@ -18,55 +19,48 @@ Sidebar:
 - System
 - Settings
 
-## Dialogs
+Dialogs:
+- only show resource groups/channels
+- exclude users, bots, private chats
+- one status toggle
 
-Only show Telegram supergroups and channels. Exclude users, bots and private chats.
-
-Each dialog uses one status switch:
-
-Enabled:
-- create Source
+Enable:
+- create source
 - enable scanner
-- trigger immediate scan
+- immediate scan
 
-Disabled:
+Disable:
 - stop scanner
-- hide active source resources
+- hide source resources
 
 Delete:
-- stop scanning
+- stop scanner
 - remove configuration
 - move data to recycle bin
 - refresh reconciliation
 
-## Sources
-
-Separate page for enabled sources.
-
-Supports:
+Sources page:
+- enabled sources only
 - resource browsing
 - scan status
 - manual scan
-- categories
+- category management
 - batch operations
 
-## Recycle Bin
+Recycle Bin:
+- deleted content goes here first
+- restore
+- permanent delete
 
-Deleted frontend data enters recycle bin and can be restored or permanently deleted.
+Future:
+- topic automatic classification
 
-## Scanner Flow
-
-Telegram Login -> Dialog Reconciliation -> Enable Dialog -> Source -> Scanner -> Resources
-
-## Future
-
-Topic-based automatic classification.
-
-## Order
-
-1. Stabilize download pipeline.
-2. Keep architecture unchanged.
-3. Refactor APIs.
-4. Build sidebar management.
-5. Add recycle bin.
-6. Add batch operations.
+Implementation order:
+1. Download stability
+2. Preserve architecture
+3. Admin APIs
+4. Sidebar UI
+5. Dialog/Source separation
+6. Recycle bin
+7. Batch operations
+8. Topic classification
