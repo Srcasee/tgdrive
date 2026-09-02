@@ -8,6 +8,8 @@ from repositories.sources import SourceRepository
 from repositories.telegram_files import TelegramFileRepository
 
 
+# Resource scanning interval. Dialog discovery is not periodic; it is only
+# performed during Telegram account setup/manual admin refresh.
 SCAN_INTERVAL = int(os.getenv("SCAN_INTERVAL", "300"))
 
 source_repository = SourceRepository()
@@ -18,14 +20,22 @@ recognizer = TelegramMessageRecognizer()
 
 
 async def scan_dialogs(client, account_id):
-    """Discover Telegram messages and hand normalized observations to ingestion."""
+    """Scan enabled Telegram sources.
+
+    Dialog discovery is intentionally not part of the recurring scanner loop.
+    The previous implementation called iter_dialogs() periodically only to find
+    enabled sources, which made Telegram dialog state reconciliation implicit.
+    Dialog discovery should be triggered explicitly during account setup or by
+    an admin action.
+    """
     count = 0
     source_rows = source_repository.list_enabled_for_account(account_id)
-    sources = {row["telegram_chat_id"]: row for row in source_rows}
-    async for dialog in _iter_dialogs(client):
-        if dialog.id not in sources:
+    for source in source_rows:
+        try:
+            dialog = await client.get_entity(source["telegram_chat_id"])
+        except Exception:
             continue
-        count += await _scan_source(client, account_id, dialog, sources[dialog.id])
+        count += await _scan_source(client, account_id, dialog, source)
     return count
 
 
@@ -34,10 +44,10 @@ async def _scan_source(client, account_id, dialog, source):
     last_message_id = source["last_message_id"] or 0
     current_max_message_id = last_message_id
     count = 0
-    print("[SCAN] dialog:", dialog.name, "id:", dialog.id, flush=True)
+    print("[SCAN] dialog:", getattr(dialog, "title", dialog.id), "id:", dialog.id, flush=True)
     try:
         message_kwargs = {} if full_sync else {"min_id": last_message_id}
-        async for message in client.iter_messages(dialog.entity, **message_kwargs):
+        async for message in client.iter_messages(dialog, **message_kwargs):
             observation = recognizer.recognize(
                 message, chat_id=dialog.id, account_id=account_id
             )
@@ -61,9 +71,19 @@ async def _scan_source(client, account_id, dialog, source):
         raise
 
 
-async def _iter_dialogs(client):
+async def discover_dialogs(client):
+    """Return only Telegram Channel dialogs for admin display.
+
+    This is manual discovery only. Non-Channel dialogs are intentionally
+    excluded from the management view.
+    """
+    dialogs = []
     async for dialog in client.iter_dialogs():
-        yield dialog
+        entity = dialog.entity
+        if getattr(entity, "__class__", None).__name__ != "Channel":
+            continue
+        dialogs.append(dialog)
+    return dialogs
 
 
 async def scanner_loop(client, account_id):
