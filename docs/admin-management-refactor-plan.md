@@ -2,80 +2,71 @@
 
 ## Goal
 
-Refactor the management panel without changing tgdrive core architecture.
+Refactor management panel without changing tgdrive core architecture.
 
-- Telegram runtime handles authentication and reconciliation.
-- Scanner indexes enabled Telegram sources.
-- Resource/File database model remains unchanged.
-- Admin panel manages configuration through APIs.
+## Structure
 
-## Sidebar Layout
+Sidebar:
 
-```
-Dashboard
-Telegram
- ├─ Dialogs
- ├─ Sources
- └─ Recycle Bin
-Resources
- ├─ Resource List
- ├─ Categories
- └─ Batch Operations
-Downloads
-System
-Settings
-```
+- Dashboard
+- Telegram
+  - Dialogs
+  - Sources
+  - Recycle Bin
+- Resources
+- Downloads
+- System
+- Settings
 
 ## Dialogs
 
-Only display Telegram resource containers:
+Only show Telegram supergroups and channels. Exclude users, bots and private chats.
 
-- supergroups
-- channels
+Each dialog uses one status switch:
 
-Exclude users, bots and private chats.
+Enabled:
+- create Source
+- enable scanner
+- trigger immediate scan
 
-Each dialog has one status switch.
+Disabled:
+- stop scanner
+- hide active source resources
 
-Enabled creates a Source, enables scanner and triggers immediate scanning.
-
-Disabled stops scanner and hides related active source data.
-
-Delete stops scanning, removes configuration, moves data to recycle bin and triggers reconciliation refresh.
+Delete:
+- stop scanning
+- remove configuration
+- move data to recycle bin
+- refresh reconciliation
 
 ## Sources
 
-Separate page showing enabled sources only.
+Separate page for enabled sources.
 
-Functions:
-
+Supports:
 - resource browsing
 - scan status
 - manual scan
-- category assignment
+- categories
 - batch operations
 
 ## Recycle Bin
 
-All frontend deleted content enters recycle bin.
-
-Supports restore and permanent deletion.
+Deleted frontend data enters recycle bin and can be restored or permanently deleted.
 
 ## Scanner Flow
 
-Telegram Login -> Dialog Reconciliation -> Enable Dialog -> Create Source -> Immediate Scanner Start -> Resource Index
+Telegram Login -> Dialog Reconciliation -> Enable Dialog -> Source -> Scanner -> Resources
 
 ## Future
 
-Topic automatic classification based on Telegram forum topics and metadata.
+Topic-based automatic classification.
 
 ## Order
 
 1. Stabilize download pipeline.
-2. Keep deployment architecture unchanged.
-3. Refactor admin APIs.
-4. Implement sidebar.
-5. Separate Dialogs/Sources.
-6. Add recycle bin.
-7. Add batch operations.
-8. Add topic classification.
+2. Keep architecture unchanged.
+3. Refactor APIs.
+4. Build sidebar management.
+5. Add recycle bin.
+6. Add batch operations.
