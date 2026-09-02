@@ -39,6 +39,9 @@ The complete recommended flow is:
 New server
    ↓
 git clone https://github.com/Srcasee/tgdrive.git
+(git clone https://gh-proxy.com/https://github.com/Srcasee/tgdrive.git
+git clone https://gh-proxy.com/https://github.com/Srcasee/tgdrive.git)
+
    ↓
 cd tgdrive
    ↓
