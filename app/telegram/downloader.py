@@ -30,16 +30,13 @@ class TelegramDownloader:
         if not message.media:
             raise RuntimeError("telegram message has no media")
 
-        filename = getattr(getattr(message, "file", None), "name", None) or f"{message_id}.bin"
-        size = getattr(getattr(message, "file", None), "size", None)
-        mime_type = getattr(getattr(message, "file", None), "mime_type", None) or "application/octet-stream"
-
+        file = getattr(message, "file", None)
         return TelegramFileInfo(
             chat_id=int(chat_id),
             message_id=int(message_id),
-            filename=filename,
-            size=size,
-            mime_type=mime_type,
+            filename=getattr(file, "name", None) or f"{message_id}.bin",
+            size=getattr(file, "size", None),
+            mime_type=getattr(file, "mime_type", None) or "application/octet-stream",
             media=message.media,
         )
 
@@ -48,6 +45,7 @@ class TelegramDownloader:
 
         for attempt in range(MAX_STREAM_RETRIES):
             iterator = None
+            emitted = False
             try:
                 iterator = self.client.iter_download(
                     file_info.media,
@@ -58,6 +56,7 @@ class TelegramDownloader:
 
                 async for chunk in iterator:
                     if chunk:
+                        emitted = True
                         yield chunk
                 return
 
@@ -65,6 +64,8 @@ class TelegramDownloader:
                 raise
             except Exception as exc:
                 last_error = exc
+                if emitted:
+                    raise
                 print(
                     "[TELEGRAM STREAM] retry",
                     "message=", file_info.message_id,
