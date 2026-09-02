@@ -23,9 +23,11 @@ class DialogRepository:
 
     def replace_for_account(self, account_id, dialogs):
         self.ensure_table()
+        # Only Telegram channels are valid tgdrive sources.
+        # Groups, users, bots and other dialog types are intentionally ignored.
         resource_dialogs = [
             dialog for dialog in dialogs
-            if dialog.get("is_group", False) or dialog.get("is_channel", False)
+            if dialog.get("is_channel", False)
         ]
         current_ids = {dialog["id"] for dialog in resource_dialogs}
         with transaction() as conn:
@@ -52,9 +54,9 @@ class DialogRepository:
                             dialog["id"],
                             dialog.get("name"),
                             dialog.get("username"),
-                            dialog.get("entity_type", "unknown"),
-                            dialog.get("is_group", False),
-                            dialog.get("is_channel", False),
+                            dialog.get("entity_type", "channel"),
+                            False,
+                            True,
                         ),
                     )
         return removed_ids
@@ -75,7 +77,7 @@ class DialogRepository:
                       ON s.account_id=d.account_id
                      AND s.telegram_chat_id=d.telegram_chat_id
                     WHERE d.account_id=%s
-                      AND (d.is_group=TRUE OR d.is_channel=TRUE)
+                      AND d.is_channel=TRUE
                     ORDER BY d.name NULLS LAST, d.telegram_chat_id
                     """,
                     (account_id,),
