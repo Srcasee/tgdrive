@@ -2,9 +2,8 @@ import asyncio
 from dataclasses import dataclass
 
 
+# Telegram file download requests are capped at 512 KiB by Telethon/MTProto.
 TELEGRAM_REQUEST_SIZE = 512 * 1024
-MAX_STREAM_RETRIES = 8
-RETRY_BACKOFF_SECONDS = 1
 
 
 @dataclass
@@ -31,72 +30,61 @@ class TelegramDownloader:
         if not message.media:
             raise RuntimeError("telegram message has no media")
 
-        file = getattr(message, "file", None)
+        filename = None
+        try:
+            filename = message.file.name
+        except Exception:
+            pass
+        if not filename:
+            filename = f"{message_id}.bin"
+
+        size = None
+        try:
+            size = message.file.size
+        except Exception:
+            pass
+
+        mime_type = "application/octet-stream"
+        try:
+            if message.file.mime_type:
+                mime_type = message.file.mime_type
+        except Exception:
+            pass
+
         return TelegramFileInfo(
             chat_id=int(chat_id),
             message_id=int(message_id),
-            filename=getattr(file, "name", None) or f"{message_id}.bin",
-            size=getattr(file, "size", None),
-            mime_type=getattr(file, "mime_type", None) or "application/octet-stream",
+            filename=filename,
+            size=size,
+            mime_type=mime_type,
             media=message.media,
         )
 
     async def stream(self, file_info: TelegramFileInfo, offset: int = 0):
-        """
-        Stream Telegram media with resumable retry.
-
-        Telegram MTProto streams are not identical to HTTP downloads. A TCP
-        interruption after data has already been yielded must not restart from
-        the original offset, otherwise HTTP clients may restart the download or
-        receive duplicate ranges.
-        """
-        current_offset = max(0, int(offset))
-        last_error = None
-
-        for attempt in range(MAX_STREAM_RETRIES):
-            iterator = None
-            try:
-                iterator = self.client.iter_download(
-                    file_info.media,
-                    offset=current_offset,
-                    chunk_size=self.chunk_size,
-                    request_size=self.chunk_size,
-                )
-
-                async for chunk in iterator:
-                    if not chunk:
-                        continue
-
-                    current_offset += len(chunk)
-                    yield chunk
-
-                return
-
-            except asyncio.CancelledError:
-                raise
-            except Exception as exc:
-                last_error = exc
-                print(
-                    "[TELEGRAM STREAM] resume",
-                    "message=", file_info.message_id,
-                    "offset=", current_offset,
-                    "attempt=", attempt + 1,
-                    repr(exc),
-                    flush=True,
-                )
-
-                if attempt + 1 < MAX_STREAM_RETRIES:
-                    await asyncio.sleep(RETRY_BACKOFF_SECONDS * (attempt + 1))
-                    continue
-
-            finally:
-                close = getattr(iterator, "aclose", None) if iterator else None
-                if close:
-                    try:
-                        result = close()
-                        if hasattr(result, "__await__"):
-                            await result
-                    except Exception:
-                        pass
-
-        raise RuntimeError("telegram stream failed after resumable retries") from last_error
+        iterator = self.client.iter_download(
+            file_info.media,
+            offset=offset,
+            chunk_size=self.chunk_size,
+            request_size=self.chunk_size,
+        )
+        try:
+            async for chunk in iterator:
+                yield chunk
+        except asyncio.CancelledError:
+            print(
+                "[TELEGRAM STREAM] cancelled",
+                "message=",
+                file_info.message_id,
+                "offset=",
+                offset,
+            )
+            raise
+        finally:
+            close = getattr(iterator, "aclose", None)
+            if close:
+                try:
+                    result = close()
+                    if hasattr(result, "__await__"):
+                        await result
+                except Exception as exc:
+                    print("[TELEGRAM STREAM] close error", repr(exc))
