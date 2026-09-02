@@ -30,34 +30,36 @@ async def scan_dialogs(client, account_id):
 
 
 async def _scan_source(client, account_id, dialog, source):
-    full_sync = ingestion_service.begin_source_scan(source, account_id, dialog.id)
-    last_message_id = source["last_message_id"] or 0
-    current_max_message_id = last_message_id
+    # Telegram message deletion cannot be detected from min_id based incremental
+    # scans. Always reconcile the complete source history so missing locations can
+    # be marked by ingestion/file reconciliation.
+    full_sync = True
+    ingestion_service.begin_source_scan(
+        {**source, "sync_mode": "full"}, account_id, dialog.id
+    )
+    current_max_message_id = 0
     count = 0
     print("[SCAN] dialog:", dialog.name, "id:", dialog.id, flush=True)
     try:
-        message_kwargs = {} if full_sync else {"min_id": last_message_id}
-        async for message in client.iter_messages(dialog.entity, **message_kwargs):
+        async for message in client.iter_messages(dialog.entity):
             observation = recognizer.recognize(
                 message, chat_id=dialog.id, account_id=account_id
             )
             if observation is None:
                 continue
             current_max_message_id = max(current_max_message_id, message.id)
-            # Scanning is metadata-only. Content hashing is deliberately deferred
-            # until a user requests delivery, so indexing never downloads payloads.
             ingestion_service.ingest(observation)
             count += 1
 
         ingestion_service.finish_source_scan(
-            source, account_id, dialog.id, current_max_message_id
+            {**source, "sync_mode": "full"}, account_id, dialog.id, current_max_message_id
         )
         return count
     except asyncio.CancelledError:
-        ingestion_service.fail_source_scan(source, account_id, dialog.id)
+        ingestion_service.fail_source_scan({**source, "sync_mode": "full"}, account_id, dialog.id)
         raise
     except Exception:
-        ingestion_service.fail_source_scan(source, account_id, dialog.id)
+        ingestion_service.fail_source_scan({**source, "sync_mode": "full"}, account_id, dialog.id)
         raise
 
 
