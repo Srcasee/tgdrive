@@ -4,9 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>TGDrive Admin</title>
+<style>
+body{margin:0;font-family:system-ui,sans-serif}#layout{display:flex;min-height:100vh}#menu{width:220px;padding:20px;border-right:1px solid #ddd}#content{flex:1;padding:24px}.menu-item{display:block;padding:8px;cursor:pointer}
+</style>
 </head>
 <body>
-<div id="admin-app"></div>
+<div id="layout">
+<nav id="menu"></nav>
+<main id="content"></main>
+</div>
 <script type="module" src="/admin/app.js"></script>
 </body>
 </html>
