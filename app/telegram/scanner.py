@@ -30,10 +30,6 @@ async def scan_dialogs(client, account_id):
 
 
 async def _scan_source(client, account_id, dialog, source):
-    # Telegram message deletion cannot be detected from min_id based incremental
-    # scans. Always reconcile the complete source history so missing locations can
-    # be marked by ingestion/file reconciliation.
-    full_sync = True
     ingestion_service.begin_source_scan(
         {**source, "sync_mode": "full"}, account_id, dialog.id
     )
@@ -68,7 +64,7 @@ async def _iter_dialogs(client):
         yield dialog
 
 
-async def scanner_loop(client, account_id):
+async def scanner_loop(client, account_id, scanner_manager=None):
     print("[SCAN] scanner loop started", flush=True)
     while True:
         try:
@@ -78,5 +74,9 @@ async def scanner_loop(client, account_id):
             raise
         except Exception as exc:
             print("[SCAN] error:", repr(exc), flush=True)
-        print(f"[SCAN] sleep {SCAN_INTERVAL}s", flush=True)
-        await asyncio.sleep(SCAN_INTERVAL)
+
+        print(f"[SCAN] wait {SCAN_INTERVAL}s or source change", flush=True)
+        if scanner_manager is not None:
+            await scanner_manager.wait_or_wakeup(SCAN_INTERVAL)
+        else:
+            await asyncio.sleep(SCAN_INTERVAL)
