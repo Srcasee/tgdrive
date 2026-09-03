@@ -1,97 +1,215 @@
-# Admin Management Interface Refactor Plan
+# Admin Management Interface Refactor Plan v1
 
-The management refactor keeps tgdrive core architecture unchanged.
+## Goal
 
-Modules:
-- Telegram runtime: authentication and reconciliation
-- Scanner: enabled source indexing
-- Database: existing Resource/File model
-- Download pipeline: independent
+Separate Telegram discovery, Source configuration, scanner runtime status, and resource management into independent management domains while keeping the existing Core architecture unchanged.
 
-Admin sidebar:
-- Dashboard
-- Telegram
-  - Dialogs
-  - Sources
-  - Recycle Bin
-- Resources
-- Downloads
-- System
-- Settings
+The refactor must preserve these boundaries:
 
-Dialogs:
-- only show resource groups/channels
-- exclude users, bots, private chats
-- one status toggle
+```text
+Dialog Discovery
+        |
+        v
+Dialogs cache
 
-Enable:
-- create source
-- enable scanner
-- immediate scan
+Admin Dialog management
+        |
+        v
+Source configuration
+        |
+        v
+Scanner runtime
+        |
+        v
+Resources
+```
 
-Disable:
-- stop scanner
-- hide source resources
+Admin must not directly control Telegram discovery except through explicit reconciliation operations.
 
-Delete:
-- stop scanner
-- remove configuration
-- move data to recycle bin
-- refresh reconciliation
+---
 
-Sources page:
-- enabled sources only
-- resource browsing
-- scan status
-- manual scan
-- category management
+# 1. New Sidebar Structure
+
+```text
+Dashboard
+
+Telegram
+├── Accounts
+├── Dialogs
+├── Sources
+└── Reconciliation
+
+Resources
+├── Resource browser
+├── Categories
+└── Recycle Bin
+
+Downloads
+
+System
+└── Settings
+```
+
+---
+
+# 2. Dialog Management
+
+Purpose:
+
+Display Telegram resources discovered by Dialog Discovery.
+
+Responsibilities:
+
+- show available channels
+- show discovery status
+- allow explicit reconciliation
+- provide Source creation entry
+
+Rules:
+
+- Dialog page reads cached dialog data.
+- Opening the page must not repeatedly trigger Telegram discovery.
+- First initialization may use lazy discovery when no cache exists.
+- Manual reconciliation remains explicit.
+
+Dialog does not:
+
+- start Scanner
+- download files
+- modify Resource state directly
+
+---
+
+# 3. Source Management
+
+Purpose:
+
+Manage which Telegram resources are scanned.
+
+Responsibilities:
+
+- enable Source
+- disable Source
+- view scan status
+- trigger manual scan
+- manage source metadata
+
+Flow:
+
+```text
+Enable Source
+      |
+      v
+SourceRepository
+      |
+      v
+ScannerManager wakeup
+      |
+      v
+Scanner
+```
+
+Enable/disable operations must not trigger Dialog Discovery.
+
+---
+
+# 4. Scanner Runtime View
+
+New runtime-oriented view:
+
+Display:
+
+- active scanner tasks
+- last scan time
+- current Source state
+- errors
+
+This view is read-only for runtime state.
+
+---
+
+# 5. Resource Management
+
+Resources page:
+
+- browse catalog resources
+- search
+- classify
 - batch operations
 
-Recycle Bin:
-- deleted content goes here first
-- restore
-- permanent delete
+Resource management must remain independent from Telegram discovery.
 
-Future:
-- topic automatic classification
+---
 
-## Known issues during refactor validation
+# 6. Recycle Bin
 
-### Source toggle refresh coupling
+Future implementation:
 
-Enable/disable actions must not trigger Dialog discovery refresh.
+Delete operation flow:
 
-Current issue:
+```text
+Delete Resource
+      |
+      v
+Recycle Bin
+      |
+      +--> Restore
+      |
+      +--> Permanent delete
+```
 
-- Source state changes refresh part of the DOM.
-- The refresh path can trigger Dialog fetching.
-- Dialog discovery and Source lifecycle are separate concerns and should remain decoupled.
+---
 
-Expected behavior:
+# 7. Frontend State Rules
 
-- Enable/disable refreshes Source state only.
-- Dialog discovery is triggered only by reconciliation or explicit Dialog operations.
+Current known problem:
 
-### Source runtime synchronization after fresh deployment
+- Source enable/disable refreshes partial DOM state.
+- Some refresh paths unnecessarily request Dialog data.
 
-Observed behavior:
+Target behavior:
 
-- After a fresh deployment, enabling Source A can populate resources correctly.
-- Enabling additional Sources B/C may not immediately populate resources.
-- After individually toggling Sources, later combinations behave normally.
+```text
+Dialog page
+    |
+    +--> dialog API
 
-Suspected area:
+Source page
+    |
+    +--> source API
 
-- Database Source enabled state and in-memory scanner runtime state may become temporarily inconsistent.
-- Validation should trace Source enable API, runtime notification, scanner reconciliation and scanner task creation.
+Runtime page
+    |
+    +--> scanner status API
+```
 
-## Implementation order
+No cross-domain implicit refresh.
 
-1. Download stability
-2. Preserve architecture
-3. Admin APIs
-4. Sidebar UI
-5. Dialog/Source separation
-6. Recycle bin
-7. Batch operations
-8. Topic classification
+---
+
+# 8. Implementation Order
+
+1. Separate Admin API responsibilities.
+2. Separate Dialog and Source frontend state.
+3. Add scanner runtime status view.
+4. Remove unnecessary DOM refresh coupling.
+5. Add batch Source/resource operations.
+6. Add recycle bin workflow.
+7. Add Topic classification support.
+
+---
+
+# Deferred Issues
+
+## Source scanner full scan
+
+Current behavior is intentionally retained:
+
+- Source changes wake Scanner.
+- Scanner performs a full enabled Source scan.
+
+Optimization is deferred until correctness and Admin refactor are complete.
+
+## Download stability
+
+Download retry/resume improvements remain independent from Admin refactor.
