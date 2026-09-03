@@ -33,12 +33,16 @@
     </section>`;
   }
 
+  async function refreshAdminState(accounts) {
+    await loadDialogs(accounts);
+    await loadSources();
+  }
+
   async function loadAccounts() {
     const response = await request("/api/telegram/accounts");
     if (!response.ok) throw new Error("加载账号失败");
     const accounts = await response.json();
-    await loadDialogs(accounts);
-    await loadSources();
+    await refreshAdminState(accounts);
   }
 
   async function loadDialogs(accounts) {
@@ -65,9 +69,8 @@
               body: JSON.stringify({enabled:false})
             });
             if (!r.ok) throw new Error("禁用失败");
-            dialog.source_enabled = false;
-            dialog.source_id = null;
-            await loadDialogs(accounts);
+            setStatus("Source 已禁用");
+            await loadAccounts();
           };
           actions.appendChild(disable);
         } else {
@@ -80,7 +83,8 @@
               body:JSON.stringify({account_id:account.id, telegram_chat_id:dialog.id, name:dialog.name || String(dialog.id)})
             });
             if (!r.ok) throw new Error("启用失败");
-            await loadDialogs(accounts);
+            setStatus("Source 已启用，等待扫描");
+            await loadAccounts();
           };
           actions.appendChild(enable);
         }
