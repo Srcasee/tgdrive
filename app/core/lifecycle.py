@@ -124,7 +124,11 @@ class ApplicationLifecycle:
 
     async def _run_one(self, account_id, account_name, client):
         try:
-            await scanner_loop(client, account_id)
+            await scanner_loop(
+                client,
+                account_id,
+                self.scanner_manager,
+            )
         except asyncio.CancelledError:
             raise
         except Exception as exc:
