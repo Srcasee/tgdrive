@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the current runtime flow of tgdrive from deployment, Telegram authorization, dialog discovery, source configuration, scanning, ingestion, downloading, and delivery.
+This document describes the current runtime flow of tgdrive from deployment, Telegram authorization, dialog discovery, Source configuration, scanning, ingestion, downloading, and delivery.
 
 ## 1. Deployment and Application Startup
 
@@ -19,19 +19,18 @@ app/main.py
 app/core/lifecycle.py
 ```
 
-`ApplicationLifecycle` is responsible for application orchestration only:
+`ApplicationLifecycle` is application orchestration only:
 
 - initialize PostgreSQL connection pool
 - initialize database schema
 - bootstrap admin account
-- start runtime components
-- shutdown runtime components
+- start and stop runtime components
 
 Core does not contain Telegram business logic.
 
 ## 2. Telegram Login and Runtime
 
-First-time authentication:
+First-time authorization:
 
 ```text
 telegram/login.py
@@ -43,9 +42,9 @@ telegram/client.py
 Telegram session creation
 ```
 
-`login.py` is not part of every startup. It is mainly used for initial authorization and session generation.
+`login.py` is only used for initial account authorization. Normal startup reuses existing sessions.
 
-Normal runtime:
+Runtime:
 
 ```text
 ApplicationLifecycle
@@ -54,12 +53,12 @@ ApplicationLifecycle
 telegram/client.py
         |
         v
-Existing Telegram session
+Existing Telegram sessions
 ```
 
 ## 3. Dialog Discovery Flow
 
-Dialog discovery is responsible for discovering available Telegram channels and making them available to the management interface.
+Dialog Discovery maintains the Telegram dialog metadata cache.
 
 ```text
 Telegram Client
@@ -75,20 +74,21 @@ dialog repository
         |
         v
 dialogs table
-        |
-        v
-Admin management interface
 ```
 
-Important boundary:
+Current behavior:
 
-- Dialog discovery discovers Telegram resources.
-- Admin displays discovered dialogs.
-- Refreshing the Admin page should read existing dialog data and should not automatically trigger Telegram discovery.
+- Runtime reconciliation can refresh dialogs.
+- The Admin Dialog view reads cached dialog data.
+- First Admin Dialog access may lazily initialize discovery when no dialog cache exists.
+- After initialization, normal page refreshes only read the dialogs table.
+- Explicit reconciliation remains the manual discovery trigger.
 
-## 4. Dialog To Source Configuration
+Dialog Discovery does not create Sources and does not start Scanner.
 
-Dialog and Source are related but separate domains.
+## 4. Dialog and Source Boundary
+
+Dialog and Source are separate domains.
 
 ```text
 Dialog Discovery
@@ -105,7 +105,7 @@ Source configuration
 sources table
 ```
 
-A Source represents a user-selected Telegram resource that should be scanned.
+A Source represents an administrator-selected Telegram resource that Scanner is allowed to process.
 
 ## 5. Source Scanner Flow
 
@@ -130,9 +130,15 @@ Scanner responsibilities:
 - read enabled Sources
 - scan Telegram messages
 - extract file metadata
-- send discovered resources into catalog/ingestion flow
+- submit resources to catalog/ingestion
 
-Scanner does not perform dialog discovery.
+Scanner does not perform Dialog Discovery.
+
+Current Source change behavior:
+
+- Source changes wake Scanner immediately.
+- Scanner currently performs a full enabled Source scan for correctness.
+- Incremental Source scanning is deferred.
 
 ## 6. Catalog and Ingestion Flow
 
@@ -151,8 +157,6 @@ Resource metadata and state management
 
 ## 7. Download and Delivery Flow
 
-Downloading happens after resource discovery.
-
 ```text
 User download request
         |
@@ -160,7 +164,7 @@ User download request
 Delivery layer
         |
         v
-downloader.py
+telegram/downloader.py
         |
         v
 Telegram file download API
@@ -172,16 +176,16 @@ Downloaded file
 Delivery response
 ```
 
-## 8. Current Known Issues / Future Work
+## 8. Deferred Issues
 
 ### Admin refresh coupling
 
-Status: deferred.
+Status: deferred for Admin refactor.
 
 Current issue:
 
-- Enable/disable Source operations may trigger unnecessary Admin DOM refresh behavior.
-- Management interface refactor will separate Dialog display, Source configuration, and runtime status views.
+- Source enable/disable operations may refresh unnecessary Dialog UI DOM state.
+- Dialog display, Source configuration, and runtime status should become separate Admin views.
 
 ### Source scanner optimization
 
@@ -189,8 +193,8 @@ Status: deferred.
 
 Current behavior:
 
-- After Source changes, scanner correctness is prioritized by performing a full enabled Source scan.
+- Correctness is prioritized by full enabled Source reconciliation after Source changes.
 
-Future optimization:
+Future:
 
-- Introduce incremental Source-level scanning events instead of full enabled Source reconciliation.
+- Incremental Source-level scanning events.
