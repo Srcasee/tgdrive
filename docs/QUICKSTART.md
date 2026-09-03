@@ -12,6 +12,7 @@ git clone https://github.com/Srcasee/tgdrive.git
 git clone https://gh-proxy.com/https://github.com/Srcasee/tgdrive.git
 git clone https://gh-proxy.com/https://github.com/Srcasee/tgdrive.git）
 cd tgdrive
+chmod +x deploy.sh
 ./deploy.sh
 ```
 
