@@ -1,156 +1,193 @@
-# Admin Management Interface Refactor Plan V3
+# Admin Management Interface Refactor Plan V4
 
 ## Goal
 
-Replace the current mixed Admin injection model with an independent management application while preserving backend domain boundaries.
+Rewrite the management frontend as an independent Admin application.
 
-The refactor does not change Telegram lifecycle, scanner, catalog, ingestion, downloader or delivery architecture.
+The existing management frontend is not migrated for compatibility. Old admin injection code and transitional structures are not part of the final architecture.
 
-The Admin frontend becomes a control plane:
+The Admin interface is only a control plane. Backend domain boundaries remain unchanged.
 
 ```text
 Admin UI
    |
-   +-- API
+   +-- API Client
           |
-          +-- Telegram domain
-          +-- Resource domain
-          +-- Scanner domain
-          +-- Download domain
-          +-- System domain
+          +-- Telegram
+          +-- Resources
+          +-- Scanner
+          +-- Download
+          +-- System
+          +-- Recycle Bin
 ```
 
 ---
 
-# 1. Current Problems
+# 1. Target Admin Architecture
 
-Current frontend contains two different models:
+The final navigation structure:
 
 ```text
-index.html
- |
- +-- user resource UI
- |
- +-- inline javascript
+TGDrive Admin
 
-admin.js
- |
- +-- Telegram panel injection
+Dashboard
+
+Telegram
+ ├ Accounts
+ ├ Dialogs
+ └ Sessions
+
+Resources
+ ├ Sources
+ ├ Files
+ └ Categories
+
+Scanner
+ ├ Tasks
+ ├ Logs
+ └ Settings
+
+Download
+ ├ Active
+ └ History
+
+System
+ ├ Config
+ └ API
+
+Recycle Bin
 ```
 
-Problems:
+Each menu item owns its own page state and data loading logic.
 
-- Admin UI lifecycle depends on the user page.
-- Telegram modules depend on global window initialization order.
-- Dialog refresh and Source operations were historically coupled.
-- Adding new management domains would further increase coupling.
+Rules:
+
+- A page only refreshes its own data.
+- Dialog operations never refresh Source data automatically.
+- Source operations never trigger Dialog Discovery.
+- Scanner status is independent from Telegram discovery.
+- No global DOM coupling between modules.
 
 ---
 
-# 2. New Frontend Structure
+# 2. Frontend Structure
 
-Target:
+Use native JavaScript modules. No frontend framework is introduced at this stage.
+
+Target structure:
 
 ```text
 app/web/
 
-├── index.html
-│
 ├── admin.html
 │
-├── admin/
-│   │
-│   ├── app.js
-│   ├── api.js
-│   ├── router.js
-│   ├── layout.js
-│   │
-│   ├── pages/
-│   │   ├── dashboard.js
-│   │   │
-│   │   ├── telegram/
-│   │   │   ├── accounts.js
-│   │   │   ├── dialogs.js
-│   │   │   └── sessions.js
-│   │   │
-│   │   ├── resources/
-│   │   │   ├── sources.js
-│   │   │   ├── files.js
-│   │   │   └── categories.js
-│   │   │
-│   │   ├── scanner/
-│   │   │   ├── tasks.js
-│   │   │   ├── logs.js
-│   │   │   └── settings.js
-│   │   │
-│   │   ├── download/
-│   │   │   ├── active.js
-│   │   │   └── history.js
-│   │   │
-│   │   ├── system/
-│   │   │   ├── config.js
-│   │   │   └── api.js
-│   │   │
-│   │   └── recycle-bin.js
+└── admin/
+    ├── app.js
+    ├── api.js
+    ├── router.js
+    ├── layout.js
+    │
+    ├── dashboard.js
+    ├── telegram.js
+    ├── resources.js
+    ├── scanner.js
+    ├── download.js
+    ├── system.js
+    └── recycle.js
 ```
 
----
-
-# 3. Migration Principle
-
-Do not introduce a frontend framework.
-
-Use native JavaScript modules first.
-
-Rules:
-
-- One page owns one domain.
-- One page refreshes only its own data.
-- API calls are isolated in domain modules.
-- No DOM manipulation across domains.
+The structure intentionally avoids excessive directory nesting. Domain modules own their internal pages.
 
 ---
 
-# 4. Telegram Dialogs
+# 3. Module Responsibilities
 
-Dialogs represent Telegram discovery state.
+## app.js
+
+Responsible for:
+
+- Admin authentication check
+- Application startup
+- Loading layout and router
+
+## api.js
+
+Responsible for:
+
+- HTTP request wrapper
+- Authentication handling
+- Common API error handling
+
+Pages must not directly implement duplicated fetch logic.
+
+## router.js
+
+Responsible for:
+
+- Menu navigation
+- Loading domain modules
+
+---
+
+# 4. Telegram Module
+
+```text
+Telegram
+ ├ Accounts
+ ├ Dialogs
+ └ Sessions
+```
 
 Responsibilities:
 
-- show discovered channels
-- enable/disable Source configuration
-- reconcile Telegram state
+Accounts:
 
-Dialogs do not own:
+- Telegram client account status
 
-- scanner runtime
-- download status
-- resource lifecycle
+Dialogs:
+
+- Display discovered Telegram channels
+- Enable Source configuration
+- Disable Source configuration
+- Move disabled dialogs to recycle workflow
+
+Sessions:
+
+- Session management
+
+Dialogs do not perform:
+
+- Scanner execution
+- Resource scanning
+- Download management
 
 Flow:
 
 ```text
-Open Dialog page
+Telegram Discovery
         |
         v
-Read Dialog API
+Dialogs
         |
         v
-User enables Source
+Enable Source
         |
         v
-Create Source
+telegram_source
 ```
-
-Browser refresh must not automatically trigger discovery.
 
 ---
 
-# 5. Sources
+# 5. Resources Module
 
-Sources represent scanner configuration.
+```text
+Resources
+ ├ Sources
+ ├ Files
+ └ Categories
+```
 
-Flow:
+Sources:
 
 ```text
 Source enabled
@@ -165,46 +202,126 @@ ScannerManager
 Scanner
 ```
 
-Source actions refresh only Source page.
+Files:
 
-They do not reload Dialog discovery.
+- Resource browsing
+- Metadata management
 
----
+Categories:
 
-# 6. API Compatibility
-
-Existing API URLs remain unchanged during migration.
-
-No `/v2` API namespace.
-
-Frontend migration and backend API migration are independent.
+- Category tree
+- Resource classification
 
 ---
 
-# 7. Migration Order
+# 6. Scanner Module
+
+```text
+Scanner
+ ├ Tasks
+ ├ Logs
+ └ Settings
+```
+
+Responsible only for scanner runtime visibility and configuration.
+
+It does not perform Telegram Dialog Discovery.
+
+---
+
+# 7. Download Module
+
+```text
+Download
+ ├ Active
+ └ History
+```
+
+Responsible for:
+
+- Current download tasks
+- Historical download records
+
+Downloader and Delivery backend architecture remain unchanged.
+
+---
+
+# 8. System Module
+
+```text
+System
+ ├ Config
+ └ API
+```
+
+Responsible for system administration information.
+
+---
+
+# 9. Recycle Bin
+
+Recycle Bin is a first-class module.
+
+Functions:
+
+- View deleted objects
+- Restore
+- Permanent deletion
+
+Deletion workflow:
+
+```text
+Disabled Dialog
+        |
+        v
+Recycle Bin
+        |
+        +-- Restore
+        |
+        +-- Permanent Delete
+```
+
+---
+
+# 10. API Policy
+
+Existing backend API URLs remain unchanged.
+
+No `/v2` namespace is introduced.
+
+Frontend rewrite and backend API migration are independent tasks.
+
+---
+
+# 11. Migration Strategy
 
 Phase 1:
 
-- Add admin.html
-- Add admin app shell
-- Add router
+- Create admin.html
+- Create Admin application shell
+- Create router and layout
 
 Phase 2:
 
-- Migrate Telegram Accounts
-- Migrate Dialogs
-- Migrate Sources
+- Implement Telegram module
+- Replace Dialog management
+- Replace Source management
 
 Phase 3:
 
-- Scanner pages
-- Download pages
+- Implement Resources module
+- Implement Scanner module
 
 Phase 4:
 
-- Resource management
-- Categories
-- Recycle Bin
+- Implement Download
+- Implement System
+- Implement Recycle Bin
+
+After migration:
+
+- Remove old admin injection code
+- Remove transitional global window dependencies
 
 ---
 
@@ -212,16 +329,16 @@ Phase 4:
 
 ## Source full scan optimization
 
-Current behavior retained:
+Current behavior retained.
 
-Every Source enable triggers a full scan.
+Every Source enable performs a full scan.
 
 Optimization deferred.
 
 ## Download resume/retry bug
 
-Independent issue.
+Independent backend issue.
 
-## Legacy admin.js
+## Admin frontend old implementation
 
-Keep temporarily as compatibility layer until Admin V3 migration completes.
+The old admin.js injection model is not extended and will be removed after the new Admin application is complete.
