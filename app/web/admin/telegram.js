@@ -72,22 +72,23 @@ async function renderDialogs(container) {
           const row = document.createElement('div');
           row.className = 'panel';
           const source = dialog.source || null;
-          const enabled = Boolean(source?.enabled ?? dialog.enabled);
+          const sourceId = source?.id ?? dialog.source_id;
+          const enabled = Boolean(source?.enabled ?? dialog.source_enabled ?? dialog.enabled);
 
           row.innerHTML = `
             <strong>${escape(dialog.title || dialog.name || dialog.id)}</strong>
-            <div>Type: ${escape(dialog.type || 'unknown')}</div>
+            <div>Type: ${escape(dialog.type || dialog.entity_type || 'unknown')}</div>
             <div>Source: ${enabled ? 'Enabled' : 'Disabled'}</div>
           `;
 
           const actions = document.createElement('div');
 
-          if (source) {
+          if (sourceId != null) {
             const toggle = document.createElement('button');
             toggle.textContent = enabled ? '禁用' : '启用';
             toggle.onclick = async () => {
               try {
-                await setSourceEnabled(source.id, !enabled);
+                await setSourceEnabled(sourceId, !enabled);
                 await button.onclick();
               } catch (e) {
                 alert(e.message);
@@ -96,19 +97,23 @@ async function renderDialogs(container) {
             actions.appendChild(toggle);
           }
 
-          if (!enabled) {
-            const remove = document.createElement('button');
-            remove.textContent = '删除';
-            remove.onclick = async () => {
-              try {
-                await deleteDialog(account.id, dialog.telegram_chat_id);
-                await button.onclick();
-              } catch (e) {
-                alert(e.message);
-              }
-            };
-            actions.appendChild(remove);
-          }
+          const remove = document.createElement('button');
+          remove.textContent = '删除';
+          remove.disabled = enabled;
+          remove.title = enabled ? '请先禁用 Source' : '删除 Dialog';
+          remove.onclick = async () => {
+            if (remove.disabled) return;
+            if (!window.confirm('确定删除这个 Dialog 吗？')) return;
+            remove.disabled = true;
+            try {
+              await deleteDialog(account.id, dialog.telegram_chat_id ?? dialog.id);
+              await button.onclick();
+            } catch (e) {
+              alert(e.message);
+              remove.disabled = false;
+            }
+          };
+          actions.appendChild(remove);
 
           row.appendChild(actions);
           list.appendChild(row);
