@@ -13,13 +13,9 @@ export async function renderTelegram(container, section = 'dialogs') {
   title.textContent = `Telegram / ${section}`;
   container.appendChild(title);
 
-  if (section === 'dialogs') {
-    await renderDialogs(container);
-  } else if (section === 'accounts') {
-    await renderAccounts(container);
-  } else if (section === 'sessions') {
-    await renderSessions(container);
-  }
+  if (section === 'dialogs') return renderDialogs(container);
+  if (section === 'accounts') return renderAccounts(container);
+  if (section === 'sessions') return renderSessions(container);
 }
 
 async function loadAccounts() {
@@ -28,75 +24,73 @@ async function loadAccounts() {
   return response.json();
 }
 
+function createPanel(title) {
+  const panel = document.createElement('section');
+  panel.className = 'panel';
+  const h = document.createElement('h3');
+  h.textContent = title;
+  panel.appendChild(h);
+  return panel;
+}
+
 async function renderAccounts(container) {
   const accounts = await loadAccounts();
-  const list = document.createElement('div');
-
   for (const account of accounts) {
-    const item = document.createElement('section');
-    item.className = 'panel';
-    item.innerHTML = `
-      <h3>${escape(account.name || account.id)}</h3>
-      <p>ID: ${escape(account.id)}</p>
-    `;
-    list.appendChild(item);
+    const panel = createPanel(account.name || account.id);
+    panel.insertAdjacentHTML('beforeend', `<p>ID: ${escape(account.id)}</p>`);
+    container.appendChild(panel);
   }
-
-  container.appendChild(list);
 }
 
 async function renderDialogs(container) {
   const accounts = await loadAccounts();
-  const list = document.createElement('div');
 
   for (const account of accounts) {
-    const item = document.createElement('section');
-    item.className = 'panel';
-    item.innerHTML = `
-      <h3>${escape(account.name || account.id)}</h3>
-      <p>Dialog 管理</p>
-      <button type="button">加载 Dialogs</button>
-      <div class="dialogs-list"></div>
-    `;
+    const panel = createPanel(account.name || account.id);
+    const list = document.createElement('div');
+    const button = document.createElement('button');
+    button.textContent = '加载 Dialogs';
 
-    const button = item.querySelector('button');
-    const target = item.querySelector('.dialogs-list');
     button.onclick = async () => {
-      target.textContent = '加载中...';
+      list.textContent = '加载中...';
       try {
         const response = await request(`/api/telegram/accounts/${account.id}/dialogs`);
         if (!response.ok) throw new Error('加载 dialogs 失败');
         const dialogs = await response.json();
-        target.innerHTML = dialogs.map(dialog => `
-          <div>
-            ${escape(dialog.title || dialog.name || dialog.id)}
-            (${escape(dialog.type || 'unknown')})
-          </div>
-        `).join('');
+
+        list.replaceChildren();
+        for (const dialog of dialogs) {
+          const row = document.createElement('div');
+          row.className = 'panel';
+
+          const title = dialog.title || dialog.name || dialog.id;
+          const type = dialog.type || 'unknown';
+          const enabled = dialog.enabled ? 'Enabled' : 'Disabled';
+
+          row.innerHTML = `
+            <strong>${escape(title)}</strong>
+            <div>Type: ${escape(type)}</div>
+            <div>Source: ${enabled}</div>
+          `;
+
+          list.appendChild(row);
+        }
       } catch (error) {
-        target.textContent = error.message;
+        list.textContent = error.message;
       }
     };
 
-    list.appendChild(item);
+    panel.append(button, list);
+    container.appendChild(panel);
   }
-
-  container.appendChild(list);
 }
 
 async function renderSessions(container) {
   const accounts = await loadAccounts();
-  const list = document.createElement('div');
 
   for (const account of accounts) {
-    const item = document.createElement('section');
-    item.className = 'panel';
-    item.innerHTML = `
-      <h3>${escape(account.name || account.id)}</h3>
-      <p>Session 状态</p>
-    `;
-    list.appendChild(item);
+    const panel = createPanel(account.name || account.id);
+    panel.insertAdjacentHTML('beforeend', '<p>Session 状态由 Telegram client 管理。</p>');
+    container.appendChild(panel);
   }
-
-  container.appendChild(list);
 }
