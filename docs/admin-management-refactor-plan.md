@@ -55,7 +55,38 @@ Recycle Bin:
 Future:
 - topic automatic classification
 
-Implementation order:
+## Known issues during refactor validation
+
+### Source toggle refresh coupling
+
+Enable/disable actions must not trigger Dialog discovery refresh.
+
+Current issue:
+
+- Source state changes refresh part of the DOM.
+- The refresh path can trigger Dialog fetching.
+- Dialog discovery and Source lifecycle are separate concerns and should remain decoupled.
+
+Expected behavior:
+
+- Enable/disable refreshes Source state only.
+- Dialog discovery is triggered only by reconciliation or explicit Dialog operations.
+
+### Source runtime synchronization after fresh deployment
+
+Observed behavior:
+
+- After a fresh deployment, enabling Source A can populate resources correctly.
+- Enabling additional Sources B/C may not immediately populate resources.
+- After individually toggling Sources, later combinations behave normally.
+
+Suspected area:
+
+- Database Source enabled state and in-memory scanner runtime state may become temporarily inconsistent.
+- Validation should trace Source enable API, runtime notification, scanner reconciliation and scanner task creation.
+
+## Implementation order
+
 1. Download stability
 2. Preserve architecture
 3. Admin APIs
