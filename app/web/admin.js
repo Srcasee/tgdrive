@@ -25,9 +25,13 @@
     </section>`;
   }
 
-  async function refreshAdminState(accounts) {
-    await window.TGDriveAdmin.dialogs.load(accounts, request, setStatus, () => loadAccounts());
+  async function refreshSources() {
     await window.TGDriveAdmin.sources.load(request);
+  }
+
+  async function refreshAdminState(accounts) {
+    await window.TGDriveAdmin.dialogs.load(accounts, request, setStatus, refreshSources);
+    await refreshSources();
   }
 
   async function loadAccounts() {
