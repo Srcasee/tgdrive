@@ -1,10 +1,14 @@
-# Admin Management Interface Refactor Plan v1
+# Admin Management Interface Refactor Plan v2
 
 ## Goal
 
-Separate Telegram discovery, Source configuration, scanner runtime status, and resource management into independent management domains while keeping the existing Core architecture unchanged.
+Transform TGDrive Admin from a mixed management page into a domain-separated control plane while preserving the current backend architecture:
 
-The refactor must preserve these boundaries:
+- `app/core` remains lifecycle orchestration only.
+- `app/telegram` keeps Telegram discovery, scanner and downloader domains.
+- Admin only controls configuration and displays runtime state through APIs.
+
+Core domain boundaries:
 
 ```text
 Dialog Discovery
@@ -21,78 +25,89 @@ Source configuration
 Scanner runtime
         |
         v
-Resources
+Catalog / Ingestion / Resources
 ```
-
-Admin must not directly control Telegram discovery except through explicit reconciliation operations.
 
 ---
 
 # 1. New Sidebar Structure
 
 ```text
-Dashboard
+TGDrive Admin
 
-Telegram
-├── Accounts
-├── Dialogs
-├── Sources
-└── Reconciliation
-
-Resources
-├── Resource browser
-├── Categories
+├── Dashboard
+│
+├── Telegram
+│    ├── Accounts
+│    ├── Dialogs
+│    └── Sessions
+│
+├── Resources
+│    ├── Sources
+│    ├── Files
+│    └── Categories
+│
+├── Scanner
+│    ├── Tasks
+│    ├── Logs
+│    └── Settings
+│
+├── Download
+│    ├── Active
+│    └── History
+│
+├── System
+│    ├── Config
+│    └── API
+│
 └── Recycle Bin
-
-Downloads
-
-System
-└── Settings
 ```
 
 ---
 
-# 2. Dialog Management
+# 2. Dialog Domain
 
-Purpose:
-
-Display Telegram resources discovered by Dialog Discovery.
+Dialog represents Telegram discovery results.
 
 Responsibilities:
 
-- show available channels
-- show discovery status
-- allow explicit reconciliation
-- provide Source creation entry
+- store Telegram channel/group discovery data
+- display available Telegram sources
+- provide explicit reconciliation entry
 
-Rules:
+Dialog does not own:
 
-- Dialog page reads cached dialog data.
-- Opening the page must not repeatedly trigger Telegram discovery.
-- First initialization may use lazy discovery when no cache exists.
+- scanner state
+- download state
+- resource lifecycle
+
+Important rules:
+
+- Opening Dialog page reads cached dialog data.
+- First initialization may perform lazy discovery when cache is empty.
+- Refreshing browser pages must not repeatedly trigger discovery.
 - Manual reconciliation remains explicit.
 
-Dialog does not:
+Recommended model:
 
-- start Scanner
-- download files
-- modify Resource state directly
+```text
+Dialog
+  |
+  +-- discovered Telegram metadata
+```
 
 ---
 
-# 3. Source Management
+# 3. Source Domain
 
-Purpose:
-
-Manage which Telegram resources are scanned.
+Source represents user-selected scanning configuration.
 
 Responsibilities:
 
-- enable Source
-- disable Source
-- view scan status
-- trigger manual scan
-- manage source metadata
+- enable/disable scanning
+- manage scan status
+- trigger scanner actions
+- maintain source metadata
 
 Flow:
 
@@ -100,7 +115,7 @@ Flow:
 Enable Source
       |
       v
-SourceRepository
+Create/update Source
       |
       v
 ScannerManager wakeup
@@ -109,107 +124,252 @@ ScannerManager wakeup
 Scanner
 ```
 
-Enable/disable operations must not trigger Dialog Discovery.
+Important:
 
----
+Dialog must not contain scanner configuration state.
 
-# 4. Scanner Runtime View
-
-New runtime-oriented view:
-
-Display:
-
-- active scanner tasks
-- last scan time
-- current Source state
-- errors
-
-This view is read-only for runtime state.
-
----
-
-# 5. Resource Management
-
-Resources page:
-
-- browse catalog resources
-- search
-- classify
-- batch operations
-
-Resource management must remain independent from Telegram discovery.
-
----
-
-# 6. Recycle Bin
-
-Future implementation:
-
-Delete operation flow:
+Source disable:
 
 ```text
-Delete Resource
+Source.enabled=false
+        |
+        v
+Stop scanning this source
+        |
+        v
+Keep existing resources
+```
+
+Resources are hidden by policy, not deleted.
+
+---
+
+# 4. Delete and Recycle Bin Design
+
+Delete is not physical removal for discovered Telegram objects.
+
+Flow:
+
+```text
+Delete Dialog
       |
       v
-Recycle Bin
+Recycle Bin / Ignore state
       |
-      +--> Restore
-      |
-      +--> Permanent delete
+      v
+Discovery will not restore automatically
+```
+
+Future unified recycle model:
+
+```text
+recycle_items
+
+id
+object_type
+object_id
+deleted_at
+```
+
+Supported objects:
+
+- Dialog
+- Source
+- Resource
+- Download task
+
+---
+
+# 5. Resource and Category System
+
+Categories become independent entities:
+
+```text
+categories
+
+id
+name
+parent_id
+```
+
+Example:
+
+```text
+Movies
+ ├── Domestic
+ ├── Europe
+ └── Asia
+
+TV
+ ├── US
+ └── Korea
+```
+
+Resource classification should support multiple categories:
+
+```text
+resource_categories
+
+resource_id
+category_id
 ```
 
 ---
 
-# 7. Frontend State Rules
+# 6. Topic Automatic Classification
 
-Current known problem:
-
-- Source enable/disable refreshes partial DOM state.
-- Some refresh paths unnecessarily request Dialog data.
-
-Target behavior:
+Telegram topic mapping should use Telegram API terminology:
 
 ```text
-Dialog page
-    |
-    +--> dialog API
+message_thread_id
+```
 
-Source page
-    |
-    +--> source API
+Future mapping:
 
-Runtime page
+```text
+Telegram Topic
+        |
+        v
+Scanner
+        |
+        v
+message_thread_id
+        |
+        v
+topic_category_mapping
+        |
+        v
+Category
+```
+
+---
+
+# 7. Scanner Management
+
+Scanner becomes an observable runtime domain.
+
+New views:
+
+- Tasks
+- Logs
+- Settings
+
+Possible runtime model:
+
+```text
+scanner_tasks
+
+id
+source_id
+status
+started_at
+finished_at
+error
+```
+
+Current behavior retained:
+
+- Source changes wake Scanner.
+- Scanner performs full enabled Source scan.
+- Incremental scanning is deferred.
+
+---
+
+# 8. Download Management
+
+Download UI separates:
+
+```text
+Active
+History
+```
+
+Downloader and Delivery architecture remain unchanged.
+
+---
+
+# 9. Frontend State Isolation
+
+Current known issue:
+
+- Source enable/disable may trigger unnecessary dialog refresh requests.
+
+Future rule:
+
+```text
+Dialogs page
     |
-    +--> scanner status API
+    +-- Dialog API
+
+Sources page
+    |
+    +-- Source API
+
+Scanner page
+    |
+    +-- Runtime API
 ```
 
 No cross-domain implicit refresh.
 
 ---
 
-# 8. Implementation Order
+# 10. API Refactor Direction
 
-1. Separate Admin API responsibilities.
-2. Separate Dialog and Source frontend state.
-3. Add scanner runtime status view.
-4. Remove unnecessary DOM refresh coupling.
-5. Add batch Source/resource operations.
-6. Add recycle bin workflow.
-7. Add Topic classification support.
+Current backend modules are domain modules, not necessarily URL prefixes.
+
+Target organization:
+
+```text
+/dashboard
+/telegram/accounts
+/telegram/dialogs
+/telegram/sessions
+/resources/sources
+/resources/files
+/resources/categories
+/scanner/tasks
+/scanner/logs
+/download
+/system
+/recycle
+```
+
+Migration should be incremental.
+
+---
+
+# 11. Implementation Order
+
+1. Introduce Admin V2 frontend structure.
+2. Separate Dialog and Source API responsibilities.
+3. Migrate Dialog page.
+4. Migrate Source page.
+5. Add Scanner runtime pages.
+6. Add Resource and Category management.
+7. Add Download management.
+8. Add Recycle Bin workflow.
 
 ---
 
 # Deferred Issues
 
-## Source scanner full scan
+## Admin DOM refresh coupling
 
-Current behavior is intentionally retained:
+Known issue:
 
-- Source changes wake Scanner.
-- Scanner performs a full enabled Source scan.
+Source operations can cause unnecessary Dialog UI refresh.
 
-Optimization is deferred until correctness and Admin refactor are complete.
+Deferred to Admin V2.
 
-## Download stability
+## Source full scan optimization
 
-Download retry/resume improvements remain independent from Admin refactor.
+Current behavior retained for correctness:
+
+Source wakeup triggers full enabled Source scan.
+
+Incremental scanning is future optimization.
+
+## Download retry/resume bug
+
+Independent from Admin refactor.
