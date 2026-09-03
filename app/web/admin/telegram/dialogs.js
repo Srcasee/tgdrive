@@ -10,7 +10,7 @@
   }
 
   window.TGDriveAdmin.dialogs = {
-    async load(accounts, request, setStatus, reload) {
+    async load(accounts, request, setStatus, refreshSources) {
       const root = document.getElementById("telegram-dialogs-page");
       if (!root) return;
       root.replaceChildren();
@@ -39,7 +39,7 @@
               });
               if (!r.ok) throw new Error("禁用失败");
               setStatus("Source 已禁用");
-              await reload();
+              await refreshSources();
             };
             actions.appendChild(disable);
           } else {
@@ -52,7 +52,7 @@
               });
               if (!r.ok) throw new Error("启用失败");
               setStatus("Source 已启用，等待扫描");
-              await reload();
+              await refreshSources();
             };
             actions.appendChild(enable);
           }
