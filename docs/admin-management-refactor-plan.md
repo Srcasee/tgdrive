@@ -1,375 +1,227 @@
-# Admin Management Interface Refactor Plan v2
+# Admin Management Interface Refactor Plan V3
 
 ## Goal
 
-Transform TGDrive Admin from a mixed management page into a domain-separated control plane while preserving the current backend architecture:
+Replace the current mixed Admin injection model with an independent management application while preserving backend domain boundaries.
 
-- `app/core` remains lifecycle orchestration only.
-- `app/telegram` keeps Telegram discovery, scanner and downloader domains.
-- Admin only controls configuration and displays runtime state through APIs.
+The refactor does not change Telegram lifecycle, scanner, catalog, ingestion, downloader or delivery architecture.
 
-Core domain boundaries:
+The Admin frontend becomes a control plane:
 
 ```text
-Dialog Discovery
-        |
-        v
-Dialogs cache
-
-Admin Dialog management
-        |
-        v
-Source configuration
-        |
-        v
-Scanner runtime
-        |
-        v
-Catalog / Ingestion / Resources
+Admin UI
+   |
+   +-- API
+          |
+          +-- Telegram domain
+          +-- Resource domain
+          +-- Scanner domain
+          +-- Download domain
+          +-- System domain
 ```
 
 ---
 
-# 1. New Sidebar Structure
+# 1. Current Problems
+
+Current frontend contains two different models:
 
 ```text
-TGDrive Admin
+index.html
+ |
+ +-- user resource UI
+ |
+ +-- inline javascript
 
-├── Dashboard
+admin.js
+ |
+ +-- Telegram panel injection
+```
+
+Problems:
+
+- Admin UI lifecycle depends on the user page.
+- Telegram modules depend on global window initialization order.
+- Dialog refresh and Source operations were historically coupled.
+- Adding new management domains would further increase coupling.
+
+---
+
+# 2. New Frontend Structure
+
+Target:
+
+```text
+app/web/
+
+├── index.html
 │
-├── Telegram
-│    ├── Accounts
-│    ├── Dialogs
-│    └── Sessions
+├── admin.html
 │
-├── Resources
-│    ├── Sources
-│    ├── Files
-│    └── Categories
-│
-├── Scanner
-│    ├── Tasks
-│    ├── Logs
-│    └── Settings
-│
-├── Download
-│    ├── Active
-│    └── History
-│
-├── System
-│    ├── Config
-│    └── API
-│
-└── Recycle Bin
+├── admin/
+│   │
+│   ├── app.js
+│   ├── api.js
+│   ├── router.js
+│   ├── layout.js
+│   │
+│   ├── pages/
+│   │   ├── dashboard.js
+│   │   │
+│   │   ├── telegram/
+│   │   │   ├── accounts.js
+│   │   │   ├── dialogs.js
+│   │   │   └── sessions.js
+│   │   │
+│   │   ├── resources/
+│   │   │   ├── sources.js
+│   │   │   ├── files.js
+│   │   │   └── categories.js
+│   │   │
+│   │   ├── scanner/
+│   │   │   ├── tasks.js
+│   │   │   ├── logs.js
+│   │   │   └── settings.js
+│   │   │
+│   │   ├── download/
+│   │   │   ├── active.js
+│   │   │   └── history.js
+│   │   │
+│   │   ├── system/
+│   │   │   ├── config.js
+│   │   │   └── api.js
+│   │   │
+│   │   └── recycle-bin.js
 ```
 
 ---
 
-# 2. Dialog Domain
+# 3. Migration Principle
 
-Dialog represents Telegram discovery results.
+Do not introduce a frontend framework.
+
+Use native JavaScript modules first.
+
+Rules:
+
+- One page owns one domain.
+- One page refreshes only its own data.
+- API calls are isolated in domain modules.
+- No DOM manipulation across domains.
+
+---
+
+# 4. Telegram Dialogs
+
+Dialogs represent Telegram discovery state.
 
 Responsibilities:
 
-- store Telegram channel/group discovery data
-- display available Telegram sources
-- provide explicit reconciliation entry
+- show discovered channels
+- enable/disable Source configuration
+- reconcile Telegram state
 
-Dialog does not own:
+Dialogs do not own:
 
-- scanner state
-- download state
+- scanner runtime
+- download status
 - resource lifecycle
 
-Important rules:
-
-- Opening Dialog page reads cached dialog data.
-- First initialization may perform lazy discovery when cache is empty.
-- Refreshing browser pages must not repeatedly trigger discovery.
-- Manual reconciliation remains explicit.
-
-Recommended model:
+Flow:
 
 ```text
-Dialog
-  |
-  +-- discovered Telegram metadata
+Open Dialog page
+        |
+        v
+Read Dialog API
+        |
+        v
+User enables Source
+        |
+        v
+Create Source
 ```
+
+Browser refresh must not automatically trigger discovery.
 
 ---
 
-# 3. Source Domain
+# 5. Sources
 
-Source represents user-selected scanning configuration.
-
-Responsibilities:
-
-- enable/disable scanning
-- manage scan status
-- trigger scanner actions
-- maintain source metadata
+Sources represent scanner configuration.
 
 Flow:
 
 ```text
-Enable Source
+Source enabled
       |
       v
-Create/update Source
+telegram_source
       |
       v
-ScannerManager wakeup
+ScannerManager
       |
       v
 Scanner
 ```
 
-Important:
+Source actions refresh only Source page.
 
-Dialog must not contain scanner configuration state.
-
-Source disable:
-
-```text
-Source.enabled=false
-        |
-        v
-Stop scanning this source
-        |
-        v
-Keep existing resources
-```
-
-Resources are hidden by policy, not deleted.
+They do not reload Dialog discovery.
 
 ---
 
-# 4. Delete and Recycle Bin Design
+# 6. API Compatibility
 
-Delete is not physical removal for discovered Telegram objects.
+Existing API URLs remain unchanged during migration.
 
-Flow:
+No `/v2` API namespace.
 
-```text
-Delete Dialog
-      |
-      v
-Recycle Bin / Ignore state
-      |
-      v
-Discovery will not restore automatically
-```
-
-Future unified recycle model:
-
-```text
-recycle_items
-
-id
-object_type
-object_id
-deleted_at
-```
-
-Supported objects:
-
-- Dialog
-- Source
-- Resource
-- Download task
+Frontend migration and backend API migration are independent.
 
 ---
 
-# 5. Resource and Category System
+# 7. Migration Order
 
-Categories become independent entities:
+Phase 1:
 
-```text
-categories
+- Add admin.html
+- Add admin app shell
+- Add router
 
-id
-name
-parent_id
-```
+Phase 2:
 
-Example:
+- Migrate Telegram Accounts
+- Migrate Dialogs
+- Migrate Sources
 
-```text
-Movies
- ├── Domestic
- ├── Europe
- └── Asia
+Phase 3:
 
-TV
- ├── US
- └── Korea
-```
+- Scanner pages
+- Download pages
 
-Resource classification should support multiple categories:
+Phase 4:
 
-```text
-resource_categories
-
-resource_id
-category_id
-```
-
----
-
-# 6. Topic Automatic Classification
-
-Telegram topic mapping should use Telegram API terminology:
-
-```text
-message_thread_id
-```
-
-Future mapping:
-
-```text
-Telegram Topic
-        |
-        v
-Scanner
-        |
-        v
-message_thread_id
-        |
-        v
-topic_category_mapping
-        |
-        v
-Category
-```
-
----
-
-# 7. Scanner Management
-
-Scanner becomes an observable runtime domain.
-
-New views:
-
-- Tasks
-- Logs
-- Settings
-
-Possible runtime model:
-
-```text
-scanner_tasks
-
-id
-source_id
-status
-started_at
-finished_at
-error
-```
-
-Current behavior retained:
-
-- Source changes wake Scanner.
-- Scanner performs full enabled Source scan.
-- Incremental scanning is deferred.
-
----
-
-# 8. Download Management
-
-Download UI separates:
-
-```text
-Active
-History
-```
-
-Downloader and Delivery architecture remain unchanged.
-
----
-
-# 9. Frontend State Isolation
-
-Current known issue:
-
-- Source enable/disable may trigger unnecessary dialog refresh requests.
-
-Future rule:
-
-```text
-Dialogs page
-    |
-    +-- Dialog API
-
-Sources page
-    |
-    +-- Source API
-
-Scanner page
-    |
-    +-- Runtime API
-```
-
-No cross-domain implicit refresh.
-
----
-
-# 10. API Refactor Direction
-
-Current backend modules are domain modules, not necessarily URL prefixes.
-
-Target organization:
-
-```text
-/dashboard
-/telegram/accounts
-/telegram/dialogs
-/telegram/sessions
-/resources/sources
-/resources/files
-/resources/categories
-/scanner/tasks
-/scanner/logs
-/download
-/system
-/recycle
-```
-
-Migration should be incremental.
-
----
-
-# 11. Implementation Order
-
-1. Introduce Admin V2 frontend structure.
-2. Separate Dialog and Source API responsibilities.
-3. Migrate Dialog page.
-4. Migrate Source page.
-5. Add Scanner runtime pages.
-6. Add Resource and Category management.
-7. Add Download management.
-8. Add Recycle Bin workflow.
+- Resource management
+- Categories
+- Recycle Bin
 
 ---
 
 # Deferred Issues
 
-## Admin DOM refresh coupling
-
-Known issue:
-
-Source operations can cause unnecessary Dialog UI refresh.
-
-Deferred to Admin V2.
-
 ## Source full scan optimization
 
-Current behavior retained for correctness:
+Current behavior retained:
 
-Source wakeup triggers full enabled Source scan.
+Every Source enable triggers a full scan.
 
-Incremental scanning is future optimization.
+Optimization deferred.
 
-## Download retry/resume bug
+## Download resume/retry bug
 
-Independent from Admin refactor.
+Independent issue.
+
+## Legacy admin.js
+
+Keep temporarily as compatibility layer until Admin V3 migration completes.
