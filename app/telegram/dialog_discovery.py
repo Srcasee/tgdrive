@@ -25,7 +25,7 @@ class DialogDiscoveryService:
                 "is_channel": bool(dialog.is_channel),
             })
 
-        selectable = [d for d in dialogs if d["is_group"] or d["is_channel"]]
+        selectable = [d for d in dialogs if d["is_channel"]]
         selectable_ids = [d["id"] for d in selectable]
 
         removed_chat_ids = self.source_repository.remove_missing_dialogs(account_id, selectable_ids)
