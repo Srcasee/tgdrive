@@ -8,6 +8,9 @@ Get a fresh Docker host from zero to a working Telegram-backed tgdrive without m
 
 ```bash
 git clone https://github.com/Srcasee/tgdrive.git
+（无法访问Github使用镜像代理
+git clone https://gh-proxy.com/https://github.com/Srcasee/tgdrive.git
+git clone https://gh-proxy.com/https://github.com/Srcasee/tgdrive.git）
 cd tgdrive
 ./deploy.sh
 ```
