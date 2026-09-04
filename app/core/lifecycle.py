@@ -22,6 +22,7 @@ class ApplicationLifecycle:
     def __init__(self):
         self.scanner_task = None
         self.authorized_accounts = set()
+        self.discovered_accounts = set()
         self.telegram_enabled = False
 
         self.account_repository = AccountRepository()
@@ -76,6 +77,16 @@ class ApplicationLifecycle:
                     for row in self.account_repository.list_enabled_sessions()
                 }
 
+                disabled_names = self.authorized_accounts | self.discovered_accounts
+                for name in list(disabled_names):
+                    if name in enabled:
+                        continue
+                    self.authorized_accounts.discard(name)
+                    self.discovered_accounts.discard(name)
+                    task = self.scanner_manager.tasks.pop(name, None)
+                    if task is not None and not task.done():
+                        task.cancel()
+
                 for name, account_id in enabled.items():
                     client = clients.get(name)
                     if client is None:
@@ -99,11 +110,13 @@ class ApplicationLifecycle:
                             print(f"[TG] authorization failed: {name}: {exc!r}", flush=True)
                             continue
 
-                    try:
-                        await self.dialog_discovery.refresh(client, account_id, name)
-                    except Exception as exc:
-                        print(f"[TG] dialog discovery failed: {name}: {exc!r}", flush=True)
-                        continue
+                    if name not in self.discovered_accounts:
+                        try:
+                            await self.dialog_discovery.refresh(client, account_id, name)
+                            self.discovered_accounts.add(name)
+                        except Exception as exc:
+                            print(f"[TG] dialog discovery failed: {name}: {exc!r}", flush=True)
+                            continue
 
                     sources = self.source_repository.list_enabled_for_account(account_id)
                     if sources:
@@ -124,11 +137,7 @@ class ApplicationLifecycle:
 
     async def _run_one(self, account_id, account_name, client):
         try:
-            await scanner_loop(
-                client,
-                account_id,
-                self.scanner_manager,
-            )
+            await scanner_loop(client, account_id, self.scanner_manager)
         except asyncio.CancelledError:
             raise
         except Exception as exc:
@@ -144,6 +153,7 @@ class ApplicationLifecycle:
 
         await self.scanner_manager.stop_all()
         self.authorized_accounts.clear()
+        self.discovered_accounts.clear()
 
         if self.telegram_enabled:
             for name, client in get_clients().items():
