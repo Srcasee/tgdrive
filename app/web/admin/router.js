@@ -1,5 +1,6 @@
 import { renderTelegram } from './telegram.js';
 import { renderResources } from './resources.js';
+import { renderScanner } from './scanner.js';
 
 const routes = {
   '#dashboard': (container) => { container.textContent = 'Dashboard'; },
@@ -9,14 +10,14 @@ const routes = {
   '#resources/sources': (container) => renderResources(container, 'sources'),
   '#resources/files': (container) => renderResources(container, 'files'),
   '#resources/categories': (container) => renderResources(container, 'categories'),
-  '#scanner/tasks': (container) => { container.textContent = 'Scanner Tasks'; },
-  '#scanner/logs': (container) => { container.textContent = 'Scanner Logs'; },
-  '#scanner/settings': (container) => { container.textContent = 'Scanner Settings'; },
-  '#download/active': (container) => { container.textContent = 'Download Active'; },
-  '#download/history': (container) => { container.textContent = 'Download History'; },
-  '#system/config': (container) => { container.textContent = 'System Config'; },
-  '#system/api': (container) => { container.textContent = 'System API'; },
-  '#recycle': (container) => { container.textContent = 'Recycle Bin'; },
+  '#scanner/tasks': (container) => renderScanner(container, 'tasks'),
+  '#scanner/logs': (container) => renderScanner(container, 'logs'),
+  '#scanner/settings': (container) => renderScanner(container, 'settings'),
+  '#download/active': (container) => { container.textContent = '下载 / 活动'; },
+  '#download/history': (container) => { container.textContent = '下载 / 历史'; },
+  '#system/config': (container) => { container.textContent = '系统 / 配置'; },
+  '#system/api': (container) => { container.textContent = '系统 / API'; },
+  '#recycle': (container) => { container.textContent = '回收站'; },
 };
 
 export function navigate(path) {
