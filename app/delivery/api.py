@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 from urllib.parse import quote
 
@@ -23,37 +24,27 @@ download_service = DownloadService(resource_repository=resource_repository)
 
 
 def _parse_range_or_416(value, size):
-    try:
-        return parse_single_range(value, size)
-    except InvalidRange:
-        return None
+    try: return parse_single_range(value, size)
+    except InvalidRange: return None
 
 
 def _resource(resource_id):
     resource = resource_repository.get(resource_id)
-    if not resource:
-        return None
-    if resource.get("status") != "active" or resource.get("is_available") is False:
-        return None
+    if not resource: return None
+    if resource.get("status") != "active" or resource.get("is_available") is False: return None
     return resource
 
 
 def _content_disposition(filename, disposition="attachment"):
-    # RFC 6266/5987: keep the UTF-8 filename intact for Chinese and other
-    # non-ASCII names while retaining a conservative ASCII fallback.
-    safe_ascii = "".join(ch if 32 <= ord(ch) < 127 and ch not in '\\"' else "_" for ch in filename)
-    if not safe_ascii:
-        safe_ascii = "download"
+    safe_ascii = "".join(ch if 32 <= ord(ch) < 127 and ch not in '\\"' else "_" for ch in filename) or "download"
     return f'{disposition}; filename="{safe_ascii}"; filename*=UTF-8\'\'{quote(filename, safe="")}'
 
 
 def _stream_response(resource_id, range_header, disposition, created_by=None):
     resource = _resource(resource_id)
-    if not resource:
-        return api_error("not_found", "resource not found", 404)
+    if not resource: return api_error("not_found", "resource not found", 404)
     parsed = _parse_range_or_416(range_header, resource["size"])
-    if parsed is None:
-        return Response(status_code=416, headers={"Content-Range": f"bytes */{resource['size']}"})
+    if parsed is None: return Response(status_code=416, headers={"Content-Range": f"bytes */{resource['size']}"})
     start, end, partial = parsed
     content_length = end - start + 1
     verify_full_content = not partial and start == 0 and content_length == resource["size"]
@@ -61,59 +52,39 @@ def _stream_response(resource_id, range_header, disposition, created_by=None):
     digest = hashlib.sha256() if verify_full_content else None
     record_id = download_service.start(resource_id, created_by=created_by)
 
-    def on_source(row):
-        source_holder["id"] = row["id"]
+    def on_source(row): source_holder["id"] = row["id"]
 
     async def stream():
         downloaded = 0
         try:
-            async for chunk in source_selector.stream_resource(
-                resource_id, offset=start, on_source=on_source if verify_full_content else None
-            ):
+            async for chunk in source_selector.stream_resource(resource_id, offset=start, on_source=on_source if verify_full_content else None):
                 remaining = content_length - downloaded
-                if remaining <= 0:
-                    break
+                if remaining <= 0: break
                 chunk = chunk[:remaining]
                 downloaded += len(chunk)
-                if digest:
-                    digest.update(chunk)
+                if digest: digest.update(chunk)
                 yield chunk
-                if downloaded >= content_length:
-                    break
-
+                if downloaded >= content_length: break
             if downloaded != content_length:
-                raise RuntimeError(
-                    f"Telegram source ended early: expected {content_length} bytes, got {downloaded}"
-                )
-            if digest and source_holder.get("id") is not None:
-                resource_repository.verify_file(source_holder["id"], digest.hexdigest())
-            if record_id is not None:
-                download_service.complete(record_id, downloaded)
+                raise RuntimeError(f"Telegram source ended early: expected {content_length} bytes, got {downloaded}")
+            if digest and source_holder.get("id") is not None: resource_repository.verify_file(source_holder["id"], digest.hexdigest())
+            if record_id is not None: download_service.complete(record_id, downloaded)
+        except asyncio.CancelledError:
+            if record_id is not None: download_service.fail(record_id, downloaded, "download cancelled by client")
+            raise
         except Exception as exc:
-            if record_id is not None:
-                download_service.fail(record_id, downloaded, str(exc))
+            if record_id is not None: download_service.fail(record_id, downloaded, str(exc))
             raise
 
-    headers = {
-        "Accept-Ranges": "bytes",
-        "Content-Length": str(content_length),
-        "Content-Disposition": disposition,
-    }
-    if partial:
-        headers["Content-Range"] = f"bytes {start}-{end}/{resource['size']}"
-    return StreamingResponse(
-        stream(),
-        status_code=206 if partial else 200,
-        media_type=resource["mime_type"] or "application/octet-stream",
-        headers=headers,
-    )
+    headers={"Accept-Ranges":"bytes","Content-Length":str(content_length),"Content-Disposition":disposition}
+    if partial: headers["Content-Range"]=f"bytes {start}-{end}/{resource['size']}"
+    return StreamingResponse(stream(), status_code=206 if partial else 200, media_type=resource["mime_type"] or "application/octet-stream", headers=headers)
 
 
 @router.post("/{resource_id}/share")
 async def create_share(resource_id: int, _: Principal = Depends(require_user)):
     resource = _resource(resource_id)
-    if not resource:
-        return api_error("not_found", "resource not found", 404)
+    if not resource: return api_error("not_found", "resource not found", 404)
     share = share_repository.create(resource_id)
     token = share["token"] if isinstance(share, dict) else share
     share_id = share.get("id") if isinstance(share, dict) else None
@@ -121,79 +92,36 @@ async def create_share(resource_id: int, _: Principal = Depends(require_user)):
 
 
 @router.get("/{resource_id}/download")
-async def download_resource(
-    resource_id: int,
-    range_header: str | None = Header(default=None, alias="Range"),
-    principal: Principal = Depends(require_user),
-):
-    resource = _resource(resource_id)
-    if not resource:
-        return api_error("not_found", "resource not found", 404)
-    return _stream_response(
-        resource_id,
-        range_header,
-        _content_disposition(resource["filename"]),
-        created_by=principal.subject,
-    )
+async def download_resource(resource_id:int, range_header:str|None=Header(default=None,alias="Range"), principal:Principal=Depends(require_user)):
+    return _stream_response(resource_id, range_header, _content_disposition(_resource(resource_id)["filename"]) if _resource(resource_id) else "attachment", created_by=principal.subject)
 
 
 @router.head("/{resource_id}/download")
-async def download_head(resource_id: int, _: Principal = Depends(require_user)):
-    resource = _resource(resource_id)
-    if not resource:
-        return Response(status_code=404)
-    return Response(
-        headers={
-            "Accept-Ranges": "bytes",
-            "Content-Length": str(resource["size"]),
-            "Content-Disposition": _content_disposition(resource["filename"]),
-            "Content-Type": resource["mime_type"] or "application/octet-stream",
-        }
-    )
+async def download_head(resource_id:int, _:Principal=Depends(require_user)):
+    resource=_resource(resource_id)
+    if not resource:return Response(status_code=404)
+    return Response(headers={"Accept-Ranges":"bytes","Content-Length":str(resource["size"]),"Content-Disposition":_content_disposition(resource["filename"]),"Content-Type":resource["mime_type"] or "application/octet-stream"})
 
 
 @router.get("/{resource_id}/stream")
-async def stream_resource(
-    resource_id: int,
-    range_header: str | None = Header(None, alias="Range"),
-    principal: Principal = Depends(require_user),
-):
-    return _stream_response(
-        resource_id,
-        range_header,
-        "inline",
-        created_by=principal.subject,
-    )
+async def stream_resource(resource_id:int, range_header:str|None=Header(None,alias="Range"), principal:Principal=Depends(require_user)):
+    return _stream_response(resource_id, range_header, "inline", created_by=principal.subject)
 
 
 @router.head("/{resource_id}/stream")
-async def stream_head(resource_id: int, _: Principal = Depends(require_user)):
-    resource = _resource(resource_id)
-    if not resource:
-        return Response(status_code=404)
-    return Response(
-        headers={
-            "Accept-Ranges": "bytes",
-            "Content-Length": str(resource["size"]),
-            "Content-Disposition": "inline",
-            "Content-Type": resource["mime_type"] or "application/octet-stream",
-        }
-    )
+async def stream_head(resource_id:int, _:Principal=Depends(require_user)):
+    resource=_resource(resource_id)
+    if not resource:return Response(status_code=404)
+    return Response(headers={"Accept-Ranges":"bytes","Content-Length":str(resource["size"]),"Content-Disposition":"inline","Content-Type":resource["mime_type"] or "application/octet-stream"})
 
 
 share_router = APIRouter(prefix="/share", tags=["delivery"])
 
 
 @share_router.get("/{token}")
-async def shared_download(token: str, range_header: str | None = Header(None, alias="Range")):
-    resource_id = share_repository.get_resource_id(token)
-    if resource_id is None:
-        return api_error("not_found", "share link not found", 404)
-    resource = _resource(resource_id)
-    if not resource:
-        return api_error("not_found", "resource not found", 404)
-    return _stream_response(
-        resource_id,
-        range_header,
-        _content_disposition(resource["filename"]),
-    )
+async def shared_download(token:str, range_header:str|None=Header(None,alias="Range")):
+    resource_id=share_repository.get_resource_id(token)
+    if resource_id is None:return api_error("not_found","share link not found",404)
+    resource=_resource(resource_id)
+    if not resource:return api_error("not_found","resource not found",404)
+    return _stream_response(resource_id,range_header,_content_disposition(resource["filename"]))
