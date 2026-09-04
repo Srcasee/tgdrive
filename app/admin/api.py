@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 from auth.dependencies import require_admin
 from auth.models import Principal
 from catalog.repository import CatalogRepository
+from download.service import DownloadService
 from repositories.categories import CategoryRepository
 from repositories.shares import ShareRepository
 
@@ -11,6 +12,7 @@ router = APIRouter(prefix="/api/admin", tags=["admin"])
 category_repository = CategoryRepository()
 catalog_repository = CatalogRepository()
 share_repository = ShareRepository()
+download_service = DownloadService()
 
 
 class CategoryInput(BaseModel):
@@ -70,3 +72,13 @@ def set_resource_categories(
     if not updated:
         raise HTTPException(status_code=404, detail="resource not found")
     return updated
+
+
+@router.get("/downloads/active")
+def list_active_downloads(_: Principal = Depends(require_admin)):
+    return download_service.active()
+
+
+@router.get("/downloads/history")
+def list_download_history(_: Principal = Depends(require_admin)):
+    return download_service.history()
