@@ -10,21 +10,47 @@ export const menu = [
 
 export function renderMenu(container, onNavigate) {
   container.replaceChildren();
+
+  const brand = document.createElement('div');
+  brand.className = 'menu-brand';
+  const title = document.createElement('strong');
+  title.textContent = 'TGDrive Admin';
+  const subtitle = document.createElement('small');
+  subtitle.textContent = '管理后台';
+  brand.append(title, subtitle);
+  container.appendChild(brand);
+
   for (const item of menu) {
-    const title = document.createElement('div');
-    title.className = 'menu-item';
-    title.textContent = item.name;
-    container.appendChild(title);
     if (item.children) {
+      const group = document.createElement('div');
+      group.className = 'menu-group';
+      const section = document.createElement('div');
+      section.className = 'menu-section';
+      section.textContent = item.name;
+      group.appendChild(section);
       for (const [name, path] of item.children) {
         const child = document.createElement('div');
         child.className = 'menu-child';
+        child.dataset.path = path;
         child.textContent = name;
         child.onclick = () => onNavigate(path);
-        container.appendChild(child);
+        group.appendChild(child);
       }
-    } else {
-      title.onclick = () => onNavigate(item.path);
+      container.appendChild(group);
+      continue;
     }
+
+    const link = document.createElement('div');
+    link.className = 'menu-item';
+    link.dataset.path = item.path;
+    link.textContent = item.name;
+    link.onclick = () => onNavigate(item.path);
+    container.appendChild(link);
   }
+}
+
+export function updateActiveMenu(path) {
+  document.querySelectorAll('#menu [data-path]').forEach((item) => {
+    item.classList.toggle('active', item.dataset.path === path);
+  });
 }
