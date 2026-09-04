@@ -9,6 +9,7 @@ from auth.models import Principal
 from common.response import api_error
 from delivery.range import InvalidRange, parse_single_range
 from delivery.source_selector import TelegramSourceSelector
+from download.service import DownloadService
 from repositories.resources import ResourceRepository
 from repositories.shares import ShareRepository
 from repositories.telegram_files import TelegramFileRepository
@@ -18,6 +19,7 @@ telegram_file_repository = TelegramFileRepository()
 resource_repository = ResourceRepository()
 share_repository = ShareRepository()
 source_selector = TelegramSourceSelector(telegram_file_repository)
+download_service = DownloadService(resource_repository=resource_repository)
 
 
 def _parse_range_or_416(value, size):
@@ -45,7 +47,7 @@ def _content_disposition(filename, disposition="attachment"):
     return f'{disposition}; filename="{safe_ascii}"; filename*=UTF-8\'\'{quote(filename, safe="")}'
 
 
-def _stream_response(resource_id, range_header, disposition):
+def _stream_response(resource_id, range_header, disposition, created_by=None):
     resource = _resource(resource_id)
     if not resource:
         return api_error("not_found", "resource not found", 404)
@@ -57,32 +59,40 @@ def _stream_response(resource_id, range_header, disposition):
     verify_full_content = not partial and start == 0 and content_length == resource["size"]
     source_holder = {}
     digest = hashlib.sha256() if verify_full_content else None
+    record_id = download_service.start(resource_id, created_by=created_by)
 
     def on_source(row):
         source_holder["id"] = row["id"]
 
     async def stream():
         downloaded = 0
-        async for chunk in source_selector.stream_resource(
-            resource_id, offset=start, on_source=on_source if verify_full_content else None
-        ):
-            remaining = content_length - downloaded
-            if remaining <= 0:
-                break
-            chunk = chunk[:remaining]
-            downloaded += len(chunk)
-            if digest:
-                digest.update(chunk)
-            yield chunk
-            if downloaded >= content_length:
-                break
+        try:
+            async for chunk in source_selector.stream_resource(
+                resource_id, offset=start, on_source=on_source if verify_full_content else None
+            ):
+                remaining = content_length - downloaded
+                if remaining <= 0:
+                    break
+                chunk = chunk[:remaining]
+                downloaded += len(chunk)
+                if digest:
+                    digest.update(chunk)
+                yield chunk
+                if downloaded >= content_length:
+                    break
 
-        if downloaded != content_length:
-            raise RuntimeError(
-                f"Telegram source ended early: expected {content_length} bytes, got {downloaded}"
-            )
-        if digest and source_holder.get("id") is not None:
-            resource_repository.verify_file(source_holder["id"], digest.hexdigest())
+            if downloaded != content_length:
+                raise RuntimeError(
+                    f"Telegram source ended early: expected {content_length} bytes, got {downloaded}"
+                )
+            if digest and source_holder.get("id") is not None:
+                resource_repository.verify_file(source_holder["id"], digest.hexdigest())
+            if record_id is not None:
+                download_service.complete(record_id, downloaded)
+        except Exception as exc:
+            if record_id is not None:
+                download_service.fail(record_id, downloaded, str(exc))
+            raise
 
     headers = {
         "Accept-Ranges": "bytes",
@@ -114,7 +124,7 @@ async def create_share(resource_id: int, _: Principal = Depends(require_user)):
 async def download_resource(
     resource_id: int,
     range_header: str | None = Header(default=None, alias="Range"),
-    _: Principal = Depends(require_user),
+    principal: Principal = Depends(require_user),
 ):
     resource = _resource(resource_id)
     if not resource:
@@ -123,6 +133,7 @@ async def download_resource(
         resource_id,
         range_header,
         _content_disposition(resource["filename"]),
+        created_by=principal.subject,
     )
 
 
@@ -145,9 +156,14 @@ async def download_head(resource_id: int, _: Principal = Depends(require_user)):
 async def stream_resource(
     resource_id: int,
     range_header: str | None = Header(None, alias="Range"),
-    _: Principal = Depends(require_user),
+    principal: Principal = Depends(require_user),
 ):
-    return _stream_response(resource_id, range_header, "inline")
+    return _stream_response(
+        resource_id,
+        range_header,
+        "inline",
+        created_by=principal.subject,
+    )
 
 
 @router.head("/{resource_id}/stream")
