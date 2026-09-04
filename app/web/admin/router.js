@@ -1,6 +1,23 @@
+import { updateActiveMenu } from './layout.js';
+
 const routes = {
   '#dashboard': (container) => {
-    container.textContent = '仪表盘';
+    container.replaceChildren();
+    const page = document.createElement('div');
+    page.className = 'admin-page';
+    page.innerHTML = `
+      <header class="admin-page-header">
+        <div>
+          <h1>仪表盘</h1>
+          <p>Telegram Drive 管理后台</p>
+        </div>
+      </header>
+      <section class="panel">
+        <h3>快速入口</h3>
+        <p class="admin-muted">从左侧导航进入 Telegram、资源、扫描器和下载管理。</p>
+      </section>
+    `;
+    container.appendChild(page);
   },
   '#telegram/accounts': (container) => loadModule('./telegram.js', container, 'accounts'),
   '#telegram/dialogs': (container) => loadModule('./telegram.js', container, 'dialogs'),
@@ -13,16 +30,22 @@ const routes = {
   '#scanner/settings': (container) => loadModule('./scanner.js', container, 'settings'),
   '#download/active': (container) => loadModule('./download.js', container, 'active'),
   '#download/history': (container) => loadModule('./download.js', container, 'history'),
-  '#system/config': (container) => {
-    container.textContent = '系统 / 配置';
-  },
-  '#system/api': (container) => {
-    container.textContent = '系统 / API';
-  },
-  '#recycle': (container) => {
-    container.textContent = '回收站';
-  },
+  '#system/config': (container) => renderPlaceholder(container, '系统 / 配置', '当前没有系统配置管理 API。'),
+  '#system/api': (container) => renderPlaceholder(container, '系统 / API', '当前没有 API 管理 API。'),
+  '#recycle': (container) => renderPlaceholder(container, '回收站', '回收站生命周期尚未接入后端。'),
 };
+
+function renderPlaceholder(container, title, message) {
+  container.replaceChildren();
+  const page = document.createElement('div');
+  page.className = 'admin-page';
+  page.innerHTML = `<header class="admin-page-header"><div><h1>${title}</h1></div></header>`;
+  const panel = document.createElement('section');
+  panel.className = 'panel';
+  panel.textContent = message;
+  page.appendChild(panel);
+  container.appendChild(page);
+}
 
 async function loadModule(path, container, section) {
   try {
@@ -34,13 +57,17 @@ async function loadModule(path, container, section) {
         : path === './scanner.js'
           ? module.renderScanner
           : module.renderDownload;
+    if (typeof renderer !== 'function') throw new Error(`模块 ${path} 没有可用的渲染函数`);
     await renderer(container, section);
   } catch (error) {
     container.replaceChildren();
+    const page = document.createElement('div');
+    page.className = 'admin-page';
     const box = document.createElement('div');
     box.className = 'admin-error';
     box.textContent = `页面加载失败：${error.message}`;
-    container.appendChild(box);
+    page.appendChild(box);
+    container.appendChild(page);
     console.error(`Failed to load admin module ${path}`, error);
   }
 }
@@ -50,8 +77,9 @@ export function navigate(path) {
 }
 
 export async function renderRoute(container, path = location.hash || '#dashboard') {
-  const route = routes[path] || routes['#dashboard'];
-  await route(container);
+  const routePath = routes[path] ? path : '#dashboard';
+  updateActiveMenu(routePath);
+  await routes[routePath](container);
 }
 
 export function initRouter(container) {
