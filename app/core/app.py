@@ -3,6 +3,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
 
 from admin.api import router as admin_router
 from auth.api import router as auth_router
@@ -12,7 +13,8 @@ from delivery.api import router as delivery_router, share_router
 from telegram.api import router as telegram_router
 
 WEB_INDEX = Path("/app/web/index.html")
-ADMIN_SCRIPT = '<script src="/admin.js" defer></script>'
+ADMIN_INDEX = Path("/app/web/admin.html")
+ADMIN_DIR = Path("/app/web/admin")
 
 
 @asynccontextmanager
@@ -28,8 +30,11 @@ async def lifespan(app: FastAPI):
 
 def web_index_response():
     html = WEB_INDEX.read_text(encoding="utf-8")
-    if ADMIN_SCRIPT not in html:
-        html = html.replace("</body>", f"{ADMIN_SCRIPT}</body>")
+    return HTMLResponse(html, headers={"Cache-Control": "no-store"})
+
+
+def admin_index_response():
+    html = ADMIN_INDEX.read_text(encoding="utf-8")
     return HTMLResponse(html, headers={"Cache-Control": "no-store"})
 
 
@@ -50,12 +55,10 @@ def create_app():
     async def web():
         return web_index_response()
 
-    @app.get("/admin.js", include_in_schema=False)
-    async def admin_js():
-        return FileResponse(
-            "/app/web/admin.js",
-            media_type="application/javascript",
-            headers={"Cache-Control": "no-store"},
-        )
+    @app.get("/admin", include_in_schema=False)
+    @app.get("/admin/", include_in_schema=False)
+    async def admin():
+        return admin_index_response()
 
+    app.mount("/admin", StaticFiles(directory=ADMIN_DIR), name="admin-static")
     return app
