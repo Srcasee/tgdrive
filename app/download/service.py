@@ -16,14 +16,8 @@ class DownloadService:
             return None
         return self.repository.create(resource, created_by=created_by)
 
-    def complete(self, record_id, bytes_transferred):
-        self.repository.complete(record_id, bytes_transferred)
-
-    def fail(self, record_id, bytes_transferred, error):
-        self.repository.fail(record_id, bytes_transferred, error)
-
-    def active(self, limit=100):
-        return self.repository.list_active(limit)
-
-    def history(self, limit=100):
-        return self.repository.list_history(limit)
+    def complete(self, record_id, bytes_transferred): self.repository.complete(record_id, bytes_transferred)
+    def fail(self, record_id, bytes_transferred, error): self.repository.fail(record_id, bytes_transferred, error)
+    def delete(self, record_id): return self.repository.delete(record_id)
+    def active(self, limit=100): return self.repository.list_active(limit)
+    def history(self, limit=100): return self.repository.list_history(limit)
