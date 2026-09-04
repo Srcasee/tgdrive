@@ -4,7 +4,7 @@ import { renderScanner } from './scanner.js';
 import { renderDownload } from './download.js';
 
 const routes = {
-  '#dashboard': (container) => { container.textContent = 'Dashboard'; },
+  '#dashboard': (container) => { container.textContent = '仪表盘'; },
   '#telegram/accounts': (container) => renderTelegram(container, 'accounts'),
   '#telegram/dialogs': (container) => renderTelegram(container, 'dialogs'),
   '#telegram/sessions': (container) => renderTelegram(container, 'sessions'),
@@ -22,7 +22,7 @@ const routes = {
 };
 
 export function navigate(path) {
-  location.hash = path;
+  if (location.hash !== path) location.hash = path;
 }
 
 export function renderRoute(container, path = location.hash || '#dashboard') {
