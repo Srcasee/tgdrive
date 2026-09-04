@@ -102,5 +102,24 @@ def init_database():
                 """)
                 cursor.execute("INSERT INTO schema_migrations(version) VALUES (8)")
 
+            if 9 not in applied:
+                cursor.execute("""
+                    CREATE TABLE download_records (
+                        id BIGSERIAL PRIMARY KEY,
+                        resource_id BIGINT NOT NULL REFERENCES resources(id) ON DELETE RESTRICT,
+                        filename TEXT NOT NULL,
+                        size BIGINT NOT NULL DEFAULT 0,
+                        status TEXT NOT NULL CHECK (status IN ('active', 'completed', 'failed')),
+                        started_at BIGINT NOT NULL,
+                        completed_at BIGINT,
+                        bytes_transferred BIGINT NOT NULL DEFAULT 0,
+                        error TEXT,
+                        created_by TEXT
+                    );
+                    CREATE INDEX idx_download_records_status_started ON download_records(status, started_at DESC);
+                    CREATE INDEX idx_download_records_resource ON download_records(resource_id);
+                """)
+                cursor.execute("INSERT INTO schema_migrations(version) VALUES (9)")
+
             conn.commit()
             print("[DB] PostgreSQL database initialized", flush=True)
