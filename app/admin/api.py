@@ -24,61 +24,51 @@ class ResourceCategoriesInput(BaseModel):
 
 
 @router.get("/categories")
-def list_categories(_: Principal = Depends(require_admin)):
-    return category_repository.list_all()
+def list_categories(_: Principal = Depends(require_admin)): return category_repository.list_all()
 
 
 @router.post("/categories")
 def create_category(data: CategoryInput, _: Principal = Depends(require_admin)):
-    try:
-        return category_repository.create(data.name)
-    except Exception as exc:
-        raise HTTPException(status_code=409, detail="category already exists") from exc
+    try: return category_repository.create(data.name)
+    except Exception as exc: raise HTTPException(status_code=409, detail="category already exists") from exc
 
 
 @router.put("/categories/{category_id}")
 def update_category(category_id: int, data: CategoryInput, _: Principal = Depends(require_admin)):
     category = category_repository.update(category_id, data.name)
-    if not category:
-        raise HTTPException(status_code=404, detail="category not found")
+    if not category: raise HTTPException(status_code=404, detail="category not found")
     return category
 
 
 @router.delete("/categories/{category_id}")
 def delete_category(category_id: int, _: Principal = Depends(require_admin)):
-    deleted = category_repository.delete(category_id)
-    if not deleted:
-        raise HTTPException(status_code=404, detail="category not found")
-    return {"status": "ok"}
+    if not category_repository.delete(category_id): raise HTTPException(status_code=404, detail="category not found")
+    return {"status":"ok"}
 
 
 @router.delete("/shares/{share_id}")
 def delete_share(share_id: int, _: Principal = Depends(require_admin)):
-    if not share_repository.delete(share_id):
-        raise HTTPException(status_code=404, detail="share link not found")
-    return {"status": "ok"}
+    if not share_repository.delete(share_id): raise HTTPException(status_code=404, detail="share link not found")
+    return {"status":"ok"}
 
 
 @router.put("/resources/{resource_id}/categories")
-def set_resource_categories(
-    resource_id: int,
-    data: ResourceCategoriesInput,
-    _: Principal = Depends(require_admin),
-):
-    try:
-        updated = catalog_repository.set_categories(resource_id, data.category_ids)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    if not updated:
-        raise HTTPException(status_code=404, detail="resource not found")
+def set_resource_categories(resource_id: int, data: ResourceCategoriesInput, _: Principal = Depends(require_admin)):
+    try: updated = catalog_repository.set_categories(resource_id, data.category_ids)
+    except ValueError as exc: raise HTTPException(status_code=404, detail=str(exc)) from exc
+    if not updated: raise HTTPException(status_code=404, detail="resource not found")
     return updated
 
 
 @router.get("/downloads/active")
-def list_active_downloads(_: Principal = Depends(require_admin)):
-    return download_service.active()
+def list_active_downloads(_: Principal = Depends(require_admin)): return download_service.active()
 
 
 @router.get("/downloads/history")
-def list_download_history(_: Principal = Depends(require_admin)):
-    return download_service.history()
+def list_download_history(_: Principal = Depends(require_admin)): return download_service.history()
+
+
+@router.delete("/downloads/{record_id}")
+def delete_download_record(record_id: int, _: Principal = Depends(require_admin)):
+    if not download_service.delete(record_id): raise HTTPException(status_code=404, detail="download record not found")
+    return {"status":"ok", "id":record_id}
