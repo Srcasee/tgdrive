@@ -23,22 +23,13 @@ class DialogRepository:
 
     def replace_for_account(self, account_id, dialogs):
         self.ensure_table()
-        # Only Telegram channels are valid tgdrive sources.
-        # Groups, users, bots and other dialog types are intentionally ignored.
-        resource_dialogs = [
-            dialog for dialog in dialogs
-            if dialog.get("is_channel", False)
-        ]
+        resource_dialogs = [dialog for dialog in dialogs if dialog.get("is_channel", False)]
         current_ids = {dialog["id"] for dialog in resource_dialogs}
         with transaction() as conn:
             with conn.cursor() as cursor:
-                cursor.execute(
-                    "SELECT telegram_chat_id FROM telegram_dialogs WHERE account_id=%s",
-                    (account_id,),
-                )
+                cursor.execute("SELECT telegram_chat_id FROM telegram_dialogs WHERE account_id=%s", (account_id,))
                 previous_ids = {row["telegram_chat_id"] for row in cursor.fetchall()}
                 removed_ids = sorted(previous_ids - current_ids)
-
                 cursor.execute("DELETE FROM telegram_dialogs WHERE account_id=%s", (account_id,))
                 for dialog in resource_dialogs:
                     cursor.execute(
@@ -46,18 +37,10 @@ class DialogRepository:
                         INSERT INTO telegram_dialogs
                             (account_id, telegram_chat_id, name, username, entity_type,
                              is_group, is_channel, updated_at)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s,
-                                EXTRACT(EPOCH FROM NOW())::BIGINT)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, EXTRACT(EPOCH FROM NOW())::BIGINT)
                         """,
-                        (
-                            account_id,
-                            dialog["id"],
-                            dialog.get("name"),
-                            dialog.get("username"),
-                            dialog.get("entity_type", "channel"),
-                            False,
-                            True,
-                        ),
+                        (account_id, dialog["id"], dialog.get("name"), dialog.get("username"),
+                         dialog.get("entity_type", "channel"), False, True),
                     )
         return removed_ids
 
@@ -74,10 +57,8 @@ class DialogRepository:
                            s.scan_status
                     FROM telegram_dialogs d
                     LEFT JOIN telegram_sources s
-                      ON s.account_id=d.account_id
-                     AND s.telegram_chat_id=d.telegram_chat_id
-                    WHERE d.account_id=%s
-                      AND d.is_channel=TRUE
+                      ON s.account_id=d.account_id AND s.telegram_chat_id=d.telegram_chat_id
+                    WHERE d.account_id=%s AND d.is_channel=TRUE
                     ORDER BY d.name NULLS LAST, d.telegram_chat_id
                     """,
                     (account_id,),
@@ -88,8 +69,12 @@ class DialogRepository:
         self.ensure_table()
         with transaction() as conn:
             with conn.cursor() as cursor:
-                cursor.execute(
-                    "DELETE FROM telegram_dialogs WHERE account_id=%s AND telegram_chat_id=%s",
-                    (account_id, telegram_chat_id),
-                )
+                cursor.execute("DELETE FROM telegram_dialogs WHERE account_id=%s AND telegram_chat_id=%s", (account_id, telegram_chat_id))
                 return cursor.rowcount > 0
+
+    def delete_all_for_account(self, account_id):
+        self.ensure_table()
+        with transaction() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("DELETE FROM telegram_dialogs WHERE account_id=%s", (account_id,))
+                return cursor.rowcount
