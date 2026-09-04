@@ -1,5 +1,5 @@
 import { renderMenu, setMenuUser } from './layout.js';
-import { initRouter } from './router.js';
+import { initRouter, navigate } from './router.js';
 
 async function getIdentity() {
   const response = await fetch('/auth/me', {cache: 'no-store'});
@@ -9,11 +9,15 @@ async function getIdentity() {
 
 function renderLogin(root) {
   root.replaceChildren();
+  document.getElementById('menu')?.replaceChildren();
+  const header = document.getElementById('admin-header');
+  if (header) header.hidden = true;
+
   const page = document.createElement('div');
   page.className = 'admin-login-page';
   page.innerHTML = `
     <section class="admin-login-card">
-      <div class="admin-login-brand">TGDrive Admin</div>
+      <div class="admin-login-brand">管理后台</div>
       <h1>管理员登录</h1>
       <p class="admin-muted">登录后进入 TGDrive 管理后台。</p>
       <form class="admin-login-form">
@@ -55,6 +59,47 @@ function renderLogin(root) {
   form.elements.username.focus();
 }
 
+function renderUserMenu(user) {
+  const header = document.getElementById('admin-header');
+  if (!header) return;
+  header.hidden = false;
+  header.replaceChildren();
+
+  const wrapper = document.createElement('details');
+  wrapper.className = 'admin-user-menu';
+
+  const summary = document.createElement('summary');
+  summary.textContent = user.username;
+
+  const panel = document.createElement('div');
+  panel.className = 'admin-user-dropdown';
+  const name = document.createElement('div');
+  name.className = 'admin-user-name';
+  name.textContent = user.username;
+  panel.appendChild(name);
+
+  const logout = document.createElement('button');
+  logout.type = 'button';
+  logout.className = 'admin-logout-button';
+  logout.textContent = '退出';
+  logout.onclick = async () => {
+    logout.disabled = true;
+    try {
+      const response = await fetch('/auth/logout', {method: 'POST'});
+      if (!response.ok) throw new Error('退出失败');
+      wrapper.open = false;
+      await init();
+    } catch (error) {
+      logout.disabled = false;
+      name.textContent = error.message;
+    }
+  };
+
+  panel.appendChild(logout);
+  wrapper.append(summary, panel);
+  header.appendChild(wrapper);
+}
+
 async function init() {
   const root = document.getElementById('content');
   if (!root) return;
@@ -63,11 +108,14 @@ async function init() {
     const user = await getIdentity();
     if (!user) {
       document.body.classList.remove('admin-authenticated');
-      document.getElementById('menu').replaceChildren();
       renderLogin(root);
       return;
     }
     if (user.role !== 'admin') {
+      document.body.classList.remove('admin-authenticated');
+      document.getElementById('menu')?.replaceChildren();
+      const header = document.getElementById('admin-header');
+      if (header) header.hidden = true;
       root.innerHTML = '<div class="admin-page"><section class="panel"><h1>无管理员权限</h1><p class="admin-muted">当前账号不能访问管理后台。</p></section></div>';
       return;
     }
@@ -84,7 +132,8 @@ function renderLayout(user) {
   if (!menu || !content) return;
   document.body.classList.add('admin-authenticated');
   setMenuUser(user);
-  renderMenu(menu);
+  renderMenu(menu, navigate);
+  renderUserMenu(user);
   initRouter(content);
 }
 
