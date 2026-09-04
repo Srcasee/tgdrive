@@ -19,15 +19,8 @@ export function renderMenu(container, onNavigate) {
 
   const brand = document.createElement('div');
   brand.className = 'menu-brand';
-  brand.innerHTML = '<strong>TGDrive Admin</strong><small>管理后台</small>';
+  brand.textContent = '管理后台';
   container.appendChild(brand);
-
-  if (currentUser) {
-    const user = document.createElement('div');
-    user.className = 'menu-user';
-    user.textContent = currentUser.username;
-    container.appendChild(user);
-  }
 
   for (const item of menu) {
     if (!item.children) {
@@ -46,16 +39,17 @@ export function renderMenu(container, onNavigate) {
     const header = document.createElement('button');
     header.type = 'button';
     header.className = 'menu-group-header';
-    header.setAttribute('aria-expanded', 'true');
+    header.setAttribute('aria-expanded', 'false');
     const label = document.createElement('span');
     label.textContent = item.name;
     const arrow = document.createElement('span');
     arrow.className = 'menu-arrow';
-    arrow.textContent = '▾';
+    arrow.textContent = '▸';
     header.append(label, arrow);
 
     const children = document.createElement('div');
     children.className = 'menu-children';
+    children.hidden = true;
     for (const [name, path] of item.children) {
       const child = document.createElement('button');
       child.type = 'button';
@@ -68,9 +62,7 @@ export function renderMenu(container, onNavigate) {
 
     header.onclick = () => {
       const expanded = header.getAttribute('aria-expanded') === 'true';
-      header.setAttribute('aria-expanded', String(!expanded));
-      children.hidden = expanded;
-      arrow.textContent = expanded ? '▸' : '▾';
+      setGroupExpanded(group, !expanded);
     };
 
     group.append(header, children);
@@ -80,25 +72,32 @@ export function renderMenu(container, onNavigate) {
   const collapse = document.createElement('button');
   collapse.type = 'button';
   collapse.className = 'menu-collapse-all';
-  collapse.textContent = '全部收起';
+  collapse.textContent = '全部展开';
   collapse.onclick = () => {
     const groups = container.querySelectorAll('.menu-group');
-    const shouldCollapse = collapse.textContent === '全部收起';
-    groups.forEach((group) => {
-      const header = group.querySelector('.menu-group-header');
-      const children = group.querySelector('.menu-children');
-      const arrow = group.querySelector('.menu-arrow');
-      header.setAttribute('aria-expanded', String(!shouldCollapse));
-      children.hidden = shouldCollapse;
-      arrow.textContent = shouldCollapse ? '▸' : '▾';
-    });
-    collapse.textContent = shouldCollapse ? '全部展开' : '全部收起';
+    const shouldExpand = collapse.textContent === '全部展开';
+    groups.forEach((group) => setGroupExpanded(group, shouldExpand));
+    collapse.textContent = shouldExpand ? '全部收起' : '全部展开';
   };
   container.appendChild(collapse);
+}
+
+function setGroupExpanded(group, expanded) {
+  const header = group.querySelector('.menu-group-header');
+  const children = group.querySelector('.menu-children');
+  const arrow = group.querySelector('.menu-arrow');
+  header.setAttribute('aria-expanded', String(expanded));
+  children.hidden = !expanded;
+  arrow.textContent = expanded ? '▾' : '▸';
 }
 
 export function updateActiveMenu(path) {
   document.querySelectorAll('#menu [data-path]').forEach((item) => {
     item.classList.toggle('active', item.dataset.path === path);
+  });
+
+  document.querySelectorAll('#menu .menu-group').forEach((group) => {
+    const activeChild = group.querySelector(`[data-path="${CSS.escape(path)}"]`);
+    if (activeChild) setGroupExpanded(group, true);
   });
 }
