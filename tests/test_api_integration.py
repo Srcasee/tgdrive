@@ -181,6 +181,19 @@ def test_auth_and_authorization(monkeypatch):
     assert client.get("/api/admin/categories").status_code == 200
 
 
+def test_auth_me_refreshes_session_cookie(monkeypatch):
+    client, _, _ = make_client(monkeypatch)
+    login = client.post("/auth/login", json={"username": "admin", "password": "admin-pass"})
+    assert login.status_code == 200
+
+    refreshed = client.get("/auth/me")
+    assert refreshed.status_code == 200
+    assert "tgdrive_session=" in refreshed.headers["set-cookie"]
+    assert "Max-Age=3600" in refreshed.headers["set-cookie"]
+    assert "HttpOnly" in refreshed.headers["set-cookie"]
+    assert "Path=/" in refreshed.headers["set-cookie"]
+
+
 def test_category_admin_crud(monkeypatch):
     client, _, _ = make_client(monkeypatch)
     client.post("/auth/login", json={"username": "admin", "password": "admin-pass"})
