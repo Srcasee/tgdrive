@@ -16,7 +16,6 @@ class LoginRequest(BaseModel):
     password: str
 
 
-@login = None
 @router.post("/login")
 def login(data: LoginRequest, response: Response):
     user = user_repository.get_by_username(data.username)
