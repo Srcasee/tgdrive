@@ -1,6 +1,7 @@
 import { renderTelegram } from './telegram.js';
 import { renderResources } from './resources.js';
 import { renderScanner } from './scanner.js';
+import { renderDownload } from './download.js';
 
 const routes = {
   '#dashboard': (container) => { container.textContent = 'Dashboard'; },
@@ -13,8 +14,8 @@ const routes = {
   '#scanner/tasks': (container) => renderScanner(container, 'tasks'),
   '#scanner/logs': (container) => renderScanner(container, 'logs'),
   '#scanner/settings': (container) => renderScanner(container, 'settings'),
-  '#download/active': (container) => { container.textContent = '下载 / 活动'; },
-  '#download/history': (container) => { container.textContent = '下载 / 历史'; },
+  '#download/active': (container) => renderDownload(container, 'active'),
+  '#download/history': (container) => renderDownload(container, 'history'),
   '#system/config': (container) => { container.textContent = '系统 / 配置'; },
   '#system/api': (container) => { container.textContent = '系统 / API'; },
   '#recycle': (container) => { container.textContent = '回收站'; },
