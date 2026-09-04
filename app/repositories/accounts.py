@@ -14,6 +14,15 @@ class AccountRepository:
                 )
                 return cursor.fetchall()
 
+    def get(self, account_id):
+        with connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "SELECT id, name, username, session, enabled FROM accounts WHERE id=%s",
+                    (account_id,),
+                )
+                return cursor.fetchone()
+
     def list_enabled_sessions(self):
         with connection() as conn:
             with conn.cursor() as cursor:
