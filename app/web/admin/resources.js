@@ -24,7 +24,12 @@ export async function renderResources(container, section = 'sources') {
     return;
   }
 
-  const panel = createPanel(section === 'files' ? '文件管理' : '分类管理');
+  if (section === 'files') {
+    await renderFiles(container);
+    return;
+  }
+
+  const panel = createPanel('分类管理');
   panel.appendChild(document.createTextNode('模块开发中'));
   container.appendChild(panel);
 }
@@ -69,6 +74,46 @@ async function renderSources(container) {
       };
 
       panel.append(state, button);
+      list.appendChild(panel);
+    }
+  } catch (error) {
+    list.textContent = error.message;
+  }
+}
+
+async function loadFiles() {
+  const response = await request('/catalog?page=1&size=50');
+  if (!response.ok) throw new Error('加载文件失败');
+  return response.json();
+}
+
+async function renderFiles(container) {
+  const list = document.createElement('div');
+  container.appendChild(list);
+
+  try {
+    const payload = await loadFiles();
+    const files = payload.data?.items || payload.data || [];
+
+    if (!files.length) {
+      list.textContent = '暂无资源';
+      return;
+    }
+
+    for (const file of files) {
+      const panel = createPanel(text(file.filename || file.name || `Resource #${file.id}`));
+
+      const meta = document.createElement('p');
+      meta.textContent = `大小: ${file.size ?? '未知'} · ID: ${file.id}`;
+
+      const source = document.createElement('p');
+      source.textContent = `来源数量: ${file.source_count ?? 0}`;
+
+      const download = document.createElement('a');
+      download.href = `/resources/${file.id}/download`;
+      download.textContent = '下载';
+
+      panel.append(meta, source, download);
       list.appendChild(panel);
     }
   } catch (error) {
