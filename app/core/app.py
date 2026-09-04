@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from admin.api import router as admin_router
@@ -12,9 +12,10 @@ from core.lifecycle import ApplicationLifecycle
 from delivery.api import router as delivery_router, share_router
 from telegram.api import router as telegram_router
 
-WEB_INDEX = Path("/app/web/index.html")
-ADMIN_INDEX = Path("/app/web/admin.html")
-ADMIN_DIR = Path("/app/web/admin")
+APP_DIR = Path(__file__).resolve().parents[1]
+WEB_INDEX = APP_DIR / "web" / "index.html"
+ADMIN_INDEX = APP_DIR / "web" / "admin.html"
+ADMIN_DIR = APP_DIR / "web" / "admin"
 
 
 @asynccontextmanager
