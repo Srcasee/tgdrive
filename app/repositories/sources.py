@@ -66,6 +66,20 @@ class SourceRepository:
                     raise ValueError("source not found")
                 return row
 
+    def disable_all_for_account(self, account_id):
+        with transaction() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    UPDATE telegram_sources
+                    SET enabled=FALSE, scan_status='idle', updated_at=EXTRACT(EPOCH FROM NOW())::BIGINT
+                    WHERE account_id=%s AND enabled=TRUE
+                    RETURNING id, telegram_chat_id
+                    """,
+                    (account_id,),
+                )
+                return cursor.fetchall()
+
     def delete(self, source_id):
         with transaction() as conn:
             with conn.cursor() as cursor:
