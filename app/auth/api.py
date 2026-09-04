@@ -16,6 +16,7 @@ class LoginRequest(BaseModel):
     password: str
 
 
+@login = None
 @router.post("/login")
 def login(data: LoginRequest, response: Response):
     user = user_repository.get_by_username(data.username)
@@ -34,10 +35,19 @@ def login(data: LoginRequest, response: Response):
 
 
 @router.get("/me")
-def me(principal: Principal = Depends(current_principal)):
+def me(response: Response, principal: Principal = Depends(current_principal)):
     user = user_repository.get_by_id(int(principal.subject))
     if not user:
         raise HTTPException(status_code=401, detail="user is missing")
+    response.set_cookie(
+        "tgdrive_session",
+        create_token(str(user["id"]), user["role"]),
+        httponly=True,
+        secure=settings.AUTH_COOKIE_SECURE,
+        samesite="lax",
+        max_age=settings.AUTH_TOKEN_TTL,
+        path="/",
+    )
     return user
 
 
