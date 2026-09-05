@@ -1,8 +1,6 @@
 import asyncio
 from types import SimpleNamespace
 
-import pytest
-
 import telegram.scanner as scanner
 
 
