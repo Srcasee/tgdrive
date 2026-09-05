@@ -4,8 +4,8 @@ class CatalogService:
     def __init__(self, repository):
         self.repository = repository
 
-    def list_resources(self, page, size, category_id=None):
-        return self.repository.list_resources(size, (page - 1) * size, category_id)
+    def list_resources(self, page, size, category_id=None, sort="id", order="desc"):
+        return self.repository.list_resources(size, (page - 1) * size, category_id, sort, order)
 
     def search(self, query, limit=100, category_id=None):
         return self.repository.search_resources(query, limit, category_id)
