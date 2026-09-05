@@ -118,3 +118,138 @@ class FakeShares:
         return share
 
     def list_for_resource(self, resource_id):
+        return [
+            {"id": item["id"], "resource_id": item["resource_id"], "token": token, "created_at": 0}
+            for token, item in self.tokens.items()
+            if item["resource_id"] == resource_id
+        ]
+
+    def delete(self, share_id):
+        for token, item in list(self.tokens.items()):
+            if item["id"] == share_id:
+                del self.tokens[token]
+                return True
+        return False
+
+    def get_resource_id(self, token):
+        item = self.tokens.get(token)
+        return item["resource_id"] if item else None
+
+
+async def _noop_startup():
+    return None
+
+
+async def _noop_shutdown():
+    return None
+
+
+def make_client(monkeypatch):
+    users = FakeUsers()
+    categories = FakeCategories()
+    resources = FakeResources()
+    shares = FakeShares()
+    monkeypatch.setattr("auth.api.user_repository", users)
+    monkeypatch.setattr("auth.dependencies.user_repository", users)
+    monkeypatch.setattr("admin.api.category_repository", categories)
+    monkeypatch.setattr("admin.api.share_repository", shares)
+    monkeypatch.setattr("catalog.api.service", CatalogService(resources))
+    monkeypatch.setattr("delivery.api.resource_repository", resources)
+    monkeypatch.setattr("delivery.api.share_repository", shares)
+
+    app = create_app()
+    lifecycle = ApplicationLifecycle()
+    lifecycle.startup = _noop_startup
+    lifecycle.shutdown = _noop_shutdown
+    app.state.lifecycle = lifecycle
+
+    return TestClient(app), resources, shares
+
+
+def test_auth_and_authorization(monkeypatch):
+    client, _, _ = make_client(monkeypatch)
+    assert client.get("/auth/me").status_code == 401
+
+    response = client.post("/auth/login", json={"username": "user", "password": "user-pass"})
+    assert response.status_code == 200
+    assert response.json()["role"] == "user"
+    assert client.get("/auth/me").status_code == 200
+    assert client.get("/api/admin/categories").status_code == 403
+
+    response = client.post("/auth/login", json={"username": "admin", "password": "admin-pass"})
+    assert response.status_code == 200
+    assert client.get("/api/admin/categories").status_code == 200
+
+
+def test_auth_me_refreshes_session_cookie(monkeypatch):
+    client, _, _ = make_client(monkeypatch)
+    login = client.post("/auth/login", json={"username": "admin", "password": "admin-pass"})
+    assert login.status_code == 200
+
+    refreshed = client.get("/auth/me")
+    assert refreshed.status_code == 200
+    assert "tgdrive_session=" in refreshed.headers["set-cookie"]
+    assert "Max-Age=3600" in refreshed.headers["set-cookie"]
+    assert "HttpOnly" in refreshed.headers["set-cookie"]
+    assert "Path=/" in refreshed.headers["set-cookie"]
+
+
+def test_category_admin_crud(monkeypatch):
+    client, _, _ = make_client(monkeypatch)
+    client.post("/auth/login", json={"username": "admin", "password": "admin-pass"})
+
+    created = client.post("/api/admin/categories", json={"name": "Movies"})
+    assert created.status_code == 200
+    category_id = created.json()["id"]
+    assert client.get("/api/admin/categories").json()[0]["name"] == "Movies"
+    assert client.put(f"/api/admin/categories/{category_id}", json={"name": "Films"}).status_code == 200
+    assert client.delete(f"/api/admin/categories/{category_id}").status_code == 200
+
+
+def test_protected_catalog_and_delivery_apis(monkeypatch):
+    client, _, _ = make_client(monkeypatch)
+    assert client.get("/catalog").status_code == 401
+    assert client.get("/catalog/search?q=video").status_code == 401
+    assert client.get("/resources/1/download").status_code == 401
+    assert client.get("/resources/1/stream").status_code == 401
+
+    client.post("/auth/login", json={"username": "user", "password": "user-pass"})
+    assert client.get("/catalog").status_code == 200
+    assert client.get("/catalog/search?q=video").status_code == 200
+    assert client.get("/resources/999/download").status_code == 404
+    assert client.get("/resources/999/stream").status_code == 404
+
+
+def test_unavailable_resource_is_not_downloadable_or_streamable(monkeypatch):
+    client, resources, _ = make_client(monkeypatch)
+    client.post("/auth/login", json={"username": "user", "password": "user-pass"})
+    resources.available[1]["is_available"] = False
+    assert client.get("/resources/1/download").status_code == 404
+    assert client.get("/resources/1/stream").status_code == 404
+
+
+def test_share_link_creation_and_admin_revoke(monkeypatch):
+    client, resources, shares = make_client(monkeypatch)
+    assert client.post("/resources/1/share").status_code == 401
+
+    client.post("/auth/login", json={"username": "user", "password": "user-pass"})
+    response = client.post("/resources/1/share")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["id"] == 1
+    assert payload["url"] == "/share/test-share-token-1"
+    assert payload["resource_id"] == 1
+
+    token = "test-share-token-1"
+    assert client.get("/share/unknown-token").status_code == 404
+    assert shares.get_resource_id(token) == 1
+
+    catalog = client.get("/catalog").json()
+    assert catalog["data"]["items"][0]["shares"] == []
+
+    assert client.delete("/api/admin/shares/1").status_code == 403
+
+    client.post("/auth/login", json={"username": "admin", "password": "admin-pass"})
+    assert client.delete("/api/admin/shares/1").status_code == 200
+    assert client.delete("/api/admin/shares/1").status_code == 404
+    assert shares.get_resource_id(token) is None
