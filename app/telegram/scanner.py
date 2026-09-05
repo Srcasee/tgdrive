@@ -20,7 +20,7 @@ recognizer = TelegramMessageRecognizer()
 async def scan_dialogs(client, account_id):
     """Discover Telegram messages and hand normalized observations to ingestion."""
     count = 0
-    source_rows = source_repository.list_enabled_for_account(account_id)
+    source_rows = await asyncio.to_thread(source_repository.list_enabled_for_account, account_id)
     sources = {row["telegram_chat_id"]: row for row in source_rows}
     async for dialog in _iter_dialogs(client):
         if dialog.id not in sources:
@@ -42,9 +42,8 @@ async def scan_dialogs(client, account_id):
 
 
 async def _scan_source(client, account_id, dialog, source):
-    ingestion_service.begin_source_scan(
-        {**source, "sync_mode": "full"}, account_id, dialog.id
-    )
+    source_for_scan = {**source, "sync_mode": "full"}
+    await asyncio.to_thread(ingestion_service.begin_source_scan, source_for_scan, account_id, dialog.id)
     current_max_message_id = 0
     count = 0
     print("[SCAN] dialog:", dialog.name, "id:", dialog.id, flush=True)
@@ -56,18 +55,32 @@ async def _scan_source(client, account_id, dialog, source):
             if observation is None:
                 continue
             current_max_message_id = max(current_max_message_id, message.id)
-            ingestion_service.ingest(observation)
+            await asyncio.to_thread(ingestion_service.ingest, observation)
             count += 1
 
-        ingestion_service.finish_source_scan(
-            {**source, "sync_mode": "full"}, account_id, dialog.id, current_max_message_id
+        await asyncio.to_thread(
+            ingestion_service.finish_source_scan,
+            source_for_scan,
+            account_id,
+            dialog.id,
+            current_max_message_id,
         )
         return count
     except asyncio.CancelledError:
-        ingestion_service.fail_source_scan({**source, "sync_mode": "full"}, account_id, dialog.id)
+        await asyncio.to_thread(
+            ingestion_service.fail_source_scan,
+            source_for_scan,
+            account_id,
+            dialog.id,
+        )
         raise
     except Exception:
-        ingestion_service.fail_source_scan({**source, "sync_mode": "full"}, account_id, dialog.id)
+        await asyncio.to_thread(
+            ingestion_service.fail_source_scan,
+            source_for_scan,
+            account_id,
+            dialog.id,
+        )
         raise
 
 
