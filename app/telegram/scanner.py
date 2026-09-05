@@ -25,7 +25,19 @@ async def scan_dialogs(client, account_id):
     async for dialog in _iter_dialogs(client):
         if dialog.id not in sources:
             continue
-        count += await _scan_source(client, account_id, dialog, sources[dialog.id])
+        source = sources[dialog.id]
+        try:
+            count += await _scan_source(client, account_id, dialog, source)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            # A single Telegram source must not abort the account scan. The
+            # source has already been marked failed by _scan_source; continue
+            # with the remaining enabled sources.
+            print(
+                f"[SCAN] source failed: {dialog.name} ({dialog.id}): {exc!r}",
+                flush=True,
+            )
     return count
 
 
