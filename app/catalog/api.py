@@ -15,9 +15,11 @@ def list_resources(
     page: int = Query(1, ge=1),
     size: int = Query(50, ge=1, le=200),
     category_id: int | None = Query(None, ge=1),
+    sort: str = Query("id"),
+    order: str = Query("desc", pattern="^(asc|desc)$"),
     _: Principal = Depends(require_user),
 ):
-    total, items = service.list_resources(page, size, category_id)
+    total, items = service.list_resources(page, size, category_id, sort, order)
     return api_success({"total": total, "page": page, "size": size, "items": items})
 
 
