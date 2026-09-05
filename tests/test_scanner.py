@@ -12,16 +12,10 @@ class FakeSourceRepository:
             "name": "source",
             "last_message_id": 10,
             "sync_mode": "full",
-            "enabled": True,
         }
 
     def list_enabled_for_account(self, account_id):
         return [self.source]
-
-    def get(self, source_id):
-        if source_id == self.source["id"]:
-            return self.source
-        return None
 
 
 class FakeIngestionService:
@@ -47,11 +41,13 @@ class FakeClient:
     def __init__(self, messages, fail=False):
         self.messages, self.fail = messages, fail
 
-    async def iter_messages(self, chat_id, **kwargs):
-        assert chat_id == 123
-        assert kwargs == {}
+    async def iter_dialogs(self):
+        yield SimpleNamespace(id=123, entity="entity", name="source")
+
+    async def iter_messages(self, entity, **kwargs):
         if self.fail:
             raise RuntimeError("telegram failure")
+        assert kwargs == {}
         for item in self.messages:
             yield item
 
@@ -59,25 +55,22 @@ class FakeClient:
 class MultiSourceRepository:
     def __init__(self):
         self.sources = [
-            {"id": 1, "telegram_chat_id": 101, "name": "A", "sync_mode": "full", "enabled": True},
-            {"id": 2, "telegram_chat_id": 202, "name": "B", "sync_mode": "full", "enabled": True},
+            {"id": 1, "telegram_chat_id": 101, "name": "A", "sync_mode": "full"},
+            {"id": 2, "telegram_chat_id": 202, "name": "B", "sync_mode": "full"},
         ]
 
     def list_enabled_for_account(self, account_id):
         return self.sources
 
-    def get(self, source_id):
-        return next(source for source in self.sources if source["id"] == source_id)
-
 
 class MultiSourceClient:
-    def __init__(self):
-        self.chat_ids = []
+    async def iter_dialogs(self):
+        yield SimpleNamespace(id=101, entity="entity-a", name="A")
+        yield SimpleNamespace(id=202, entity="entity-b", name="B")
 
-    async def iter_messages(self, chat_id, **kwargs):
+    async def iter_messages(self, entity, **kwargs):
         assert kwargs == {}
-        self.chat_ids.append(chat_id)
-        if chat_id == 101:
+        if entity == "entity-a":
             raise RuntimeError("source A failed")
         yield make_message(20)
 
@@ -137,18 +130,3 @@ def test_one_failed_source_does_not_block_later_sources(monkeypatch):
     assert ("begin", 2, 1, 202) in ingestion.calls
     assert ("ingest", 20, "20.bin") in ingestion.calls
     assert ("finish", 2, 20) in ingestion.calls
-
-
-def test_scanner_loop_only_scans_its_source(monkeypatch):
-    sources = MultiSourceRepository()
-    ingestion = FakeIngestionService()
-    client = MultiSourceClient()
-    monkeypatch.setattr(scanner, "source_repository", sources)
-    monkeypatch.setattr(scanner, "ingestion_service", ingestion)
-
-    async def stop_after_first_scan(_seconds):
-        raise asyncio.CancelledError
-
-    monkeypatch.setattr(scanner.asyncio, "sleep", stop_after_first_scan)
-
-    asyncio.run(scanner.scanner_loop(client, 1, sources.sources[1]))
