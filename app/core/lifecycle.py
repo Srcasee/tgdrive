@@ -6,7 +6,6 @@ from config import settings, validate_telegram_credentials
 from database_pool import close_pool, initialize, open_pool
 from repositories.accounts import AccountRepository
 from repositories.dialogs import DialogRepository
-from repositories.sources import SourceRepository
 from telegram.client import get_client, get_clients
 from telegram.dialog_discovery import DialogDiscoveryService
 from telegram.runtime_events import initialize_source_change_event, notify_source_change, wait_for_source_change
@@ -27,7 +26,6 @@ class ApplicationLifecycle:
 
         self.account_repository = AccountRepository()
         self.dialog_repository = DialogRepository()
-        self.source_repository = SourceRepository()
         self.user_repository = UserRepository()
 
         self.dialog_discovery = DialogDiscoveryService(self.dialog_repository)
@@ -77,6 +75,9 @@ class ApplicationLifecycle:
             self.account_repository.set_enabled(account_id, enabled)
 
             if not enabled:
+                # Disabling is intentionally limited to the two source-of-truth
+                # changes. Runtime reconciliation observes the account state and
+                # removes the client/scanner without making this request fragile.
                 self.authorized_accounts.discard(session_name)
                 self.discovered_accounts.discard(session_name)
                 dialog_error = None
@@ -123,21 +124,21 @@ class ApplicationLifecycle:
                     row["session"]: row["id"]
                     for row in self.account_repository.list_enabled_sessions()
                 }
-                enabled_account_ids = set(enabled.values())
 
-                for key, task in list(self.scanner_manager.tasks.items()):
-                    account_id, _source_id = key
-                    if account_id in enabled_account_ids:
+                disabled_names = self.authorized_accounts | self.discovered_accounts
+                for name in list(disabled_names):
+                    if name in enabled:
                         continue
-                    self.scanner_manager.tasks.pop(key, None)
-                    if not task.done():
+                    self.authorized_accounts.discard(name)
+                    self.discovered_accounts.discard(name)
+                    task = self.scanner_manager.tasks.pop(name, None)
+                    if task is not None and not task.done():
                         task.cancel()
                         try:
                             await task
                         except asyncio.CancelledError:
                             pass
 
-                desired_tasks = set()
                 for name, account_id in enabled.items():
                     client = clients.get(name)
                     if client is None:
@@ -161,35 +162,31 @@ class ApplicationLifecycle:
                             print(f"[TG] authorization failed: {name}: {exc!r}", flush=True)
                             continue
 
-                    sources = await asyncio.to_thread(
-                        self.source_repository.list_enabled_for_account, account_id
-                    )
-                    for source in sources:
-                        key = (account_id, source["id"])
-                        desired_tasks.add(key)
-                        task = self.scanner_manager.tasks.get(key)
+                    sources = self.dialog_repository.list_for_account(account_id)
+                    enabled_sources = [row for row in sources if row["source_enabled"]]
+                    if enabled_sources:
+                        task = self.scanner_manager.tasks.get(name)
                         if task is None or task.done():
-                            self.scanner_manager.tasks[key] = asyncio.create_task(
-                                scanner_loop(client, account_id, source)
+                            self.scanner_manager.tasks[name] = asyncio.create_task(
+                                self._run_one(account_id, name, client)
                             )
 
-                for key, task in list(self.scanner_manager.tasks.items()):
-                    if key in desired_tasks:
-                        continue
-                    self.scanner_manager.tasks.pop(key, None)
-                    if not task.done():
-                        task.cancel()
-                        try:
-                            await task
-                        except asyncio.CancelledError:
-                            pass
-
-                await wait_for_source_change(RECONCILIATION_INTERVAL)
+                changed = await wait_for_source_change(RECONCILIATION_INTERVAL)
+                if changed:
+                    self.scanner_manager.wakeup()
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
-                print(f"[SCAN] source reconciliation error: {exc!r}", flush=True)
+                print(f"[SCAN] account reconciliation error: {exc!r}", flush=True)
                 await asyncio.sleep(60)
+
+    async def _run_one(self, account_id, account_name, client):
+        try:
+            await scanner_loop(client, account_id, self.scanner_manager)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            print(f"[SCAN] {account_name} crashed: {exc!r}", flush=True)
 
     async def shutdown(self):
         if self.scanner_task:
