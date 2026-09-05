@@ -18,27 +18,43 @@ recognizer = TelegramMessageRecognizer()
 
 
 async def scan_dialogs(client, account_id):
-    """Discover Telegram messages and hand normalized observations to ingestion."""
+    """Scan all enabled Telegram sources for an account once."""
     count = 0
     source_rows = await asyncio.to_thread(source_repository.list_enabled_for_account, account_id)
     sources = {row["telegram_chat_id"]: row for row in source_rows}
     async for dialog in _iter_dialogs(client):
-        if dialog.id not in sources:
+        source = sources.get(dialog.id)
+        if source is None:
             continue
-        source = sources[dialog.id]
         try:
-            count += await _scan_source(client, account_id, dialog, source)
+            count += await scan_source(client, account_id, dialog, source)
         except asyncio.CancelledError:
             raise
         except Exception as exc:
-            # A single Telegram source must not abort the account scan. The
-            # source has already been marked failed by _scan_source; continue
-            # with the remaining enabled sources.
             print(
                 f"[SCAN] source failed: {dialog.name} ({dialog.id}): {exc!r}",
                 flush=True,
             )
     return count
+
+
+async def scan_source(client, account_id, source):
+    """Resolve one Telegram source to its dialog and scan it once.
+
+    Telegram message iteration deliberately uses the resolved dialog entity,
+    matching the working Telethon path used by the account-wide scanner.
+    """
+    target_chat_id = source["telegram_chat_id"]
+    async for dialog in _iter_dialogs(client):
+        if dialog.id != target_chat_id:
+            continue
+        return await _scan_source(client, account_id, dialog, source)
+
+    print(
+        f"[SCAN] dialog not found: {source['name']} ({target_chat_id})",
+        flush=True,
+    )
+    return 0
 
 
 async def _scan_source(client, account_id, dialog, source):
@@ -90,6 +106,7 @@ async def _iter_dialogs(client):
 
 
 async def scanner_loop(client, account_id, scanner_manager=None):
+    """Compatibility loop for callers that still request an account-wide scan."""
     print("[SCAN] scanner loop started", flush=True)
     while True:
         try:
