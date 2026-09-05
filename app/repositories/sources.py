@@ -36,17 +36,13 @@ class SourceRepository:
     def get(self, source_id):
         with connection() as conn:
             with conn.cursor() as cursor:
-                cursor.execute(
-                    "SELECT id, account_id, telegram_chat_id, name, enabled FROM telegram_sources WHERE id=%s",
-                    (source_id,))
+                cursor.execute("SELECT id, account_id, telegram_chat_id, name, enabled FROM telegram_sources WHERE id=%s", (source_id,))
                 return cursor.fetchone()
 
     def get_for_chat(self, account_id, telegram_chat_id):
         with connection() as conn:
             with conn.cursor() as cursor:
-                cursor.execute(
-                    "SELECT id, account_id, telegram_chat_id, name, enabled FROM telegram_sources WHERE account_id=%s AND telegram_chat_id=%s",
-                    (account_id, telegram_chat_id))
+                cursor.execute("SELECT id, account_id, telegram_chat_id, name, enabled FROM telegram_sources WHERE account_id=%s AND telegram_chat_id=%s", (account_id, telegram_chat_id))
                 return cursor.fetchone()
 
     def set_enabled(self, source_id, enabled):
@@ -142,6 +138,9 @@ class SourceRepository:
     def mark_failed(self, source_id):
         self._update_status(source_id, "failed")
 
+    def mark_idle(self, source_id):
+        self._update_status(source_id, "idle")
+
     def add(self, account_id, chat_id, name):
         with transaction() as conn:
             with conn.cursor() as cursor:
@@ -151,7 +150,8 @@ class SourceRepository:
                     (account_id, telegram_chat_id, name, enabled)
                     VALUES (%s, %s, %s, TRUE)
                     RETURNING id
-                    """,
+                    """
+                    ,
                     (account_id, chat_id, name),
                 )
                 return cursor.fetchone()["id"]
