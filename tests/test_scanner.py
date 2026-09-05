@@ -130,3 +130,18 @@ def test_one_failed_source_does_not_block_later_sources(monkeypatch):
     assert ("begin", 2, 1, 202) in ingestion.calls
     assert ("ingest", 20, "20.bin") in ingestion.calls
     assert ("finish", 2, 20) in ingestion.calls
+
+
+def test_scan_source_resolves_telegram_dialog_entity(monkeypatch):
+    sources = MultiSourceRepository()
+    ingestion = FakeIngestionService()
+    monkeypatch.setattr(scanner, "source_repository", sources)
+    monkeypatch.setattr(scanner, "ingestion_service", ingestion)
+
+    count = asyncio.run(scanner.scan_source(MultiSourceClient(), 1, sources.sources[1]))
+
+    assert count == 1
+    assert ("begin", 2, 1, 202) in ingestion.calls
+    assert ("ingest", 20, "20.bin") in ingestion.calls
+    assert ("finish", 2, 20) in ingestion.calls
+    assert not any(call[0] == "fail" for call in ingestion.calls)
