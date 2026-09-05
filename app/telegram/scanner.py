@@ -27,7 +27,7 @@ async def scan_dialogs(client, account_id):
         if source is None:
             continue
         try:
-            count += await scan_source(client, account_id, dialog, source)
+            count += await _scan_source(client, account_id, dialog, source)
         except asyncio.CancelledError:
             raise
         except Exception as exc:
@@ -39,11 +39,7 @@ async def scan_dialogs(client, account_id):
 
 
 async def scan_source(client, account_id, source):
-    """Resolve one Telegram source to its dialog and scan it once.
-
-    Telegram message iteration deliberately uses the resolved dialog entity,
-    matching the working Telethon path used by the account-wide scanner.
-    """
+    """Resolve one Telegram source to its dialog and scan it once."""
     target_chat_id = source["telegram_chat_id"]
     async for dialog in _iter_dialogs(client):
         if dialog.id != target_chat_id:
