@@ -35,35 +35,44 @@ function renderPlaceholder(container, title, message) {
 }
 
 async function loadModule(path, container, section) {
-  try {
-    const module = await import(path);
-    const renderer = path === './telegram.js' ? module.renderTelegram
-      : path === './resources.js' ? module.renderResources
-      : path === './scanner.mjs' ? module.renderScanner
-      : module.renderDownload;
-    if (typeof renderer !== 'function') throw new Error(`模块 ${path} 没有可用的渲染函数`);
-    await renderer(container, section);
-  } catch (error) {
-    container.replaceChildren();
-    const page = document.createElement('div'); page.className = 'admin-page';
-    const box = document.createElement('div'); box.className = 'admin-error';
-    box.textContent = `页面加载失败：${error.message}`;
-    page.appendChild(box); container.appendChild(page);
-    console.error(`Failed to load admin module ${path}`, error);
-  }
+  const module = await import(path);
+  const renderer = path === './telegram.js' ? module.renderTelegram
+    : path === './resources.js' ? module.renderResources
+    : path === './scanner.mjs' ? module.renderScanner
+    : module.renderDownload;
+  if (typeof renderer !== 'function') throw new Error(`模块 ${path} 没有可用的渲染函数`);
+  await renderer(container, section);
 }
 
 export function navigate(path) { if (location.hash !== path) location.hash = path; }
 
+let renderGeneration = 0;
+
 export async function renderRoute(container, path = location.hash || '#dashboard') {
   const routePath = routes[path] ? path : '#dashboard';
-  updateActiveMenu(routePath); await routes[routePath](container);
+  const generation = ++renderGeneration;
+  updateActiveMenu(routePath);
+
+  // Render into a detached host first. A slow request from an older route can
+  // finish later, but it can no longer append stale DOM into the live page.
+  const host = document.createElement('div');
+  try {
+    await routes[routePath](host);
+  } catch (error) {
+    host.replaceChildren();
+    const page = document.createElement('div'); page.className = 'admin-page';
+    const box = document.createElement('div'); box.className = 'admin-error';
+    box.textContent = `页面加载失败：${error.message}`;
+    page.appendChild(box); host.appendChild(page);
+    console.error('Admin route error', error);
+  }
+
+  if (generation !== renderGeneration) return;
+  container.replaceChildren(...host.childNodes);
 }
 
 export function initRouter(container) {
-  const update = () => renderRoute(container).catch((error) => {
-    container.innerHTML = `<div class="admin-page"><div class="admin-error">页面加载失败：${error.message}</div></div>`;
-    console.error('Admin route error', error);
-  });
-  window.addEventListener('hashchange', update); update();
+  const update = () => renderRoute(container);
+  window.addEventListener('hashchange', update);
+  update();
 }
