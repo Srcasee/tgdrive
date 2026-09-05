@@ -8,9 +8,9 @@ from database_pool import close_pool, initialize, open_pool
 from repositories.accounts import AccountRepository
 from repositories.dialogs import DialogRepository
 from repositories.sources import SourceRepository
-from telegram.client import get_clients
+from telegram.client import get_client, get_clients, refresh_clients
 from telegram.dialog_discovery import DialogDiscoveryService
-from telegram.runtime_events import initialize_source_change_event, wait_for_source_change
+from telegram.runtime_events import initialize_source_change_event, notify_source_change, wait_for_source_change
 from telegram.scanner import scanner_loop
 from telegram.scanner_manager import ScannerManager
 
@@ -24,6 +24,7 @@ class ApplicationLifecycle:
         self.authorized_accounts = set()
         self.discovered_accounts = set()
         self.telegram_enabled = False
+        self.account_lock = asyncio.Lock()
 
         self.account_repository = AccountRepository()
         self.dialog_repository = DialogRepository()
@@ -68,6 +69,69 @@ class ApplicationLifecycle:
                 hash_password(settings.ADMIN_PASSWORD),
             )
 
+    async def _stop_account_task(self, session_name):
+        task = self.scanner_manager.tasks.pop(session_name, None)
+        if task is not None and not task.done():
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+    async def set_account_enabled(self, account_id, enabled):
+        """Apply account lifecycle changes and perform one discovery on enable."""
+        async with self.account_lock:
+            account = self.account_repository.get(account_id)
+            if not account:
+                raise ValueError("account not found")
+
+            session_name = account["session"]
+            if account["enabled"] == enabled:
+                return {"discovered": False}
+
+            if not enabled:
+                await self._stop_account_task(session_name)
+                self.authorized_accounts.discard(session_name)
+                self.discovered_accounts.discard(session_name)
+
+                sources = self.source_repository.list_enabled_for_account(account_id)
+                chat_ids = [row["telegram_chat_id"] for row in sources]
+                self.source_repository.disable_all_for_account(account_id)
+                self.dialog_repository.delete_all_for_account(account_id)
+                self.catalog_repository.deactivate_telegram_chats(account_id, chat_ids)
+
+                self.account_repository.set_enabled(account_id, False)
+                refresh_clients()
+                notify_source_change()
+                return {"discovered": False}
+
+            self.account_repository.set_enabled(account_id, True)
+            refresh_clients()
+
+            discovered = False
+            discovery_error = None
+            try:
+                client = get_client(account_id)
+                if not client.is_connected():
+                    await client.connect()
+                if await client.is_user_authorized():
+                    self.authorized_accounts.add(session_name)
+                    self.telegram_enabled = True
+                    await self.dialog_discovery.refresh(client, account_id, session_name)
+                    self.discovered_accounts.add(session_name)
+                    discovered = True
+                else:
+                    discovery_error = "Telegram 账号尚未授权"
+            except Exception as exc:
+                discovery_error = str(exc)
+                print(f"[TG] dialog discovery failed: {session_name}: {exc!r}", flush=True)
+
+            notify_source_change()
+            result = {"discovered": discovered}
+            if discovery_error:
+                result["discovery_error"] = discovery_error
+            return result
+
     async def _run_scanners(self):
         while True:
             try:
@@ -83,9 +147,7 @@ class ApplicationLifecycle:
                         continue
                     self.authorized_accounts.discard(name)
                     self.discovered_accounts.discard(name)
-                    task = self.scanner_manager.tasks.pop(name, None)
-                    if task is not None and not task.done():
-                        task.cancel()
+                    await self._stop_account_task(name)
 
                 for name, account_id in enabled.items():
                     client = clients.get(name)
@@ -110,14 +172,9 @@ class ApplicationLifecycle:
                             print(f"[TG] authorization failed: {name}: {exc!r}", flush=True)
                             continue
 
-                    if name not in self.discovered_accounts:
-                        try:
-                            await self.dialog_discovery.refresh(client, account_id, name)
-                            self.discovered_accounts.add(name)
-                        except Exception as exc:
-                            print(f"[TG] dialog discovery failed: {name}: {exc!r}", flush=True)
-                            continue
-
+                    # Dialog discovery is deliberately lifecycle-driven: enabling an
+                    # account performs exactly one discovery. Refreshing the Dialogs
+                    # page only reads the persisted discovery result.
                     sources = self.source_repository.list_enabled_for_account(account_id)
                     if sources:
                         task = self.scanner_manager.tasks.get(name)

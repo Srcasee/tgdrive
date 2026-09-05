@@ -97,7 +97,21 @@ echo "[DEPLOY] step 4/7: validating Compose configuration"
 docker compose config >/dev/null
 
 echo "[DEPLOY] step 5/7: building Core + PostgreSQL"
-docker compose build telegram-drive
+BUILD_CPUS=${DEPLOY_BUILD_CPUS:-1.0}
+BUILD_QUOTA=$(awk -v cpus="$BUILD_CPUS" 'BEGIN { printf "%d", cpus * 100000 }')
+if docker buildx version >/dev/null 2>&1 && docker buildx build --help 2>/dev/null | grep -q -- '--resource'; then
+    echo "[DEPLOY] limiting Core build to ${BUILD_CPUS} CPU"
+    BUILDX_NO_DEFAULT_ATTESTATIONS=1 docker buildx build \
+        --load \
+        --provenance=false \
+        --resource "cpu-period=100000" \
+        --resource "cpu-quota=${BUILD_QUOTA}" \
+        -t tgdrive-core:local \
+        -f Dockerfile .
+else
+    echo "[DEPLOY] Buildx resource limits unavailable; using Compose build"
+    docker compose build telegram-drive
+fi
 
 echo "[DEPLOY] step 6/7: starting Core + PostgreSQL"
 docker compose up -d postgres telegram-drive
@@ -109,5 +123,5 @@ echo "[DEPLOY] NEXT 1/3: configure Proxy BEFORE Telegram login when proxy is req
 echo "[DEPLOY]   edit .env: TG_PROXY_ENABLED=true and configure TG_PROXY_* values"
 echo "[DEPLOY]   then run: docker compose --profile proxy up -d --build"
 echo "[DEPLOY] NEXT 2/3: Telegram login: ./login-account.sh <account_name> <phone>"
-echo "[DEPLOY] NEXT 3/3: configure Telegram Source in Web admin (discover dialog, select exact chat ID, add source)"
+echo "[DEPLOY] NEXT 3/3: configure Telegram Source in Web admin (enable an account to discover dialogs, then select the exact chat ID)"
 echo "[DEPLOY] Verify: docker compose ps && docker compose logs --tail=100 telegram-drive"

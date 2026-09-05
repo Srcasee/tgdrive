@@ -14,24 +14,6 @@ function panel(title) {
   return el;
 }
 
-function table(headers, rows) {
-  const el = document.createElement('table');
-  el.className = 'admin-table admin-detail-table';
-  el.innerHTML = `<thead><tr>${headers.map((h) => `<th>${h}</th>`).join('')}</tr></thead>`;
-  const body = document.createElement('tbody');
-  for (const row of rows) {
-    const tr = document.createElement('tr');
-    for (const value of row) {
-      const td = document.createElement('td');
-      td.textContent = text(value);
-      tr.appendChild(td);
-    }
-    body.appendChild(tr);
-  }
-  el.appendChild(body);
-  return el;
-}
-
 async function loadAccounts() {
   const response = await request('/api/telegram/accounts');
   if (!response.ok) throw new Error('加载 Telegram 账号失败');
@@ -49,6 +31,7 @@ async function setAccountEnabled(accountId, enabled) {
     try { detail = (await response.json()).detail || detail; } catch (_) {}
     throw new Error(detail);
   }
+  return response.json();
 }
 
 async function loadDialogs(accountId) {
@@ -107,33 +90,35 @@ export async function renderTelegram(container, section = 'dialogs') {
   }
 }
 
+function applyAccountRow(tr, account) {
+  const values = [
+    account.id,
+    account.enabled ? '已启用' : '已禁用',
+    account.server_address,
+    account.port,
+    account.session_name,
+    account.telegram_user_id,
+    account.telegram_username || account.username,
+    account.telegram_phone,
+  ];
+  values.forEach((value, index) => { tr.children[index].textContent = text(value); });
+}
+
 async function renderAccounts(container) {
   const accounts = await loadAccounts();
   if (!accounts.length) { container.appendChild(panel('暂无 Telegram 账号')); return; }
 
   const wrap = panel('Telegram 账号');
-  const rows = accounts.map((account) => {
-    const row = [
-      account.id,
-      account.enabled ? '已启用' : '已禁用',
-      account.server_address,
-      account.port,
-      account.session_name,
-      account.telegram_user_id,
-      account.telegram_username || account.username,
-      account.telegram_phone,
-    ];
-    return {account, row};
-  });
-
   const el = document.createElement('table');
   el.className = 'admin-table admin-detail-table';
   el.innerHTML = '<thead><tr><th>数据库 ID</th><th>启用状态</th><th>服务器</th><th>端口</th><th>Session 名称</th><th>用户 ID</th><th>用户名</th><th>手机号</th><th>操作</th></tr></thead>';
   const body = document.createElement('tbody');
-  for (const item of rows) {
-    const {account, row} = item;
+
+  for (const account of accounts) {
     const tr = document.createElement('tr');
-    row.forEach((value) => { const td = document.createElement('td'); td.textContent = text(value); tr.appendChild(td); });
+    for (let i = 0; i < 8; i += 1) tr.appendChild(document.createElement('td'));
+    applyAccountRow(tr, account);
+
     const action = document.createElement('td');
     const toggle = document.createElement('button');
     toggle.type = 'button';
@@ -141,16 +126,12 @@ async function renderAccounts(container) {
     toggle.onclick = async () => {
       toggle.disabled = true;
       try {
-        await setAccountEnabled(account.id, !account.enabled);
-        account.enabled = !account.enabled;
-        tr.children[1].textContent = account.enabled ? '已启用' : '已禁用';
+        const updated = await setAccountEnabled(account.id, !account.enabled);
+        Object.assign(account, updated);
+        applyAccountRow(tr, account);
         toggle.textContent = account.enabled ? '禁用账号' : '启用账号';
-        if (!account.enabled) {
-          tr.children[2].textContent = '-';
-          tr.children[3].textContent = '-';
-          tr.children[5].textContent = '-';
-          tr.children[6].textContent = account.username || '-';
-          tr.children[7].textContent = '-';
+        if (updated.discovery_error) {
+          alert(`账号已启用，但 Dialog discovery 失败：${updated.discovery_error}`);
         }
       } catch (error) {
         alert(error.message);
@@ -187,7 +168,7 @@ async function loadAndRenderDialogs(account, list, button) {
     const dialogs = await loadDialogs(account.id);
     list.replaceChildren();
     if (!account.enabled) { list.textContent = '账号已禁用，忽略 Dialogs。'; return; }
-    if (!dialogs.length) { list.textContent = '暂无 Dialog'; return; }
+    if (!dialogs.length) { list.textContent = '暂无 Dialog；请先在“账号”中执行一次启用以触发 discovery。'; return; }
     const tableEl = document.createElement('table'); tableEl.className = 'admin-table';
     tableEl.innerHTML = '<thead><tr><th>名称</th><th>Chat ID</th><th>类型</th><th>Source</th><th>操作</th></tr></thead>';
     const body = document.createElement('tbody');

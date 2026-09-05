@@ -17,6 +17,7 @@ services:
       - telegram-net
 
   telegram-drive:
+    image: tgdrive-core:local
     build:
       context: .
       dockerfile: Dockerfile
@@ -41,6 +42,23 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+  telegram-login:
+    image: tgdrive-core:local
+    working_dir: /app
+    volumes:
+      - ./data:/data
+      - ./plugins/proxy:/opt/tgdrive-plugins/proxy:ro
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://tgdrive:tgdrive@postgres:5432/tgdrive}
+    cpus: ${TG_LOGIN_CPUS:-1.0}
+    mem_limit: ${TG_LOGIN_MEMORY:-512m}
+    networks:
+      - telegram-net
+    profiles:
+      - login
 
   proxy:
     build:

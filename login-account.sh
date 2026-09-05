@@ -9,6 +9,7 @@ SESSION_PATH="${SESSION_DIR}/${ACCOUNT_NAME}"
 
 COMPOSE="docker compose"
 RUNTIME_SERVICE="telegram-drive"
+LOGIN_SERVICE="telegram-login"
 DB_SERVICE="postgres"
 RUNTIME_WAS_RUNNING=0
 
@@ -62,9 +63,10 @@ fi
 echo "[DB] PostgreSQL database is ready"
 echo "[LOGIN] starting Telegram login account=${ACCOUNT_NAME}"
 
-${COMPOSE} run --rm \
+echo "[LOGIN] CPU limit: ${TG_LOGIN_CPUS:-1.0}"
+${COMPOSE} --profile login run --rm --no-deps \
   -e TG_PHONE="${PHONE}" \
   -e TG_SESSION_DIR="${SESSION_DIR}" \
   -e TG_ACCOUNT_NAME="${ACCOUNT_NAME}" \
-  "${RUNTIME_SERVICE}" \
+  "${LOGIN_SERVICE}" \
   python3 -m telegram.login

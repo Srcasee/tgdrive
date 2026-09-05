@@ -4,16 +4,17 @@ WORKDIR /app
 
 COPY requirements.txt .
 
-# Mainland-China servers can reach the Tsinghua PyPI mirror much faster than
-# files.pythonhosted.org. Keep the index configurable and fall back to public
-# PyPI so the image remains portable when the mirror is unavailable.
+# Prefer prebuilt wheels so first-time deployment does not compile native
+# extensions on the host. Keep the mirror configurable and fall back to PyPI.
 ARG PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
 RUN pip install --no-cache-dir \
+        --prefer-binary \
         --timeout 60 \
         --retries 2 \
         -i "${PIP_INDEX_URL}" \
         -r requirements.txt \
     || pip install --no-cache-dir \
+        --prefer-binary \
         --timeout 60 \
         --retries 2 \
         -i https://pypi.org/simple \
