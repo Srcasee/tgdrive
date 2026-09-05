@@ -110,9 +110,9 @@ def test_failed_full_sync_notifies_ingestion(monkeypatch):
     monkeypatch.setattr(scanner, "source_repository", sources)
     monkeypatch.setattr(scanner, "ingestion_service", ingestion)
 
-    with pytest.raises(RuntimeError):
-        asyncio.run(scanner.scan_dialogs(FakeClient([], fail=True), 1))
+    count = asyncio.run(scanner.scan_dialogs(FakeClient([], fail=True), 1))
 
+    assert count == 0
     assert ("begin", 7, 1, 123) in ingestion.calls
     assert ("fail", 7, 1, 123) in ingestion.calls
     assert not any(call[0] == "finish" for call in ingestion.calls)
