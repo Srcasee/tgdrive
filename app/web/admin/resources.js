@@ -31,12 +31,12 @@ async function renderSources(container) {
   } catch(error){list.textContent=error.message;}
 }
 
-function createColumnResizer(th, table, index) {
+function createColumnResizer(th, column, key) {
   const handle=document.createElement('span'); handle.className='column-resizer'; handle.title='拖动调整列宽';
   let startX=0,startWidth=0;
-  handle.onmousedown=event=>{event.preventDefault();startX=event.clientX;startWidth=th.getBoundingClientRect().width;const move=e=>{const width=Math.max(70,startWidth+e.clientX-startX); th.style.width=`${width}px`; for(const row of table.tBodies[0]?.rows||[]) row.cells[index].style.width=`${width}px`; localStorage.setItem(`tgdrive-admin-col-${index}`,String(width));};const up=()=>{document.removeEventListener('mousemove',move);document.removeEventListener('mouseup',up);};document.addEventListener('mousemove',move);document.addEventListener('mouseup',up);};
+  handle.onmousedown=event=>{event.preventDefault();event.stopPropagation();startX=event.clientX;startWidth=column.getBoundingClientRect().width;const move=e=>{const width=Math.max(64,startWidth+e.clientX-startX);column.style.width=`${width}px`;localStorage.setItem(`tgdrive-admin-resource-col-${key}`,String(width));};const up=()=>{document.removeEventListener('mousemove',move);document.removeEventListener('mouseup',up);};document.addEventListener('mousemove',move);document.addEventListener('mouseup',up);};
   th.appendChild(handle);
-  const saved=Number(localStorage.getItem(`tgdrive-admin-col-${index}`)); if(saved>=70) th.style.width=`${saved}px`;
+  const saved=Number(localStorage.getItem(`tgdrive-admin-resource-col-${key}`)); if(saved>=64) column.style.width=`${saved}px`;
 }
 
 async function renderFiles(container) {
@@ -52,7 +52,7 @@ async function renderFiles(container) {
   controls.append(category,actionBar); container.appendChild(controls);
   const list=document.createElement('div'); const pagination=document.createElement('div'); pagination.className='pagination'; container.append(list,pagination);
   const contextMenu=document.createElement('div'); contextMenu.className='table-context-menu'; contextMenu.hidden=true; document.body.appendChild(contextMenu);
-  const selected=new Set(); let page=1; const size=50; let sort='id'; let order='desc';
+  const selected=new Set(); let page=1; const size=50; let sort='id'; let order='desc'; let currentFiles=[]; let currentTable=null;
   const closeMenu=()=>{contextMenu.hidden=true;}; document.addEventListener('click',closeMenu);
   function updateSelectionUI(tableEl, files) {
     const checks=[...tableEl.querySelectorAll('tbody input[type="checkbox"]')]; const selectedOnPage=files.filter(file=>selected.has(Number(file.id))).length;
@@ -60,35 +60,55 @@ async function renderFiles(container) {
     classify.disabled=selected.size===0; download.disabled=selected.size===0; clear.disabled=selected.size===0;
     const master=tableEl.querySelector('thead input[type="checkbox"]'); if(master){master.checked=files.length>0&&selectedOnPage===files.length;master.indeterminate=selectedOnPage>0&&selectedOnPage<files.length;}
     checks.forEach(check=>{check.checked=selected.has(Number(check.dataset.id));});
+    tableEl.querySelectorAll('tbody tr[data-id]').forEach(row=>row.classList.toggle('selected',selected.has(Number(row.dataset.id))));
+  }
+  function renderCategoryCell(file) {
+    const td=document.createElement('td'); td.dataset.column='category';
+    td.textContent=(file.category_ids||[]).map(id=>categories.find(c=>Number(c.id)===Number(id))?.name).filter(Boolean).join('、')||'未分类';
+    return td;
+  }
+  function updateFileRow(file) {
+    if(!currentTable)return;
+    const row=currentTable.tBodies[0]?.querySelector(`tr[data-id="${CSS.escape(String(file.id))}"]`); if(!row)return;
+    const old=row.querySelector('td[data-column="category"]'); if(old)old.replaceWith(renderCategoryCell(file));
+    row.classList.toggle('selected',selected.has(Number(file.id)));
   }
   function showContextMenu(event,file) {
-    event.preventDefault(); event.stopPropagation(); const id=Number(file.id); if(!selected.has(id)){selected.clear();selected.add(id);} contextMenu.replaceChildren();
-    for(const [label,action] of [['分类',()=>editCategories([file])],['下载',()=>downloadFiles([file])],['取消选择',()=>{selected.delete(id);refresh()}]]){const button=document.createElement('button');button.type='button';button.textContent=label;button.onclick=()=>{closeMenu();action();};contextMenu.appendChild(button);}
+    event.preventDefault(); event.stopPropagation(); const id=Number(file.id); if(!selected.has(id)){selected.clear();selected.add(id);} updateSelectionUI(currentTable,currentFiles); contextMenu.replaceChildren();
+    for(const [label,action] of [['分类',()=>editCategories([file])],['下载',()=>downloadFiles([file])],['取消选择',()=>{selected.delete(id);updateSelectionUI(currentTable,currentFiles)}]]){const button=document.createElement('button');button.type='button';button.textContent=label;button.onclick=()=>{closeMenu();action();};contextMenu.appendChild(button);}
     contextMenu.hidden=false; contextMenu.style.left=`${Math.min(event.clientX,window.innerWidth-170)}px`; contextMenu.style.top=`${Math.min(event.clientY,window.innerHeight-150)}px`;
   }
-  function editCategories(files){const value=prompt('输入分类 ID，多个分类用逗号分隔：',(files[0]?.category_ids||[]).join(','));if(value===null)return;const ids=value.split(',').map(v=>Number(v.trim())).filter(Number.isInteger);return Promise.all(files.map(async file=>{const result=await setResourceCategories(file.id,ids);file.category_ids=result.category_ids||ids;})).then(refresh).catch(error=>alert(error.message));}
+  async function editCategories(files){const value=prompt('输入分类 ID，多个分类用逗号分隔：',(files[0]?.category_ids||[]).join(','));if(value===null)return;const ids=value.split(',').map(v=>Number(v.trim())).filter(Number.isInteger);const previous=files.map(file=>({file,ids:[...(file.category_ids||[])]}));try{await Promise.all(files.map(async file=>{const result=await setResourceCategories(file.id,ids);file.category_ids=result.category_ids||ids;}));files.forEach(updateFileRow);updateSelectionUI(currentTable,currentFiles);}catch(error){previous.forEach(item=>item.file.category_ids=item.ids);alert(error.message);}}
   function downloadFiles(files){for(const file of files){const link=document.createElement('a');link.href=`/resources/${file.id}/download`;link.download='';document.body.appendChild(link);link.click();link.remove();}}
   classify.onclick=()=>editCategories([...selected].map(id=>currentFiles.find(file=>Number(file.id)===id)).filter(Boolean));
   download.onclick=()=>downloadFiles([...selected].map(id=>currentFiles.find(file=>Number(file.id)===id)).filter(Boolean));
-  clear.onclick=()=>{selected.clear();refresh();};
-  category.onchange=()=>{page=1;refresh();};
-  let currentFiles=[];
-  async function refresh(){ list.textContent='正在加载……'; try{const data=await listFiles(page,size,category.value,sort,order); currentFiles=data.items||[]; list.replaceChildren();
-      const wrap=panel(`文件列表（${data.total||0} 项）`); const tableEl=document.createElement('table'); tableEl.className='admin-table admin-resource-table';
-      const columns=[['','',false],['ID','id',true],['文件名','filename',true],['大小','size',true],['类型','mime_type',true],['来源','source_count',true],['分类','',false],['状态','',false],['操作','',false]];
-      const head=document.createElement('thead'); const headRow=document.createElement('tr');
-      columns.forEach(([label,key,sortable],index)=>{const th=document.createElement('th');if(index===0){const check=document.createElement('input');check.type='checkbox';check.setAttribute('aria-label','全选');check.onclick=()=>{const allOnPage=currentFiles.every(file=>selected.has(Number(file.id)));currentFiles.forEach(file=>{const id=Number(file.id);if(allOnPage)selected.delete(id);else selected.add(id);});updateSelectionUI(tableEl,currentFiles);};th.appendChild(check);}else{th.textContent=label;if(sortable){th.className='sortable';th.dataset.sort=key;th.title='点击排序';th.onclick=()=>{if(sort===key)order=order==='asc'?'desc':'asc';else{sort=key;order=key==='id'?'desc':'asc';}refresh();};if(sort===key)th.append(` ${order==='asc'?'▲':'▼'}`);}}createColumnResizer(th,tableEl,index);headRow.appendChild(th);}); head.appendChild(headRow); tableEl.appendChild(head);
-      const body=document.createElement('tbody');
-      currentFiles.forEach(file=>{const tr=document.createElement('tr');tr.dataset.id=file.id;tr.onclick=e=>{if(e.target.closest('button,a,input'))return;const id=Number(file.id);selected.has(id)?selected.delete(id):selected.add(id);updateSelectionUI(tableEl,currentFiles);};tr.oncontextmenu=e=>showContextMenu(e,file);
-        const checkTd=document.createElement('td');const check=document.createElement('input');check.type='checkbox';check.dataset.id=file.id;check.checked=selected.has(Number(file.id));check.setAttribute('aria-label',`选择 ${file.filename||file.id}`);check.onclick=e=>{e.stopPropagation();const id=Number(file.id);check.checked?selected.add(id):selected.delete(id);updateSelectionUI(tableEl,currentFiles);};checkTd.appendChild(check);tr.appendChild(checkTd);
-        for(const value of [file.id,file.filename||`Resource #${file.id}`,formatSize(file.size),file.mime_type||'未知',file.source_count??0]){const td=document.createElement('td');td.textContent=text(value);tr.appendChild(td);}
-        const categoryTd=document.createElement('td');categoryTd.textContent=(file.category_ids||[]).map(id=>categories.find(c=>Number(c.id)===Number(id))?.name).filter(Boolean).join('、')||'未分类';tr.appendChild(categoryTd);
-        const statusTd=document.createElement('td');const status=document.createElement('span');status.className='status-icon';status.textContent=Number(file.source_count)>0?'●':'○';status.title=Number(file.source_count)>0?'有可用来源':'暂无可用来源';statusTd.appendChild(status);tr.appendChild(statusTd);
-        const action=document.createElement('td');action.className='actions';const link=document.createElement('a');link.href=`/resources/${file.id}/download`;link.textContent='下载';link.setAttribute('download','');const edit=document.createElement('button');edit.type='button';edit.textContent='分类';edit.onclick=()=>editCategories([file]);action.append(link,edit);tr.appendChild(action);body.appendChild(tr);});
-      if(!currentFiles.length){const empty=document.createElement('tr');const td=document.createElement('td');td.colSpan=columns.length;td.textContent='暂无资源';empty.appendChild(td);body.appendChild(empty);} tableEl.appendChild(body);wrap.appendChild(tableEl);list.appendChild(wrap);updateSelectionUI(tableEl,currentFiles);
-      const pages=Math.max(1,Math.ceil((data.total||0)/size));pagination.replaceChildren();const previous=document.createElement('button');previous.textContent='上一页';previous.disabled=page<=1;previous.onclick=()=>{page-=1;refresh();};const label=document.createElement('span');label.textContent=`第 ${page} / ${pages} 页`;const next=document.createElement('button');next.textContent='下一页';next.disabled=page>=pages;next.onclick=()=>{page+=1;refresh();};const jump=document.createElement('input');jump.type='number';jump.min='1';jump.max=String(pages);jump.value=String(page);jump.title='跳转页码';jump.style.width='90px';jump.onchange=()=>{page=Math.min(pages,Math.max(1,Number(jump.value)||1));refresh();};pagination.append(previous,label,jump,next);
-    }catch(error){list.textContent=error.message;}}
-  try{await refresh();}finally{contextMenu.remove();document.removeEventListener('click',closeMenu);}
+  clear.onclick=()=>{selected.clear();updateSelectionUI(currentTable,currentFiles);};
+  category.onchange=()=>{page=1;loadPage();};
+
+  function buildTable(data) {
+    const wrap=panel(`文件列表（${data.total||0} 项）`); const tableEl=document.createElement('table'); tableEl.className='admin-table admin-resource-table'; currentTable=tableEl;
+    const columns=[['select','',false,54],['id','ID',true,72],['filename','文件名',true,360],['size','大小',true,110],['mime_type','类型',true,150],['source_count','来源',true,82],['category','分类',false,180],['status','状态',false,70],['actions','操作',false,120]];
+    const colgroup=document.createElement('colgroup'); columns.forEach(([key,, ,defaultWidth])=>{const col=document.createElement('col');col.dataset.column=key;col.style.width=`${defaultWidth}px`;colgroup.appendChild(col);}); tableEl.appendChild(colgroup);
+    const head=document.createElement('thead'); const headRow=document.createElement('tr');
+    columns.forEach(([key,label,sortable],index)=>{const th=document.createElement('th');th.dataset.column=key;if(index===0){const check=document.createElement('input');check.type='checkbox';check.setAttribute('aria-label','全选');check.onclick=()=>{const allOnPage=currentFiles.length>0&&currentFiles.every(file=>selected.has(Number(file.id)));currentFiles.forEach(file=>{const id=Number(file.id);if(allOnPage)selected.delete(id);else selected.add(id);});updateSelectionUI(tableEl,currentFiles);};th.appendChild(check);}else{th.textContent=label;if(sortable){th.className='sortable';th.title='点击排序';th.onclick=()=>{if(sort===key)order=order==='asc'?'desc':'asc';else{sort=key;order=key==='id'?'desc':'asc';}loadPage();};if(sort===key)th.append(` ${order==='asc'?'▲':'▼'}`);}}const col=colgroup.children[index];createColumnResizer(th,col,key);headRow.appendChild(th);}); head.appendChild(headRow); tableEl.appendChild(head);
+    const body=document.createElement('tbody');
+    currentFiles.forEach(file=>{const tr=document.createElement('tr');tr.dataset.id=file.id;tr.onclick=e=>{if(e.target.closest('button,a,input'))return;const id=Number(file.id);selected.has(id)?selected.delete(id):selected.add(id);updateSelectionUI(tableEl,currentFiles);};tr.oncontextmenu=e=>showContextMenu(e,file);
+      const checkTd=document.createElement('td');const check=document.createElement('input');check.type='checkbox';check.dataset.id=file.id;check.checked=selected.has(Number(file.id));check.setAttribute('aria-label',`选择 ${file.filename||file.id}`);check.onclick=e=>{e.stopPropagation();const id=Number(file.id);check.checked?selected.add(id):selected.delete(id);updateSelectionUI(tableEl,currentFiles);};checkTd.appendChild(check);tr.appendChild(checkTd);
+      for(const [key,value] of [['id',file.id],['filename',file.filename||`Resource #${file.id}`],['size',formatSize(file.size)],['mime_type',file.mime_type||'未知'],['source_count',file.source_count??0]]){const td=document.createElement('td');td.dataset.column=key;td.textContent=text(value);tr.appendChild(td);}
+      tr.appendChild(renderCategoryCell(file));
+      const statusTd=document.createElement('td');statusTd.dataset.column='status';const status=document.createElement('span');status.className='status-icon';status.textContent=Number(file.source_count)>0?'●':'○';status.title=Number(file.source_count)>0?'有可用来源':'暂无可用来源';statusTd.appendChild(status);tr.appendChild(statusTd);
+      const action=document.createElement('td');action.dataset.column='actions';action.className='actions';const link=document.createElement('a');link.href=`/resources/${file.id}/download`;link.textContent='下载';link.setAttribute('download','');const edit=document.createElement('button');edit.type='button';edit.textContent='分类';edit.onclick=()=>editCategories([file]);action.append(link,edit);tr.appendChild(action);body.appendChild(tr);});
+    if(!currentFiles.length){const empty=document.createElement('tr');const td=document.createElement('td');td.colSpan=columns.length;td.textContent='暂无资源';empty.appendChild(td);body.appendChild(empty);} tableEl.appendChild(body);wrap.appendChild(tableEl);list.replaceChildren(wrap);
+    for(const [key] of columns){const col=colgroup.querySelector(`col[data-column="${CSS.escape(key)}"]`);const saved=Number(localStorage.getItem(`tgdrive-admin-resource-col-${key}`));if(col&&saved>=64)col.style.width=`${saved}px`;}
+    updateSelectionUI(tableEl,currentFiles);
+  }
+  function renderPagination(data) {
+    const pages=Math.max(1,Math.ceil((data.total||0)/size));pagination.replaceChildren();const previous=document.createElement('button');previous.textContent='上一页';previous.disabled=page<=1;previous.onclick=()=>{page-=1;loadPage();};const label=document.createElement('span');label.textContent=`第 ${page} / ${pages} 页`;const next=document.createElement('button');next.textContent='下一页';next.disabled=page>=pages;next.onclick=()=>{page+=1;loadPage();};const jump=document.createElement('input');jump.type='number';jump.min='1';jump.max=String(pages);jump.value=String(page);jump.title='跳转页码';jump.style.width='90px';jump.onchange=()=>{page=Math.min(pages,Math.max(1,Number(jump.value)||1));loadPage();};pagination.append(previous,label,jump,next);
+  }
+  async function loadPage(){const token=++loadPage.requestToken;try{const data=await listFiles(page,size,category.value,sort,order);if(token!==loadPage.requestToken)return;currentFiles=data.items||[];buildTable(data);renderPagination(data);}catch(error){if(token===loadPage.requestToken){list.replaceChildren();const errorBox=document.createElement('div');errorBox.className='admin-error';errorBox.textContent=error.message;list.appendChild(errorBox);}}}
+  loadPage.requestToken=0;
+  await loadPage();
+  return ()=>{contextMenu.remove();document.removeEventListener('click',closeMenu);};
 }
 
 async function renderCategories(container) {
