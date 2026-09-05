@@ -2,13 +2,11 @@ import asyncio
 
 from auth.repository import UserRepository
 from auth.security import hash_password
-from catalog.repository import CatalogRepository
 from config import settings, validate_telegram_credentials
 from database_pool import close_pool, initialize, open_pool
 from repositories.accounts import AccountRepository
 from repositories.dialogs import DialogRepository
-from repositories.sources import SourceRepository
-from telegram.client import get_client, get_clients, refresh_clients
+from telegram.client import get_client, get_clients
 from telegram.dialog_discovery import DialogDiscoveryService
 from telegram.runtime_events import initialize_source_change_event, notify_source_change, wait_for_source_change
 from telegram.scanner import scanner_loop
@@ -28,15 +26,9 @@ class ApplicationLifecycle:
 
         self.account_repository = AccountRepository()
         self.dialog_repository = DialogRepository()
-        self.source_repository = SourceRepository()
-        self.catalog_repository = CatalogRepository()
         self.user_repository = UserRepository()
 
-        self.dialog_discovery = DialogDiscoveryService(
-            self.dialog_repository,
-            self.source_repository,
-            self.catalog_repository,
-        )
+        self.dialog_discovery = DialogDiscoveryService(self.dialog_repository)
         self.scanner_manager = ScannerManager()
 
     async def startup(self):
@@ -69,17 +61,8 @@ class ApplicationLifecycle:
                 hash_password(settings.ADMIN_PASSWORD),
             )
 
-    async def _stop_account_task(self, session_name):
-        task = self.scanner_manager.tasks.pop(session_name, None)
-        if task is not None and not task.done():
-            task.cancel()
-            try:
-                await task
-            except asyncio.CancelledError:
-                pass
-
     async def set_account_enabled(self, account_id, enabled):
-        """Apply account lifecycle changes and perform one discovery on enable."""
+        """Persist account state; enabling performs the single Dialog discovery."""
         async with self.account_lock:
             account = self.account_repository.get(account_id)
             if not account:
@@ -89,24 +72,17 @@ class ApplicationLifecycle:
             if account["enabled"] == enabled:
                 return {"discovered": False}
 
+            self.account_repository.set_enabled(account_id, enabled)
+
             if not enabled:
-                await self._stop_account_task(session_name)
+                # Account disable is intentionally small: the account state and its
+                # discovered Dialogs are the source of truth. Runtime reconciliation
+                # observes the change and stops the client/scanner asynchronously.
                 self.authorized_accounts.discard(session_name)
                 self.discovered_accounts.discard(session_name)
-
-                sources = self.source_repository.list_enabled_for_account(account_id)
-                chat_ids = [row["telegram_chat_id"] for row in sources]
-                self.source_repository.disable_all_for_account(account_id)
                 self.dialog_repository.delete_all_for_account(account_id)
-                self.catalog_repository.deactivate_telegram_chats(account_id, chat_ids)
-
-                self.account_repository.set_enabled(account_id, False)
-                refresh_clients()
                 notify_source_change()
                 return {"discovered": False}
-
-            self.account_repository.set_enabled(account_id, True)
-            refresh_clients()
 
             discovered = False
             discovery_error = None
@@ -147,7 +123,13 @@ class ApplicationLifecycle:
                         continue
                     self.authorized_accounts.discard(name)
                     self.discovered_accounts.discard(name)
-                    await self._stop_account_task(name)
+                    task = self.scanner_manager.tasks.pop(name, None)
+                    if task is not None and not task.done():
+                        task.cancel()
+                        try:
+                            await task
+                        except asyncio.CancelledError:
+                            pass
 
                 for name, account_id in enabled.items():
                     client = clients.get(name)
@@ -172,11 +154,9 @@ class ApplicationLifecycle:
                             print(f"[TG] authorization failed: {name}: {exc!r}", flush=True)
                             continue
 
-                    # Dialog discovery is deliberately lifecycle-driven: enabling an
-                    # account performs exactly one discovery. Refreshing the Dialogs
-                    # page only reads the persisted discovery result.
-                    sources = self.source_repository.list_enabled_for_account(account_id)
-                    if sources:
+                    sources = self.dialog_repository.list_for_account(account_id)
+                    enabled_sources = [row for row in sources if row["source_enabled"]]
+                    if enabled_sources:
                         task = self.scanner_manager.tasks.get(name)
                         if task is None or task.done():
                             self.scanner_manager.tasks[name] = asyncio.create_task(
