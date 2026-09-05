@@ -75,14 +75,22 @@ class ApplicationLifecycle:
             self.account_repository.set_enabled(account_id, enabled)
 
             if not enabled:
-                # Account disable is intentionally small: the account state and its
-                # discovered Dialogs are the source of truth. Runtime reconciliation
-                # observes the change and stops the client/scanner asynchronously.
+                # Disabling is intentionally limited to the two source-of-truth
+                # changes. Runtime reconciliation observes the account state and
+                # removes the client/scanner without making this request fragile.
                 self.authorized_accounts.discard(session_name)
                 self.discovered_accounts.discard(session_name)
-                self.dialog_repository.delete_all_for_account(account_id)
+                dialog_error = None
+                try:
+                    self.dialog_repository.delete_all_for_account(account_id)
+                except Exception as exc:
+                    dialog_error = str(exc)
+                    print(f"[TG] dialog cleanup failed: {session_name}: {exc!r}", flush=True)
                 notify_source_change()
-                return {"discovered": False}
+                result = {"discovered": False}
+                if dialog_error:
+                    result["dialog_cleanup_error"] = dialog_error
+                return result
 
             discovered = False
             discovery_error = None
