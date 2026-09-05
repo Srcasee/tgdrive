@@ -32,9 +32,17 @@ COALESCE(
 ) AS shares
 """
 
+_SORT_COLUMNS = {
+    "id": "r.id",
+    "filename": "LOWER(r.filename)",
+    "size": "r.size",
+    "mime_type": "LOWER(r.mime_type)",
+    "source_count": "COUNT(DISTINCT f.id)",
+}
+
 
 class CatalogRepository:
-    def list_resources(self, limit, offset, category_id=None):
+    def list_resources(self, limit, offset, category_id=None, sort="id", order="desc"):
         with connection() as conn:
             with conn.cursor() as cursor:
                 where = f"WHERE r.status='active' AND {_ACTIVE_SOURCE_EXISTS}"
@@ -44,6 +52,8 @@ class CatalogRepository:
                     params.append(category_id)
                 cursor.execute(f"SELECT COUNT(*) AS total FROM resources r {where}", params)
                 total = cursor.fetchone()["total"]
+                sort_sql = _SORT_COLUMNS.get(sort, _SORT_COLUMNS["id"])
+                direction = "ASC" if order == "asc" else "DESC"
                 cursor.execute(f"""
                     SELECT r.id, r.content_hash, r.filename, r.size, r.mime_type,
                            COALESCE(array_agg(DISTINCT c.id) FILTER (WHERE c.id IS NOT NULL), '{{}}') AS category_ids,
@@ -55,7 +65,7 @@ class CatalogRepository:
                     LEFT JOIN files f ON f.resource_id=r.id AND f.is_available=TRUE AND f.status='active'
                     {where}
                     GROUP BY r.id
-                    ORDER BY r.id DESC LIMIT %s OFFSET %s
+                    ORDER BY {sort_sql} {direction}, r.id DESC LIMIT %s OFFSET %s
                 """, params + [limit, offset])
                 return total, cursor.fetchall()
 
