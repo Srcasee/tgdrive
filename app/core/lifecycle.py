@@ -85,6 +85,7 @@ class ApplicationLifecycle:
                 except Exception as exc:
                     dialog_error = str(exc)
                     print(f"[TG] dialog cleanup failed: {session_name}: {exc!r}", flush=True)
+                self._cancel_account_sources(account_id)
                 notify_source_change()
                 result = {"discovered": False}
                 if dialog_error:
@@ -159,12 +160,22 @@ class ApplicationLifecycle:
                 await asyncio.sleep(60)
 
     async def _reconcile_disabled_accounts(self, enabled):
-        for name in list(self.authorized_accounts | self.discovered_accounts):
-            if name in enabled:
+        enabled_ids = set(enabled.values())
+        for key in list(self.scanner_manager.tasks):
+            account_id, source_id = key
+            if account_id in enabled_ids:
                 continue
-            self.authorized_accounts.discard(name)
-            self.discovered_accounts.discard(name)
-            self._cancel_account_sources(name)
+            task = self.scanner_manager.tasks.pop(key, None)
+            if task is not None and not task.done():
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+
+        enabled_names = set(enabled)
+        self.authorized_accounts.intersection_update(enabled_names)
+        self.discovered_accounts.intersection_update(enabled_names)
 
     async def _reconcile_sources(self, account_id, account_name, client):
         sources = await asyncio.to_thread(self.source_repository.list_enabled_for_account, account_id)
@@ -172,13 +183,10 @@ class ApplicationLifecycle:
 
         for key in list(self.scanner_manager.tasks):
             task_account, source_id = key
-            if task_account != account_id:
+            if task_account != account_id or source_id in enabled_ids:
                 continue
-            task = self.scanner_manager.tasks[key]
-            if source_id in enabled_ids:
-                continue
-            self.scanner_manager.tasks.pop(key, None)
-            if not task.done():
+            task = self.scanner_manager.tasks.pop(key, None)
+            if task is not None and not task.done():
                 task.cancel()
                 try:
                     await task
@@ -188,43 +196,47 @@ class ApplicationLifecycle:
         for source in sources:
             key = (account_id, source["id"])
             task = self.scanner_manager.tasks.get(key)
-            if task is not None and not task.done():
-                continue
-            if task is not None and task.done():
+            if task is not None:
                 continue
             self.scanner_manager.tasks[key] = asyncio.create_task(
                 self._run_source(account_id, account_name, client, source)
             )
 
-    def _cancel_account_sources(self, account_name):
-        # Account disable removes its client immediately. Source tasks are keyed
-        # by account id, so they are cancelled during the next reconciliation
-        # after the account is no longer enabled.
+    def _cancel_account_sources(self, account_id):
         for key, task in list(self.scanner_manager.tasks.items()):
-            if task.done():
-                self.scanner_manager.tasks.pop(key, None)
+            task_account, _ = key
+            if task_account != account_id:
+                continue
+            self.scanner_manager.tasks.pop(key, None)
+            if not task.done():
+                task.cancel()
 
     async def _run_source(self, account_id, account_name, client, source):
         print(
             f"[SCAN] source scanner started: {source['name']} ({source['telegram_chat_id']})",
             flush=True,
         )
-        while True:
-            try:
-                count = await scan_source(client, account_id, source)
-                print(
-                    f"[SCAN] source finished {source['name']} ({source['telegram_chat_id']}): {count} files",
-                    flush=True,
-                )
-            except asyncio.CancelledError:
-                raise
-            except Exception as exc:
-                print(
-                    f"[SCAN] source error {source['name']} ({source['telegram_chat_id']}): {exc!r}",
-                    flush=True,
-                )
+        try:
+            while True:
+                try:
+                    count = await scan_source(client, account_id, source)
+                    print(
+                        f"[SCAN] source finished {source['name']} ({source['telegram_chat_id']}): {count} files",
+                        flush=True,
+                    )
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exc:
+                    print(
+                        f"[SCAN] source error {source['name']} ({source['telegram_chat_id']}): {exc!r}",
+                        flush=True,
+                    )
 
-            await asyncio.sleep(source.get("scan_interval") or 300)
+                await asyncio.sleep(source.get("scan_interval") or 300)
+        finally:
+            # A deliberate disable must not leave the UI stuck at "scanning"
+            # or report a failed scan merely because its task was cancelled.
+            await asyncio.to_thread(self.source_repository.mark_idle, source["id"])
 
     async def shutdown(self):
         if self.scanner_task:
