@@ -1,0 +1,58 @@
+<template>
+  <a-card>
+    <a-space direction="vertical" fill>
+      <a-space>
+        <a-button @click="load">刷新</a-button>
+      </a-space>
+      <a-table :data="rows">
+        <template #columns>
+          <a-table-column title="ID" data-index="id" />
+          <a-table-column title="名称" data-index="name" />
+          <a-table-column title="账号" data-index="account_id" />
+          <a-table-column title="Chat ID" data-index="telegram_chat_id" />
+          <a-table-column title="启用">
+            <template #cell="{ record }">
+              <a-switch v-model="record.enabled" @change="(v) => toggle(record, Boolean(v))" />
+            </template>
+          </a-table-column>
+          <a-table-column title="操作">
+            <template #cell="{ record }">
+              <a-popconfirm content="确定删除 Source？" @ok="remove(record.id)">
+                <a-button status="danger" type="text">删除</a-button>
+              </a-popconfirm>
+            </template>
+          </a-table-column>
+        </template>
+      </a-table>
+    </a-space>
+  </a-card>
+</template>
+
+<script setup lang="ts">
+import { onMounted, ref } from "vue";
+import { Message } from "@arco-design/web-vue";
+import { telegram } from "../api";
+
+const rows = ref<any[]>([]);
+
+async function load() {
+  rows.value = (await telegram.sources()).data;
+}
+
+async function toggle(record: any, enabled: boolean) {
+  try {
+    await telegram.sourceEnabled(record.id, enabled);
+    Message.success("状态已更新");
+  } catch {
+    record.enabled = !enabled;
+  }
+}
+
+async function remove(id: number) {
+  await telegram.deleteSource(id);
+  Message.success("已删除");
+  await load();
+}
+
+onMounted(load);
+</script>
