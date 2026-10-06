@@ -12,7 +12,7 @@
           <a-table-column title="用户名" data-index="telegram_username" />
           <a-table-column title="启用">
             <template #cell="{ record }">
-              <a-switch v-model="record.enabled" @change="(v) => toggle(record, v)" />
+              <a-switch v-model="record.enabled" @change="(v) => toggle(record, Boolean(v))" />
             </template>
           </a-table-column>
           <a-table-column title="状态">
