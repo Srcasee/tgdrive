@@ -311,3 +311,17 @@ The current Web UI uses a Telegram management sidebar with separate **Dialogs** 
 - Large-file behavior above Telegram/account-specific limits.
 
 See `docs/ARCHITECTURE.md` for the architectural invariants and `docs/PROJECT-STATUS.md` for the detailed implementation/real-device matrix.
+
+
+## Admin frontend
+
+The legacy static admin UI has been retired. The management console is now a Vue 3 + TypeScript + Vite + Arco Design frontend under `frontend/`, adapted from the SnowAdmin ecosystem.
+
+- Admin URL: `/admin`
+- Local frontend: `pnpm --dir frontend install && pnpm --dir frontend dev`
+- Production: Docker builds `frontend/dist` and Core serves it from `/admin`
+- Authentication remains the existing tgdrive session cookie; no JWT was introduced.
+- Integration/API mapping: `docs/ADMIN-FRONTEND.md`
+- Audit record (not remediated in this change): `docs/SECURITY-AUDIT.md`
+
+SnowAdmin is MIT licensed. See `frontend/LICENSE` for the required license notice.
