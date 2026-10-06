@@ -12,7 +12,7 @@
           <a-table-column title="Chat ID" data-index="telegram_chat_id" />
           <a-table-column title="启用">
             <template #cell="{ record }">
-              <a-switch v-model="record.enabled" @change="(v) => toggle(record, v)" />
+              <a-switch v-model="record.enabled" @change="(v) => toggle(record, Boolean(v))" />
             </template>
           </a-table-column>
           <a-table-column title="操作">
