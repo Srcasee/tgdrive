@@ -14,7 +14,8 @@ from telegram.api import router as telegram_router
 
 APP_DIR = Path(__file__).resolve().parents[1]
 WEB_INDEX = APP_DIR / "web" / "index.html"
-ADMIN_DIST = APP_DIR.parent / "frontend" / "dist"
+ADMIN_DIST = APP_DIR / "frontend" / "dist"
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -26,9 +27,11 @@ async def lifespan(app: FastAPI):
     finally:
         await lifecycle.shutdown()
 
+
 def web_index_response():
     html = WEB_INDEX.read_text(encoding="utf-8")
     return HTMLResponse(html, headers={"Cache-Control": "no-store"})
+
 
 def create_app():
     app = FastAPI(title="tgdrive", lifespan=lifespan)
@@ -40,9 +43,13 @@ def create_app():
     app.include_router(admin_router)
 
     @app.get("/", include_in_schema=False)
-    async def home(): return web_index_response()
+    async def home():
+        return web_index_response()
+
     @app.get("/web", include_in_schema=False)
-    async def web(): return web_index_response()
+    async def web():
+        return web_index_response()
+
     @app.get("/admin", include_in_schema=False)
     @app.get("/admin/", include_in_schema=False)
     async def admin():
@@ -50,6 +57,8 @@ def create_app():
         if not index.exists():
             return HTMLResponse("Admin frontend is not built.", status_code=503)
         return FileResponse(index, headers={"Cache-Control": "no-store"})
+
     if ADMIN_DIST.exists():
         app.mount("/admin", StaticFiles(directory=ADMIN_DIST, html=True), name="admin-static")
+
     return app
