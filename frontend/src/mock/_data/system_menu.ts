@@ -1740,6 +1740,46 @@ export const systemMenu = [
     },
     children: null
   }
+  {
+    id: "19", parentId: "0", path: "/tgdrive", name: "tgdrive", redirect: "/tgdrive/dashboard",
+    meta: { title: "TGDrive 管理", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], svgIcon: "set", sort: 19, type: 1 },
+    children: null
+  },
+  {
+    id: "1901", parentId: "19", path: "/tgdrive/dashboard", name: "tgdrive-dashboard", component: "tgdrive/dashboard/index",
+    meta: { title: "TGDrive 概览", hide: false, disable: false, keepAlive: true, affix: true, link: "", iframe: false, isFull: false, roles: ["admin"], icon: "icon-menu", sort: 1, type: 2 },
+    children: null
+  },
+  {
+    id: "1902", parentId: "19", path: "/tgdrive/telegram/accounts", name: "tgdrive-accounts", component: "tgdrive/telegram/accounts",
+    meta: { title: "Telegram 账号", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], icon: "icon-menu", sort: 2, type: 2 },
+    children: null
+  },
+  {
+    id: "1903", parentId: "19", path: "/tgdrive/telegram/dialogs", name: "tgdrive-dialogs", component: "tgdrive/telegram/dialogs",
+    meta: { title: "Telegram 对话", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], icon: "icon-menu", sort: 3, type: 2 },
+    children: null
+  },
+  {
+    id: "1904", parentId: "19", path: "/tgdrive/telegram/sources", name: "tgdrive-sources", component: "tgdrive/telegram/sources",
+    meta: { title: "Telegram 来源", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], icon: "icon-menu", sort: 4, type: 2 },
+    children: null
+  },
+  {
+    id: "1905", parentId: "19", path: "/tgdrive/resources/files", name: "tgdrive-resources", component: "tgdrive/resources/files",
+    meta: { title: "资源文件", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], icon: "icon-menu", sort: 5, type: 2 },
+    children: null
+  },
+  {
+    id: "1906", parentId: "19", path: "/tgdrive/resources/categories", name: "tgdrive-categories", component: "tgdrive/resources/categories",
+    meta: { title: "资源分类", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], icon: "icon-menu", sort: 6, type: 2 },
+    children: null
+  },
+  {
+    id: "1907", parentId: "19", path: "/tgdrive/downloads", name: "tgdrive-downloads", component: "tgdrive/downloads/index",
+    meta: { title: "下载管理", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], icon: "icon-menu", sort: 7, type: 2 },
+    children: null
+  },
 ];
 
 // 权限数据
