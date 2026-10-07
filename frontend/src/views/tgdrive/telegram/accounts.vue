@@ -36,7 +36,7 @@
                     <template #icon><icon-edit /></template>
                     <span>编辑</span>
                   </a-button>
-                  <a-popconfirm type="warning" content="删除账号信息，但保留已经生成的 session 文件，确定继续吗？" @ok="remove(record)">
+                  <a-popconfirm type="warning" content="删除账号信息，保留 session 文件，确定继续吗？" @ok="remove(record)">
                     <a-button type="primary" status="danger" size="mini">
                       <template #icon><icon-delete /></template>
                       <span>删除</span>
@@ -74,7 +74,7 @@
           <a-descriptions-item label="手机号"><a-space fill><span>{{ editForm.telegram_phone || "-" }}</span><a-button type="text" size="mini" @click="editPhone">更改</a-button></a-space></a-descriptions-item>
           <a-descriptions-item label="登录邮箱"><a-space fill><span>{{ editForm.login_email || "Telegram 不提供现有登录邮箱读取接口" }}</span><a-button type="text" size="mini" @click="editLoginEmail">更改</a-button></a-space></a-descriptions-item>
         </a-descriptions>
-        <a-alert type="info">这里的“登录邮箱”是 Telegram 用于接收登录验证码的邮箱，与 2FA 恢复邮箱不是同一个字段。</a-alert>
+        <a-alert type="info">这里的“登录邮箱”是 Telegram 用于接收登录验证码的邮箱。</a-alert>
       </a-space>
     </a-modal>
 
