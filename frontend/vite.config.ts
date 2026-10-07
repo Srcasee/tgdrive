@@ -5,7 +5,8 @@ import { include } from "./build/optimize";
 import postcssPresetEnv from "postcss-preset-env";
 import { createVitePlugins } from "./build/vite-plugin";
 
-// tgdrive serves the complete SnowAdmin console under /admin.\nexport default defineConfig(({ mode }) => {
+// tgdrive serves the complete SnowAdmin console under /admin.
+export default defineConfig(({ mode }) => {
   const root = process.cwd();
   const env: any = loadEnv(mode, root);
   return {
