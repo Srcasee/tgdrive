@@ -51,9 +51,9 @@
       <template #title>编辑 Telegram 账号</template>
       <a-space direction="vertical" fill size="medium">
         <a-descriptions :column="1" bordered>
-          <a-descriptions-item label="登录名"><a-space fill><span>{{ editForm.login_name }}</span><a-button type="text" size="mini" @click="editField("login_name")">更改</a-button></a-space></a-descriptions-item>
-          <a-descriptions-item label="昵称"><a-space fill><span>{{ editForm.nickname || "-" }}</span><a-button type="text" size="mini" @click="editField("nickname")">更改</a-button></a-space></a-descriptions-item>
-          <a-descriptions-item label="用户名"><a-space fill><span>{{ editForm.telegram_username ? `@${editForm.telegram_username}` : "-" }}</span><a-button type="text" size="mini" @click="editField("username")">更改</a-button></a-space></a-descriptions-item>
+          <a-descriptions-item label="登录名"><a-space fill><span>{{ editForm.login_name }}</span><a-button type="text" size="mini" @click="editField('login_name')">更改</a-button></a-space></a-descriptions-item>
+          <a-descriptions-item label="昵称"><a-space fill><span>{{ editForm.nickname || "-" }}</span><a-button type="text" size="mini" @click="editField('nickname')">更改</a-button></a-space></a-descriptions-item>
+          <a-descriptions-item label="用户名"><a-space fill><span>{{ editForm.telegram_username ? `@${editForm.telegram_username}` : "-" }}</span><a-button type="text" size="mini" @click="editField('username')">更改</a-button></a-space></a-descriptions-item>
           <a-descriptions-item label="手机号"><a-space fill><span>{{ editForm.telegram_phone || "-" }}</span><a-button type="text" size="mini" @click="editPhone">更改</a-button></a-space></a-descriptions-item>
         </a-descriptions>
         <a-alert type="info">Telegram 的恢复邮箱属于 2FA 恢复邮箱流程，不是普通用户资料字段，因此这里不提供邮箱编辑。</a-alert>
