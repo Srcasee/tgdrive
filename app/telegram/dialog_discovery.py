@@ -25,14 +25,13 @@ class DialogDiscoveryService:
                 "is_channel": bool(dialog.is_channel),
             })
 
-        selectable = [d for d in dialogs if d["is_channel"]]
-        selectable_ids = [d["id"] for d in selectable]
+        dialog_ids = [d["id"] for d in dialogs]
 
-        removed_chat_ids = self.source_repository.remove_missing_dialogs(account_id, selectable_ids)
-        removed_dialog_ids = self.dialog_repository.replace_for_account(account_id, selectable)
+        removed_chat_ids = self.source_repository.remove_missing_dialogs(account_id, dialog_ids)
+        removed_dialog_ids = self.dialog_repository.replace_for_account(account_id, dialogs)
 
         stale_ids = sorted(set(removed_chat_ids) | set(removed_dialog_ids))
         if stale_ids:
             self.catalog_repository.deactivate_telegram_chats(account_id, stale_ids)
 
-        print(f"[TG] dialogs refreshed: {account_name} ({len(selectable)})", flush=True)
+        print(f"[TG] dialogs refreshed: {account_name} ({len(dialogs)})", flush=True)
