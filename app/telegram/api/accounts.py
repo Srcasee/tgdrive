@@ -128,6 +128,14 @@ class PhoneChangeConfirmInput(BaseModel):
     code: str = Field(min_length=1, max_length=32)
 
 
+class EmailChangeStartInput(BaseModel):
+    email: str = Field(min_length=3, max_length=254)
+
+
+class EmailChangeConfirmInput(BaseModel):
+    code: str = Field(min_length=1, max_length=32)
+
+
 @router.put("/accounts/{account_id}/profile")
 async def update_account_profile(
     account_id: int,
@@ -176,6 +184,35 @@ async def confirm_account_phone_change(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"修改手机号失败: {exc}") from exc
+
+@router.post("/accounts/{account_id}/email/start")
+async def start_account_login_email_change(
+    account_id: int,
+    data: EmailChangeStartInput,
+    _: Principal = Depends(require_admin),
+):
+    try:
+        return await telegram_account_service.start_login_email_change(account_id, data.email)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"发送登录邮箱验证邮件失败: {exc}") from exc
+
+
+@router.post("/accounts/{account_id}/email/confirm")
+async def confirm_account_login_email_change(
+    account_id: int,
+    data: EmailChangeConfirmInput,
+    _: Principal = Depends(require_admin),
+):
+    try:
+        return await telegram_account_service.confirm_login_email_change(account_id, data.code)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"修改登录邮箱失败: {exc}") from exc
+
+
 
 
 class LoginStartInput(BaseModel):
