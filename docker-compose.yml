@@ -1,0 +1,82 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: tgdrive
+      POSTGRES_USER: tgdrive
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tgdrive}
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tgdrive -d tgdrive"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - telegram-net
+
+  telegram-drive:
+    image: tgdrive-core:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    working_dir: /app
+    volumes:
+      - ./data:/data
+      - ./plugins/proxy:/opt/tgdrive-plugins/proxy:ro
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://tgdrive:tgdrive@postgres:5432/tgdrive}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8080:8000"
+    networks:
+      - telegram-net
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  telegram-login:
+    image: tgdrive-core:local
+    working_dir: /app
+    volumes:
+      - ./data:/data
+      - ./plugins/proxy:/opt/tgdrive-plugins/proxy:ro
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://tgdrive:tgdrive@postgres:5432/tgdrive}
+    cpus: ${TG_LOGIN_CPUS:-1.0}
+    mem_limit: ${TG_LOGIN_MEMORY:-512m}
+    networks:
+      - telegram-net
+    profiles:
+      - login
+
+  proxy:
+    build:
+      context: ./plugins/proxy
+      dockerfile: Dockerfile
+      args:
+        SING_BOX_VERSION: ${SING_BOX_VERSION:-1.13.19}
+        SING_BOX_DOWNLOAD_BASE: ${SING_BOX_DOWNLOAD_BASE:-https://github.com/SagerNet/sing-box/releases/download}
+    restart: unless-stopped
+    profiles:
+      - proxy
+    env_file:
+      - .env
+    networks:
+      telegram-net:
+        aliases:
+          - proxy
+
+networks:
+  telegram-net:
+    driver: bridge
