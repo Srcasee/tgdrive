@@ -6,6 +6,19 @@ export const getAccountsAPI = () => http.get("/api/telegram/accounts");
 export const getAccountInfoAPI = (id: number) => http.get(`/api/telegram/accounts/${id}/info`);
 export const setAccountEnabledAPI = (id: number, enabled: boolean) =>
   http.put(`/api/telegram/accounts/${id}/enabled`, { enabled });
+export const deleteAccountAPI = (id: number) => http.delete(`/api/telegram/accounts/${id}`);
+
+export const startAccountLoginAPI = (data: { login_name: string; phone: string }) =>
+  http.post("/api/telegram/accounts/login/start", data);
+export const getAccountLoginStatusAPI = (loginId: string) =>
+  http.get(`/api/telegram/accounts/login/${loginId}`);
+export const submitAccountLoginCodeAPI = (data: { login_id: string; code: string }) =>
+  http.post("/api/telegram/accounts/login/code", data);
+export const submitAccountLoginPasswordAPI = (data: { login_id: string; password: string }) =>
+  http.post("/api/telegram/accounts/login/password", data);
+export const cancelAccountLoginAPI = (loginId: string) =>
+  http.post("/api/telegram/accounts/login/cancel", { login_id: loginId });
+
 export const getDialogsAPI = (accountId: number) => http.get(`/api/telegram/accounts/${accountId}/dialogs`);
 export const deleteDialogAPI = (accountId: number, chatId: number) =>
   http.delete(`/api/telegram/accounts/${accountId}/dialogs/${chatId}`);
