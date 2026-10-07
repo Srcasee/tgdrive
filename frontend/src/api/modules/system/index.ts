@@ -68,7 +68,7 @@ export const getAccountAPI = () => {
 export const getMenuListAPI = () => {
   const stored = localStorage.getItem("snowadmin-menu-data");
   const data = stored
-    ? JSON.parse(stored)
+    ? treeSort(JSON.parse(stored))
     : treeSort(buildTreeOptimized([...deepClone(systemMenu), ...deepClone(permissionData)]));
   return Promise.resolve({ data });
 };
