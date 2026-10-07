@@ -1,3 +1,5 @@
+import { deepClone, buildTreeOptimized, treeSort } from "@/mock/_utils";
+import { systemMenu, permissionData } from "@/mock/_data/system_menu";
 import axios from "@/api";
 
 // 获取菜单数据
@@ -42,10 +44,11 @@ export const getAccountAPI = () => {
 
 // 获取菜单管理列表
 export const getMenuListAPI = () => {
-  return axios({
-    url: "/mock/menu/getMenuList",
-    method: "get"
-  });
+  const stored = localStorage.getItem("snowadmin-menu-data");
+  const data = stored
+    ? JSON.parse(stored)
+    : treeSort(buildTreeOptimized([...deepClone(systemMenu), ...deepClone(permissionData)]));
+  return Promise.resolve({ data });
 };
 
 // 根据角色获取权限数据
