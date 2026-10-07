@@ -2,7 +2,6 @@ import asyncio
 import os
 import shutil
 from pathlib import Path
-import uuid
 
 from telethon import TelegramClient
 
@@ -87,8 +86,29 @@ def archive_account_session(session_name):
         return None
     archive_dir = session_dir / ".deleted"
     archive_dir.mkdir(parents=True, exist_ok=True)
-    target = archive_dir / f"{session_name}.{uuid.uuid4().hex}.session"
+    target = archive_dir / f"{session_name}.session"
     shutil.move(str(session_file), str(target))
+    return target
+
+
+def list_archived_sessions():
+    archive_dir = Path(settings.TG_SESSION_DIR) / ".deleted"
+    if not archive_dir.exists():
+        return []
+    return sorted(path.name for path in archive_dir.glob("*.session"))
+
+
+def restore_account_session(session_name):
+    if not session_name or Path(session_name).name != session_name or not session_name.endswith(".session"):
+        raise ValueError("无效的 session 文件名")
+    archive_dir = Path(settings.TG_SESSION_DIR) / ".deleted"
+    source = archive_dir / session_name
+    if not source.exists():
+        raise FileNotFoundError(f"归档 session 不存在: {session_name}")
+    target = Path(settings.TG_SESSION_DIR) / session_name
+    if target.exists():
+        raise FileExistsError(f"活动 session 已存在: {session_name}")
+    shutil.move(str(source), str(target))
     return target
 
 
