@@ -6,6 +6,7 @@ from auth.models import Principal
 from repositories.accounts import AccountRepository
 from telegram.client import get_client, sync_sessions
 from telegram.login_service import login_service
+from telegram.account_service import telegram_account_service
 
 
 router = APIRouter()
@@ -111,6 +112,70 @@ async def delete_account(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"删除账号失败: {exc}") from exc
+
+
+class AccountProfileUpdateInput(BaseModel):
+    login_name: str | None = Field(default=None, max_length=80)
+    nickname: str | None = Field(default=None, max_length=160)
+    username: str | None = Field(default=None, max_length=32)
+
+
+class PhoneChangeStartInput(BaseModel):
+    phone: str = Field(min_length=3, max_length=32)
+
+
+class PhoneChangeConfirmInput(BaseModel):
+    code: str = Field(min_length=1, max_length=32)
+
+
+@router.put("/accounts/{account_id}/profile")
+async def update_account_profile(
+    account_id: int,
+    data: AccountProfileUpdateInput,
+    _: Principal = Depends(require_admin),
+):
+    if data.login_name is None and data.nickname is None and data.username is None:
+        raise HTTPException(status_code=400, detail="没有需要修改的内容")
+    try:
+        await telegram_account_service.update_profile(
+            account_id,
+            login_name=data.login_name,
+            nickname=data.nickname,
+            username=data.username,
+        )
+        return await _account_view(account_repository.get(account_id))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"更新 Telegram 资料失败: {exc}") from exc
+
+
+@router.post("/accounts/{account_id}/phone/start")
+async def start_account_phone_change(
+    account_id: int,
+    data: PhoneChangeStartInput,
+    _: Principal = Depends(require_admin),
+):
+    try:
+        return await telegram_account_service.start_phone_change(account_id, data.phone)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"发送手机号验证码失败: {exc}") from exc
+
+
+@router.post("/accounts/{account_id}/phone/confirm")
+async def confirm_account_phone_change(
+    account_id: int,
+    data: PhoneChangeConfirmInput,
+    _: Principal = Depends(require_admin),
+):
+    try:
+        return await telegram_account_service.confirm_phone_change(account_id, data.code)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"修改手机号失败: {exc}") from exc
 
 
 class LoginStartInput(BaseModel):
