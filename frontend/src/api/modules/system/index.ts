@@ -7,9 +7,12 @@ import axios from "@/api";
 const normalizeMenuData = (nodes: any[]): any[] =>
   nodes.map(node => ({
     ...node,
-    meta: node.path === "/tgdrive/telegram/accounts" && node.meta?.title === "Telegram 账号"
-      ? { ...node.meta, title: "账号管理" }
-      : node.meta,
+    meta:
+      node.path === "/tgdrive/telegram/accounts" && node.meta?.title === "Telegram 账号"
+        ? { ...node.meta, title: "账号管理" }
+        : node.path === "/tgdrive/telegram/dialogs" && node.meta?.title === "Telegram 对话"
+          ? { ...node.meta, title: "群组/频道管理" }
+          : node.meta,
     children: node.children?.length ? normalizeMenuData(node.children) : node.children
   }));
 
