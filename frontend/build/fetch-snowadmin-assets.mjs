@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import https from "node:https";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const base = "https://raw.githubusercontent.com/imwangfan/SnowAdmin/main/src/assets";
+const base = "https://raw.githubusercontent.com/imwangfan/SnowAdmin/0da74dc997c2b0c099079959cb51b8bc17968ee1/src/assets";
 const assets = [
   "img/Abbey Road.jpg",
   "img/The Dark Side of The Moon.jpg",
