@@ -136,7 +136,7 @@
                   <template #icon><icon-plus /></template>
                   <span>新增</span>
                 </a-button>
-                <a-popconfirm type="warning" content="确定删除该项吗?">
+                <a-popconfirm type="warning" content="确定删除该项吗?" @ok="onDelete(record)">
                   <a-button size="mini" type="primary" status="danger">
                     <template #icon><icon-delete /></template>
                     <span>删除</span>
@@ -393,10 +393,44 @@ const onAdd = () => {
   open.value = true;
 };
 const handleOk = async () => {
-  let state = await formRef.value.validate();
-  if (state) return (open.value = true); // 校验不通过
-  console.log("addFrom.value", addFrom.value);
-  arcoMessage("success", "模拟提交成功");
+  const state = await formRef.value.validate();
+  if (state) return (open.value = true);
+
+  const parentId = addFrom.value.parentId || "0";
+  const node = {
+    id: formType.value === 1 ? addFrom.value.id : nextMenuId(),
+    parentId,
+    path: addFrom.value.path,
+    name: addFrom.value.name || getPascalCase((addFrom.value.title || "menu").replace(/[^\\w.-]/g, "_")),
+    ...(addFrom.value.redirect ? { redirect: addFrom.value.redirect } : {}),
+    ...(addFrom.value.type === 2 && addFrom.value.component ? { component: addFrom.value.component } : {}),
+    meta: {
+      title: addFrom.value.title,
+      hide: addFrom.value.hide,
+      disable: addFrom.value.disable,
+      keepAlive: addFrom.value.keepAlive,
+      affix: addFrom.value.affix,
+      link: addFrom.value.isLink ? addFrom.value.link : "",
+      iframe: addFrom.value.iframe,
+      isFull: addFrom.value.isFull,
+      roles: ["admin"],
+      svgIcon: addFrom.value.svgIcon,
+      icon: addFrom.value.icon,
+      sort: addFrom.value.sort,
+      type: addFrom.value.type,
+      ...(addFrom.value.type === 3 ? { permission: addFrom.value.permission } : {})
+    },
+    children: []
+  };
+
+  if (formType.value === 1) {
+    replaceMenuNode(menuData.value, node);
+  } else {
+    insertMenuNode(menuData.value, node);
+  }
+  persistMenuData();
+  open.value = false;
+  arcoMessage("success", formType.value === 1 ? "修改成功" : "新增成功");
   getMenuList();
 };
 const menuData = ref<any[]>([]);
@@ -566,10 +600,10 @@ const getMenuList = async () => {
     let { data } = await getMenuListAPI();
     // 语言翻译
     translation(data);
-    // 列表数据
-    tableTree.value = data;
+    menuData.value = data;
+    tableTree.value = filterMenuTree(deepClone(data));
     // 过滤type:3的节点，该节点是按钮权限，不显示在菜单中-用于下拉选择
-    menuTree.value = filterTree(data);
+    menuTree.value = filterTree(deepClone(data));
   } finally {
     loading.value = false;
   }
@@ -589,6 +623,23 @@ const translation = (tree: any) => {
       item.i18n = proxy.$t(`menu.${item.meta.title}`);
     }
   });
+};
+
+const filterMenuTree = (nodes: any[]): any[] => {
+  const keyword = form.value.name.trim().toLowerCase();
+  return nodes.reduce((result: any[], node: any) => {
+    const title = String(node.meta?.title || "").toLowerCase();
+    const name = String(node.name || "").toLowerCase();
+    const hideMatch = form.value.hide === "" || String(node.meta?.hide) === String(form.value.hide);
+    const disableMatch = form.value.disable === "" || String(node.meta?.disable) === String(form.value.disable);
+    const children = node.children?.length ? filterMenuTree(node.children) : [];
+    if ((!keyword || title.includes(keyword) || name.includes(keyword)) && hideMatch && disableMatch) {
+      result.push({ ...node, children });
+    } else if (children.length) {
+      result.push({ ...node, children });
+    }
+    return result;
+  }, []);
 };
 
 /**
