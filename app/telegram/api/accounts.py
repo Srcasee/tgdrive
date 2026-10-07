@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 from auth.dependencies import require_admin
 from auth.models import Principal
 from repositories.accounts import AccountRepository
-from telegram.client import get_client, sync_sessions, list_archived_sessions, restore_account_session
+from telegram.client import get_client, sync_sessions, refresh_clients, list_archived_sessions, restore_account_session
 from telegram.login import login_service
 from telegram.account_service import telegram_account_service
 
@@ -71,6 +71,7 @@ async def restore_deleted_account(
     try:
         session_path = restore_account_session(data.session)
         sync_sessions()
+        refresh_clients()
         return {"status": "ok", "session": session_path.name, "restored": True}
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
