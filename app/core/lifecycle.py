@@ -7,7 +7,7 @@ from database_pool import close_pool, initialize, open_pool
 from repositories.accounts import AccountRepository
 from repositories.dialogs import DialogRepository
 from repositories.sources import SourceRepository
-from telegram.client import get_client, get_clients
+from telegram.client import disconnect_account_session, get_client, get_clients
 from telegram.dialog_discovery import DialogDiscoveryService
 from telegram.runtime_events import initialize_source_change_event, notify_source_change, wait_for_source_change
 from telegram.scanner import scan_source
@@ -62,6 +62,23 @@ class ApplicationLifecycle:
                 settings.ADMIN_USERNAME,
                 hash_password(settings.ADMIN_PASSWORD),
             )
+
+    async def delete_account(self, account_id):
+        async with self.account_lock:
+            account = self.account_repository.get(account_id)
+            if not account:
+                raise ValueError("account not found")
+
+            session_name = account["session"]
+            self.authorized_accounts.discard(session_name)
+            self.discovered_accounts.discard(session_name)
+            self._cancel_account_sources(account_id)
+            await disconnect_account_session(session_name)
+            deleted = self.account_repository.delete(account_id)
+            notify_source_change()
+            if not deleted:
+                raise ValueError("account not found")
+            return {"status": "ok", "session": session_name}
 
     async def set_account_enabled(self, account_id, enabled):
         """Persist account state; enabling performs the single Dialog discovery."""
