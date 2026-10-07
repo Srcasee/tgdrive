@@ -1739,7 +1739,7 @@ export const systemMenu = [
       type: 2
     },
     children: null
-  }
+  },
   {
     id: "19", parentId: "0", path: "/tgdrive", name: "tgdrive", redirect: "/tgdrive/dashboard",
     meta: { title: "TGDrive 管理", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], svgIcon: "set", sort: 19, type: 1 },
