@@ -1,16 +1,18 @@
 <template>
-<a-config-provider :locale="locale"><div v-if="!user" class="login"><a-card class="login-card"><h1>TGDrive</h1><p>Telegram-only file catalog & delivery</p><a-form :model="loginForm" @submit="doLogin"><a-form-item field="username" label="用户名"><a-input v-model="loginForm.username"/></a-form-item><a-form-item field="password" label="密码"><a-input-password v-model="loginForm.password"/></a-form-item><a-button type="primary" long html-type="submit" :loading="loading">登录</a-button><a-alert v-if="error" type="error" class="mt">{{error}}</a-alert></a-form></a-card></div>
-<div v-else class="shell"><a-layout><a-layout-sider breakpoint="xl" collapsible><div class="brand">TGDrive</div><a-menu :selected-keys="[page]" @menu-item-click="page=$event"><a-menu-item key="dashboard">概览</a-menu-item><a-menu-item key="resources">资源目录</a-menu-item><a-menu-item key="categories">分类</a-menu-item><a-sub-menu key="telegram"><template #title>Telegram</template><a-menu-item key="accounts">账号</a-menu-item><a-menu-item key="dialogs">Dialogs</a-menu-item><a-menu-item key="sources">Sources</a-menu-item></a-sub-menu><a-menu-item key="downloads">下载记录</a-menu-item></a-menu></a-layout-sider><a-layout><a-layout-header class="header"><div><b>{{title}}</b><span class="muted"> 管理后台</span></div><div><a-button type="text" @click="logout">退出</a-button></div></a-layout-header><a-layout-content class="content"><Dashboard v-if="page==='dashboard'" :user="user"/><Resources v-else-if="page==='resources'"/><Categories v-else-if="page==='categories'"/><Accounts v-else-if="page==='accounts'"/><Dialogs v-else-if="page==='dialogs'"/><Sources v-else-if="page==='sources'"/><Downloads v-else/></a-layout-content></a-layout></a-layout></div></a-config-provider>
+  <div>
+    <router-view />
+  </div>
 </template>
+
 <script setup lang="ts">
-import {computed, onMounted, onUnmounted, ref} from "vue"; import {auth} from "./api";
-import Dashboard from "./views/Dashboard.vue"; import Resources from "./views/Resources.vue"; import Categories from "./views/Categories.vue"; import Accounts from "./views/Accounts.vue"; import Dialogs from "./views/Dialogs.vue"; import Sources from "./views/Sources.vue"; import Downloads from "./views/Downloads.vue";
-const user=ref<any>(null),loading=ref(false),error=ref(""),page=ref("dashboard"); const loginForm=ref({username:"",password:""});
-const locale:any={empty:"暂无数据",loading:"加载中",ok:"确定",cancel:"取消",submit:"提交",reset:"重置"};
-const title=computed(()=>({dashboard:"概览",resources:"资源目录",categories:"分类管理",accounts:"Telegram 账号",dialogs:"Telegram Dialogs",sources:"Telegram Sources",downloads:"下载记录"} as any)[page.value]||"TGDrive");
-async function init(){try{const r=await auth.me(); user.value=r.data;if(user.value.role!=="admin") error.value="当前账号没有管理员权限";}catch{}}
-async function doLogin(){loading.value=true;error.value="";try{await auth.login(loginForm.value);await init()}catch(e:any){error.value=e.response?.data?.detail||"登录失败"}finally{loading.value=false}}
-async function logout(){await auth.logout();user.value=null;page.value="dashboard"}
-function unauthorized(){user.value=null}
-onMounted(()=>{init();window.addEventListener("tgdrive:unauthorized",unauthorized)});onUnmounted(()=>window.removeEventListener("tgdrive:unauthorized",unauthorized));
+import { useThemeMethods } from "@/hooks/useThemeMethods";
+
+// 初始化主题
+const onTheme = () => {
+  let { initTheme } = useThemeMethods();
+  initTheme();
+};
+onTheme();
 </script>
+
+<style lang="scss" scoped></style>
