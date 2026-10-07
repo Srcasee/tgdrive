@@ -3,6 +3,7 @@ import axios from "axios";
 const http = axios.create({ withCredentials: true });
 
 export const getAccountsAPI = () => http.get("/api/telegram/accounts");
+export const getAccountInfoAPI = (id: number) => http.get(`/api/telegram/accounts/${id}/info`);
 export const setAccountEnabledAPI = (id: number, enabled: boolean) =>
   http.put(`/api/telegram/accounts/${id}/enabled`, { enabled });
 export const getDialogsAPI = (accountId: number) => http.get(`/api/telegram/accounts/${accountId}/dialogs`);
@@ -26,6 +27,7 @@ export const setResourceCategoriesAPI = (id: number, category_ids: number[]) =>
   http.put(`/api/admin/resources/${id}/categories`, { category_ids });
 export const deleteShareAPI = (id: number) => http.delete(`/api/admin/shares/${id}`);
 
+export const getResourceAPI = (id: number) => http.get(`/catalog/${id}`);
 export const getResourcesAPI = (params: { page?: number; size?: number; category_id?: number; sort?: string; order?: string }) =>
   http.get("/catalog", { params });
 export const searchResourcesAPI = (params: { q: string; category_id?: number; limit?: number }) =>
