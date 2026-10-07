@@ -54,10 +54,10 @@
       <template #title>恢复账号</template>
       <a-table :data="deletedSessions" :loading="restoreLoading" :pagination="false" row-key="session">
         <template #columns>
-          <a-table-column title="Session" data-index="session" ellipsis tooltip />
+          <a-table-column title="Session" :width="360" ellipsis tooltip><template #cell="{ record }">{{ record }}</template></a-table-column>
           <a-table-column title="操作" :width="90" align="center">
             <template #cell="{ record }">
-              <a-button type="primary" size="mini" @click="restore(record.session)">恢复</a-button>
+              <a-button type="primary" size="mini" @click="restore(record)">恢复</a-button>
             </template>
           </a-table-column>
         </template>
