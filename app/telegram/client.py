@@ -1,5 +1,7 @@
 import asyncio
 import os
+import shutil
+from pathlib import Path
 
 from telethon import TelegramClient
 
@@ -75,6 +77,20 @@ def refresh_clients():
             proxy=proxy,
         )
     return clients
+
+
+def archive_account_session(session_name):
+    session_dir = Path(settings.TG_SESSION_DIR)
+    session_file = session_dir / f"{session_name}.session"
+    if not session_file.exists():
+        return None
+    archive_dir = session_dir / ".deleted"
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    target = archive_dir / session_file.name
+    if target.exists():
+        target.unlink()
+    shutil.move(str(session_file), str(target))
+    return target
 
 
 async def disconnect_account_session(session_name):
