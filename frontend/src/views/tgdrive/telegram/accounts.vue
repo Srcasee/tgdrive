@@ -27,7 +27,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { Message } from "@arco-design/web-vue";
-import { getAccountsAPI, setAccountEnabledAPI } from "@/api/modules/tgdrive";
+import { getAccountsAPI, getAccountInfoAPI, setAccountEnabledAPI } from "@/api/modules/tgdrive";
 const rows = ref<any[]>([]);
 const loading = ref(false);
 const load = async () => { loading.value = true; try { rows.value = (await getAccountsAPI()).data || []; } finally { loading.value = false; } };
@@ -36,7 +36,7 @@ const toggle = async (row: any) => {
   catch { row.enabled = !row.enabled; }
 };
 const info = async (row: any) => {
-  const fresh = (await getAccountsAPI()).data?.find((x: any) => x.id === row.id);
+  const fresh = (await getAccountInfoAPI(row.id)).data;
   if (fresh) Object.assign(row, fresh);
 };
 load();
