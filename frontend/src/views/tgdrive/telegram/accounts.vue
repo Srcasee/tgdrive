@@ -55,8 +55,9 @@
           <a-descriptions-item label="昵称"><a-space fill><span>{{ editForm.nickname || "-" }}</span><a-button type="text" size="mini" @click="editField('nickname')">更改</a-button></a-space></a-descriptions-item>
           <a-descriptions-item label="用户名"><a-space fill><span>{{ editForm.telegram_username ? `@${editForm.telegram_username}` : "-" }}</span><a-button type="text" size="mini" @click="editField('username')">更改</a-button></a-space></a-descriptions-item>
           <a-descriptions-item label="手机号"><a-space fill><span>{{ editForm.telegram_phone || "-" }}</span><a-button type="text" size="mini" @click="editPhone">更改</a-button></a-space></a-descriptions-item>
+          <a-descriptions-item label="登录邮箱"><a-space fill><span>{{ editForm.login_email || "Telegram 不提供现有登录邮箱读取接口" }}</span><a-button type="text" size="mini" @click="editLoginEmail">更改</a-button></a-space></a-descriptions-item>
         </a-descriptions>
-        <a-alert type="info">Telegram 的恢复邮箱属于 2FA 恢复邮箱流程，不是普通用户资料字段，因此这里不提供邮箱编辑。</a-alert>
+        <a-alert type="info">这里的“登录邮箱”是 Telegram 用于接收登录验证码的邮箱，与 2FA 恢复邮箱不是同一个字段。</a-alert>
       </a-space>
     </a-modal>
 
@@ -65,6 +66,18 @@
       <a-form :model="fieldForm" auto-label-width>
         <a-form-item :label="fieldTitle"><a-input v-model="fieldForm.value" allow-clear /></a-form-item>
         <a-space fill justify="end"><a-button @click="fieldVisible = false">取消</a-button><a-button type="primary" :loading="editLoading" @click="saveField">保存</a-button></a-space>
+      </a-form>
+    </a-modal>
+
+    <a-modal v-model:visible="emailVisible" :width="480" :mask-closable="false" :footer="false">
+      <template #title>更改登录邮箱</template>
+      <a-form v-if="!emailCodeRequired" :model="emailForm" auto-label-width>
+        <a-form-item label="新邮箱"><a-input v-model="emailForm.email" allow-clear placeholder="请输入新的 Telegram 登录邮箱" /></a-form-item>
+        <a-space fill justify="end"><a-button @click="emailVisible = false">取消</a-button><a-button type="primary" :loading="editLoading" @click="startEmailEdit">发送验证邮件</a-button></a-space>
+      </a-form>
+      <a-form v-else :model="emailForm" auto-label-width>
+        <a-form-item label="邮箱验证码"><a-input v-model="emailForm.code" allow-clear /></a-form-item>
+        <a-space fill justify="end"><a-button @click="emailVisible = false">取消</a-button><a-button type="primary" :loading="editLoading" @click="confirmEmailEdit">确认修改</a-button></a-space>
       </a-form>
     </a-modal>
 
@@ -146,11 +159,12 @@ import { ref, computed } from "vue";
 import { Message } from "@arco-design/web-vue";
 import {
   getAccountsAPI,
-  getAccountInfoAPI,
   deleteAccountAPI,
   updateAccountProfileAPI,
   startAccountPhoneChangeAPI,
   confirmAccountPhoneChangeAPI,
+  startAccountEmailChangeAPI,
+  confirmAccountEmailChangeAPI,
   startAccountLoginAPI,
   submitAccountLoginCodeAPI,
   submitAccountLoginPasswordAPI,
@@ -169,6 +183,7 @@ const loginMessage = ref("");
 const editVisible = ref(false);
 const fieldVisible = ref(false);
 const phoneVisible = ref(false);
+const emailVisible = ref(false);
 const editLoading = ref(false);
 const editRow = ref<any>(null);
 const editForm = ref<any>({});
@@ -176,6 +191,8 @@ const fieldName = ref<"login_name" | "nickname" | "username">("nickname");
 const fieldForm = ref({ value: "" });
 const phoneForm = ref({ phone: "", code: "" });
 const phoneCodeRequired = ref(false);
+const emailForm = ref({ email: "", code: "" });
+const emailCodeRequired = ref(false);
 const fieldTitle = computed(() => ({ login_name: "登录名", nickname: "昵称", username: "用户名" }[fieldName.value]));
 
 const loginStepIndex = computed(() => {
@@ -247,6 +264,49 @@ const saveField = async () => {
   }
 };
 
+const editLoginEmail = () => {
+  emailForm.value = { email: "", code: "" };
+  emailCodeRequired.value = false;
+  emailVisible.value = true;
+};
+
+const startEmailEdit = async () => {
+  if (!emailForm.value.email.trim()) {
+    Message.error("请输入新的登录邮箱");
+    return;
+  }
+  editLoading.value = true;
+  try {
+    const data = (await startAccountEmailChangeAPI(editRow.value.id, emailForm.value.email.trim())).data;
+    emailForm.value.email = data.email || emailForm.value.email;
+    emailCodeRequired.value = true;
+    Message.success("验证邮件已发送");
+  } catch (error: any) {
+    Message.error(error?.response?.data?.detail || "发送验证邮件失败");
+  } finally {
+    editLoading.value = false;
+  }
+};
+
+const confirmEmailEdit = async () => {
+  if (!emailForm.value.code.trim()) {
+    Message.error("请输入邮箱验证码");
+    return;
+  }
+  editLoading.value = true;
+  try {
+    const data = (await confirmAccountEmailChangeAPI(editRow.value.id, emailForm.value.code.trim())).data;
+    editRow.value.login_email = data.email;
+    editForm.value.login_email = data.email;
+    emailVisible.value = false;
+    Message.success("登录邮箱修改成功");
+  } catch (error: any) {
+    Message.error(error?.response?.data?.detail || "修改登录邮箱失败");
+  } finally {
+    editLoading.value = false;
+  }
+};
+
 const editPhone = () => {
   phoneForm.value = { phone: "", code: "" };
   phoneCodeRequired.value = false;
@@ -286,16 +346,6 @@ const confirmPhoneEdit = async () => {
     Message.error(error?.response?.data?.detail || "修改手机号失败");
   } finally {
     editLoading.value = false;
-  }
-};
-
-const refresh = async (row: any) => {
-  try {
-    const fresh = (await getAccountInfoAPI(row.id)).data;
-    if (fresh) Object.assign(row, fresh);
-    Message.success("账号信息已刷新");
-  } catch (error: any) {
-    Message.error(error?.response?.data?.detail || "刷新失败");
   }
 };
 
