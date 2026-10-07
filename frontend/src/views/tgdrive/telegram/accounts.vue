@@ -3,10 +3,16 @@
     <div class="snow-inner">
       <a-space direction="vertical" fill size="large">
         <a-row justify="end">
-          <a-button type="primary" @click="openLogin">
-            <template #icon><icon-plus /></template>
-            <span>新增</span>
-          </a-button>
+          <a-space>
+            <a-button @click="openRestore">
+              <template #icon><icon-restore /></template>
+              <span>恢复</span>
+            </a-button>
+            <a-button type="primary" @click="openLogin">
+              <template #icon><icon-plus /></template>
+              <span>新增</span>
+            </a-button>
+          </a-space>
         </a-row>
 
         <a-table :data="rows" :loading="loading" row-key="id" :bordered="{ cell: true }">
@@ -46,6 +52,20 @@
         </a-table>
       </a-space>
     </div>
+
+    <a-modal v-model:visible="restoreVisible" :width="520" :mask-closable="false" :footer="false">
+      <template #title>恢复账号</template>
+      <a-table :data="deletedSessions" :loading="restoreLoading" :pagination="false" row-key="session">
+        <template #columns>
+          <a-table-column title="Session" data-index="session" ellipsis tooltip />
+          <a-table-column title="操作" :width="90" align="center">
+            <template #cell="{ record }">
+              <a-button type="primary" size="mini" @click="restore(record.session)">恢复</a-button>
+            </template>
+          </a-table-column>
+        </template>
+      </a-table>
+    </a-modal>
 
     <a-modal v-model:visible="editVisible" :width="620" :mask-closable="false" :footer="false">
       <template #title>编辑 Telegram 账号</template>
@@ -160,6 +180,8 @@ import { Message } from "@arco-design/web-vue";
 import {
   getAccountsAPI,
   deleteAccountAPI,
+  getDeletedAccountsAPI,
+  restoreDeletedAccountAPI,
   updateAccountProfileAPI,
   startAccountPhoneChangeAPI,
   confirmAccountPhoneChangeAPI,
@@ -185,6 +207,9 @@ const fieldVisible = ref(false);
 const phoneVisible = ref(false);
 const emailVisible = ref(false);
 const editLoading = ref(false);
+const restoreVisible = ref(false);
+const restoreLoading = ref(false);
+const deletedSessions = ref<string[]>([]);
 const editRow = ref<any>(null);
 const editForm = ref<any>({});
 const fieldName = ref<"login_name" | "nickname" | "username">("nickname");
@@ -225,6 +250,33 @@ const load = async () => {
     rows.value = (await getAccountsAPI()).data || [];
   } finally {
     loading.value = false;
+  }
+};
+
+const openRestore = async () => {
+  restoreVisible.value = true;
+  restoreLoading.value = true;
+  try {
+    deletedSessions.value = (await getDeletedAccountsAPI()).data || [];
+  } catch (error: any) {
+    Message.error(error?.response?.data?.detail || "获取可恢复账号失败");
+  } finally {
+    restoreLoading.value = false;
+  }
+};
+
+const restore = async (session: string) => {
+  restoreLoading.value = true;
+  try {
+    await restoreDeletedAccountAPI(session);
+    deletedSessions.value = deletedSessions.value.filter(item => item !== session);
+    await load();
+    Message.success("账号已恢复");
+    if (!deletedSessions.value.length) restoreVisible.value = false;
+  } catch (error: any) {
+    Message.error(error?.response?.data?.detail || "恢复账号失败");
+  } finally {
+    restoreLoading.value = false;
   }
 };
 
