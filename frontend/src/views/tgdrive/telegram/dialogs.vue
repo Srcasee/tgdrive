@@ -1,16 +1,21 @@
 <template>
   <div class="snow-page">
-    <a-card title="Telegram 对话">
-      <a-space class="toolbar">
-        <a-select v-model="accountId" placeholder="选择账号" style="width: 260px" @change="load">
-          <a-option v-for="item in accounts" :key="item.id" :value="item.id">{{ item.id }} - {{ item.telegram_username || item.session_name }}</a-option>
-        </a-select>
-      </a-space>
-      <a-table :data="rows" :loading="loading" row-key="telegram_chat_id">
+    <a-card title="群组/频道管理">
+      <a-table :data="rows" :loading="loading" row-key="row_key">
         <template #columns>
+          <a-table-column title="账号" data-index="account_id" />
           <a-table-column title="Chat ID" data-index="telegram_chat_id" />
           <a-table-column title="名称" data-index="name" />
-          <a-table-column title="类型" data-index="type" />
+          <a-table-column title="用户名" data-index="username">
+            <template #cell="{ record }">{{ record.username ? `@${record.username}` : "-" }}</template>
+          </a-table-column>
+          <a-table-column title="类型" data-index="entity_type" />
+          <a-table-column title="群组" data-index="is_group">
+            <template #cell="{ record }">{{ record.is_group ? "是" : "否" }}</template>
+          </a-table-column>
+          <a-table-column title="频道" data-index="is_channel">
+            <template #cell="{ record }">{{ record.is_channel ? "是" : "否" }}</template>
+          </a-table-column>
           <a-table-column title="来源状态">
             <template #cell="{ record }">{{ record.source_enabled ? "已启用" : "未启用" }}</template>
           </a-table-column>
@@ -29,12 +34,28 @@
 
 <script setup lang="ts">
 import { ref } from "vue";
-import { getAccountsAPI, getDialogsAPI, deleteDialogAPI } from "@/api/modules/tgdrive";
-const accounts = ref<any[]>([]); const rows = ref<any[]>([]); const loading = ref(false); const accountId = ref<number>();
-const loadAccounts = async () => { accounts.value = (await getAccountsAPI()).data || []; if (!accountId.value && accounts.value.length) { accountId.value = accounts.value[0].id; load(); } };
-const load = async () => { if (!accountId.value) return; loading.value = true; try { rows.value = (await getDialogsAPI(accountId.value)).data || []; } finally { loading.value = false; } };
-const remove = async (row: any) => { await deleteDialogAPI(accountId.value!, row.telegram_chat_id); await load(); };
-loadAccounts();
-</script>
+import { getDialogsAPI, deleteDialogAPI } from "@/api/modules/tgdrive";
 
-<style scoped>.toolbar { margin-bottom: 16px; }</style>
+const rows = ref<any[]>([]);
+const loading = ref(false);
+
+const load = async () => {
+  loading.value = true;
+  try {
+    const data = (await getDialogsAPI()).data || [];
+    rows.value = data.map((item: any) => ({
+      ...item,
+      row_key: `${item.account_id}:${item.telegram_chat_id}`
+    }));
+  } finally {
+    loading.value = false;
+  }
+};
+
+const remove = async (row: any) => {
+  await deleteDialogAPI(row.account_id, row.telegram_chat_id);
+  await load();
+};
+
+load();
+</script>
