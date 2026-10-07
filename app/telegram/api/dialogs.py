@@ -12,6 +12,11 @@ dialog_repository = DialogRepository()
 source_repository = SourceRepository()
 
 
+@router.get("/dialogs")
+async def list_all_dialogs(_: Principal = Depends(require_admin)):
+    return dialog_repository.list_all()
+
+
 @router.get("/accounts/{account_id}/dialogs")
 async def list_dialogs(account_id: int, _: Principal = Depends(require_admin)):
     account = account_repository.get(account_id)
