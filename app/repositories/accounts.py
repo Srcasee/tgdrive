@@ -78,6 +78,35 @@ class AccountRepository:
                 )
                 return cursor.fetchone()
 
+    def update_session(self, account_id, session):
+        with transaction() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "UPDATE accounts SET session=%s WHERE id=%s RETURNING id",
+                    (session, account_id),
+                )
+                row = cursor.fetchone()
+                if row is None:
+                    raise ValueError("account not found")
+                return row["id"]
+
+    def update_profile(self, account_id, name=None, username=None):
+        with transaction() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    UPDATE accounts
+                    SET name=COALESCE(%s, name), username=COALESCE(%s, username)
+                    WHERE id=%s
+                    RETURNING id
+                    """,
+                    (name, username, account_id),
+                )
+                row = cursor.fetchone()
+                if row is None:
+                    raise ValueError("account not found")
+                return row["id"]
+
     def upsert_session(self, session, name=None):
         with transaction() as conn:
             with conn.cursor() as cursor:
