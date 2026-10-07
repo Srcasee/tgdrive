@@ -4,8 +4,8 @@ from pydantic import BaseModel, Field
 from auth.dependencies import require_admin
 from auth.models import Principal
 from repositories.accounts import AccountRepository
-from telegram.client import get_client, sync_sessions
-from telegram.login_service import login_service
+from telegram.client import get_client, sync_sessions, list_archived_sessions, restore_account_session
+from telegram.login import login_service
 from telegram.account_service import telegram_account_service
 
 
@@ -52,6 +52,30 @@ async def _account_view(account):
 async def list_accounts(_: Principal = Depends(require_admin)):
     sync_sessions()
     return [await _account_view(account) for account in account_repository.list_all()]
+
+
+@router.get("/accounts/deleted")
+async def list_deleted_accounts(_: Principal = Depends(require_admin)):
+    return list_archived_sessions()
+
+
+class RestoreAccountInput(BaseModel):
+    session: str = Field(min_length=1, max_length=120)
+
+
+@router.post("/accounts/restore")
+async def restore_deleted_account(
+    data: RestoreAccountInput,
+    _: Principal = Depends(require_admin),
+):
+    try:
+        session_path = restore_account_session(data.session)
+        sync_sessions()
+        return {"status": "ok", "session": session_path.name, "restored": True}
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except (FileExistsError, ValueError) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @router.get("/accounts/{account_id}/info")
