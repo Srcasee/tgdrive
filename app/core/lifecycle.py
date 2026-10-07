@@ -168,6 +168,13 @@ class ApplicationLifecycle:
                             print(f"[TG] authorization failed: {name}: {exc!r}", flush=True)
                             continue
 
+                    if name not in self.discovered_accounts:
+                        try:
+                            await self.dialog_discovery.refresh(client, account_id, name)
+                            self.discovered_accounts.add(name)
+                        except Exception as exc:
+                            print(f"[TG] dialog discovery failed: {name}: {exc!r}", flush=True)
+
                     await self._reconcile_sources(account_id, name, client)
 
                 await wait_for_source_change(RECONCILIATION_INTERVAL)
