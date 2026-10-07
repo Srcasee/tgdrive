@@ -7,7 +7,7 @@ class AccountRepository:
             with conn.cursor() as cursor:
                 cursor.execute(
                     """
-                    SELECT id, name, username, enabled
+                    SELECT id, name, username, session, enabled
                     FROM accounts
                     ORDER BY id
                     """
@@ -69,6 +69,15 @@ class AccountRepository:
                     raise ValueError("account not found")
                 return row["id"]
 
+    def delete(self, account_id):
+        with transaction() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "DELETE FROM accounts WHERE id=%s RETURNING id, session",
+                    (account_id,),
+                )
+                return cursor.fetchone()
+
     def upsert_session(self, session, name=None):
         with transaction() as conn:
             with conn.cursor() as cursor:
@@ -77,7 +86,7 @@ class AccountRepository:
                     INSERT INTO accounts(name, session, enabled)
                     VALUES(%s, %s, TRUE)
                     ON CONFLICT (session) DO UPDATE
-                    SET name=COALESCE(accounts.name, EXCLUDED.name),
+                    SET name=COALESCE(EXCLUDED.name, accounts.name),
                         enabled=TRUE
                     RETURNING id
                     """,
