@@ -11,7 +11,7 @@
 
         <a-table :data="rows" :loading="loading" row-key="id" :bordered="{ cell: true }">
           <template #columns>
-            <a-table-column title="ID" data-index="id" :width="80" />
+            <a-table-column title="ID" :width="80"><template #cell="{ rowIndex }">{{ rowIndex + 1 }}</template></a-table-column>
             <a-table-column title="登录名" data-index="login_name" :width="160" ellipsis tooltip />
             <a-table-column title="昵称" data-index="nickname" :width="160" ellipsis tooltip />
             <a-table-column title="用户名" data-index="telegram_username" :width="160" ellipsis tooltip>
@@ -29,9 +29,9 @@
             <a-table-column title="操作" :width="180" align="center">
               <template #cell="{ record }">
                 <a-space>
-                  <a-button type="primary" status="success" size="mini" @click="refresh(record)">
-                    <template #icon><icon-refresh /></template>
-                    <span>刷新</span>
+                  <a-button type="primary" size="mini" @click="openEdit(record)">
+                    <template #icon><icon-edit /></template>
+                    <span>编辑</span>
                   </a-button>
                   <a-popconfirm type="warning" content="删除账号信息，但保留已经生成的 session 文件，确定继续吗？" @ok="remove(record)">
                     <a-button type="primary" status="danger" size="mini">
@@ -46,6 +46,39 @@
         </a-table>
       </a-space>
     </div>
+
+    <a-modal v-model:visible="editVisible" :width="620" :mask-closable="false" :footer="false">
+      <template #title>编辑 Telegram 账号</template>
+      <a-space direction="vertical" fill size="medium">
+        <a-descriptions :column="1" bordered>
+          <a-descriptions-item label="登录名"><a-space fill><span>{{ editForm.login_name }}</span><a-button type="text" size="mini" @click="editField("login_name")">更改</a-button></a-space></a-descriptions-item>
+          <a-descriptions-item label="昵称"><a-space fill><span>{{ editForm.nickname || "-" }}</span><a-button type="text" size="mini" @click="editField("nickname")">更改</a-button></a-space></a-descriptions-item>
+          <a-descriptions-item label="用户名"><a-space fill><span>{{ editForm.telegram_username ? `@${editForm.telegram_username}` : "-" }}</span><a-button type="text" size="mini" @click="editField("username")">更改</a-button></a-space></a-descriptions-item>
+          <a-descriptions-item label="手机号"><a-space fill><span>{{ editForm.telegram_phone || "-" }}</span><a-button type="text" size="mini" @click="editPhone">更改</a-button></a-space></a-descriptions-item>
+        </a-descriptions>
+        <a-alert type="info">Telegram 的恢复邮箱属于 2FA 恢复邮箱流程，不是普通用户资料字段，因此这里不提供邮箱编辑。</a-alert>
+      </a-space>
+    </a-modal>
+
+    <a-modal v-model:visible="fieldVisible" :width="480" :mask-closable="false" :footer="false">
+      <template #title>更改{{ fieldTitle }}</template>
+      <a-form :model="fieldForm" auto-label-width>
+        <a-form-item :label="fieldTitle"><a-input v-model="fieldForm.value" allow-clear /></a-form-item>
+        <a-space fill justify="end"><a-button @click="fieldVisible = false">取消</a-button><a-button type="primary" :loading="editLoading" @click="saveField">保存</a-button></a-space>
+      </a-form>
+    </a-modal>
+
+    <a-modal v-model:visible="phoneVisible" :width="480" :mask-closable="false" :footer="false">
+      <template #title>更改手机号</template>
+      <a-form v-if="!phoneCodeRequired" :model="phoneForm" auto-label-width>
+        <a-form-item label="新手机号"><a-input v-model="phoneForm.phone" allow-clear /></a-form-item>
+        <a-space fill justify="end"><a-button @click="phoneVisible = false">取消</a-button><a-button type="primary" :loading="editLoading" @click="startPhoneEdit">发送验证码</a-button></a-space>
+      </a-form>
+      <a-form v-else :model="phoneForm" auto-label-width>
+        <a-form-item label="验证码"><a-input v-model="phoneForm.code" allow-clear /></a-form-item>
+        <a-space fill justify="end"><a-button @click="phoneVisible = false">取消</a-button><a-button type="primary" :loading="editLoading" @click="confirmPhoneEdit">确认修改</a-button></a-space>
+      </a-form>
+    </a-modal>
 
     <a-modal
       v-model:visible="loginVisible"
@@ -115,6 +148,9 @@ import {
   getAccountsAPI,
   getAccountInfoAPI,
   deleteAccountAPI,
+  updateAccountProfileAPI,
+  startAccountPhoneChangeAPI,
+  confirmAccountPhoneChangeAPI,
   startAccountLoginAPI,
   submitAccountLoginCodeAPI,
   submitAccountLoginPasswordAPI,
@@ -130,6 +166,17 @@ const loginLoading = ref(false);
 const loginStep = ref<LoginStep>("start");
 const loginId = ref("");
 const loginMessage = ref("");
+const editVisible = ref(false);
+const fieldVisible = ref(false);
+const phoneVisible = ref(false);
+const editLoading = ref(false);
+const editRow = ref<any>(null);
+const editForm = ref<any>({});
+const fieldName = ref<"login_name" | "nickname" | "username">("nickname");
+const fieldForm = ref({ value: "" });
+const phoneForm = ref({ phone: "", code: "" });
+const phoneCodeRequired = ref(false);
+const fieldTitle = computed(() => ({ login_name: "登录名", nickname: "昵称", username: "用户名" }[fieldName.value]));
 
 const loginStepIndex = computed(() => {
   if (loginStep.value === "start") return 1;
@@ -161,6 +208,84 @@ const load = async () => {
     rows.value = (await getAccountsAPI()).data || [];
   } finally {
     loading.value = false;
+  }
+};
+
+const openEdit = (row: any) => {
+  editRow.value = row;
+  editForm.value = { ...row };
+  editVisible.value = true;
+};
+
+const editField = (name: "login_name" | "nickname" | "username") => {
+  fieldName.value = name;
+  fieldForm.value.value = fieldName.value === "username"
+    ? editForm.value.telegram_username || ""
+    : editForm.value[fieldName.value] || "";
+  fieldVisible.value = true;
+};
+
+const saveField = async () => {
+  const value = fieldForm.value.value.trim();
+  if (!editRow.value || !value) {
+    Message.error("请输入修改内容");
+    return;
+  }
+  editLoading.value = true;
+  try {
+    const payload: any = {};
+    payload[fieldName.value] = value;
+    const data = (await updateAccountProfileAPI(editRow.value.id, payload)).data;
+    Object.assign(editRow.value, data);
+    editForm.value = { ...editForm.value, ...data };
+    fieldVisible.value = false;
+    Message.success("修改成功");
+  } catch (error: any) {
+    Message.error(error?.response?.data?.detail || "修改失败");
+  } finally {
+    editLoading.value = false;
+  }
+};
+
+const editPhone = () => {
+  phoneForm.value = { phone: "", code: "" };
+  phoneCodeRequired.value = false;
+  phoneVisible.value = true;
+};
+
+const startPhoneEdit = async () => {
+  if (!phoneForm.value.phone.trim()) {
+    Message.error("请输入新的手机号");
+    return;
+  }
+  editLoading.value = true;
+  try {
+    await startAccountPhoneChangeAPI(editRow.value.id, phoneForm.value.phone.trim());
+    phoneCodeRequired.value = true;
+    Message.success("验证码已发送");
+  } catch (error: any) {
+    Message.error(error?.response?.data?.detail || "发送验证码失败");
+  } finally {
+    editLoading.value = false;
+  }
+};
+
+const confirmPhoneEdit = async () => {
+  if (!phoneForm.value.code.trim()) {
+    Message.error("请输入验证码");
+    return;
+  }
+  editLoading.value = true;
+  try {
+    const data = (await confirmAccountPhoneChangeAPI(editRow.value.id, phoneForm.value.code.trim())).data;
+    editRow.value.telegram_phone = data.phone;
+    editForm.value.telegram_phone = data.phone;
+    phoneVisible.value = false;
+    Message.success("手机号修改成功");
+  } catch (error: any) {
+    Message.error(error?.response?.data?.detail || "修改手机号失败");
+  } finally {
+    editLoading.value = false;
   }
 };
 
