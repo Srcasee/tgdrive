@@ -85,6 +85,9 @@ class TelegramLoginService:
             except Exception:
                 self._sessions.pop(login_id, None)
                 await client.disconnect()
+                session_file = session_path.with_suffix(".session")
+                if session_file.exists():
+                    session_file.unlink()
                 raise
 
     async def submit_code(self, login_id: str, code: str):
@@ -125,6 +128,9 @@ class TelegramLoginService:
         state = self._sessions.pop(login_id, None)
         if state:
             await state["client"].disconnect()
+            session_file = Path(settings.TG_SESSION_DIR) / f"{state[\"login_name\"]}.session"
+            if session_file.exists():
+                session_file.unlink()
         return {"status": "cancelled"}
 
     def status(self, login_id: str):
