@@ -1426,7 +1426,7 @@ export const systemMenu = [
   },
   {
     id: "21", parentId: "0", path: "/tgdrive/telegram/dialogs", name: "tgdrive-dialogs", component: "tgdrive/telegram/dialogs",
-    meta: { title: "Telegram 对话", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], icon: "icon-menu", sort: 21, type: 2 },
+    meta: { title: "群组/频道管理", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], icon: "icon-menu", sort: 21, type: 2 },
     children: null
   },
   {
