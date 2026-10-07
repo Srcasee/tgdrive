@@ -399,6 +399,67 @@ const handleOk = async () => {
   arcoMessage("success", "模拟提交成功");
   getMenuList();
 };
+const menuData = ref<any[]>([]);
+
+const nextMenuId = () => {
+  let max = 0;
+  const walk = (nodes: any[]) => nodes.forEach(node => {
+    max = Math.max(max, Number(node.id) || 0);
+    if (node.children?.length) walk(node.children);
+  });
+  walk(menuData.value);
+  return String(max + 1);
+};
+
+const insertMenuNode = (nodes: any[], node: any) => {
+  if (node.parentId === "0") {
+    nodes.push(node);
+    return true;
+  }
+  for (const item of nodes) {
+    if (item.id === node.parentId) {
+      item.children = item.children || [];
+      item.children.push(node);
+      return true;
+    }
+    if (item.children?.length && insertMenuNode(item.children, node)) return true;
+  }
+  return false;
+};
+
+const replaceMenuNode = (nodes: any[], node: any): boolean => {
+  for (let i = 0; i < nodes.length; i++) {
+    if (nodes[i].id === node.id) {
+      node.children = nodes[i].children || [];
+      nodes[i] = node;
+      return true;
+    }
+    if (nodes[i].children?.length && replaceMenuNode(nodes[i].children, node)) return true;
+  }
+  return false;
+};
+
+const removeMenuNode = (nodes: any[], id: string): boolean => {
+  const index = nodes.findIndex(item => item.id === id);
+  if (index >= 0) {
+    nodes.splice(index, 1);
+    return true;
+  }
+  return nodes.some(item => item.children?.length && removeMenuNode(item.children, id));
+};
+
+const persistMenuData = () => {
+  localStorage.setItem("snowadmin-menu-data", JSON.stringify(menuData.value));
+};
+
+const onDelete = (record: Menu.MenuOptions) => {
+  if (removeMenuNode(menuData.value, record.id)) {
+    persistMenuData();
+    arcoMessage("success", "删除成功");
+    getMenuList();
+  }
+};
+
 // 关闭对话框动画结束后触发
 const afterClose = () => {
   formRef.value.resetFields();
