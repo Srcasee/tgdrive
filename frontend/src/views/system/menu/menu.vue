@@ -333,8 +333,12 @@ import useGlobalProperties from "@/hooks/useGlobalProperties";
 import { getMenuListAPI } from "@/api/modules/system/index";
 import { deepClone, getPascalCase } from "@/utils";
 import { useLayoutModel } from "@/hooks/useLayoutModel";
+import router from "@/router/index";
+import { useRouteConfigStore } from "@/store/modules/route-config";
+import pinia from "@/store/index";
 
 const proxy = useGlobalProperties();
+const routeStore = useRouteConfigStore(pinia);
 const openState = ref(dictFilter("status"));
 const { dialogWidth, formLayout, tableFixed } = useLayoutModel();
 const form = ref({
@@ -429,6 +433,7 @@ const handleOk = async () => {
     insertMenuNode(menuData.value, node);
   }
   persistMenuData();
+  await refreshRoutes(node);
   open.value = false;
   arcoMessage("success", formType.value === 1 ? "修改成功" : "新增成功");
   getMenuList();
@@ -486,9 +491,32 @@ const persistMenuData = () => {
   localStorage.setItem("snowadmin-menu-data", JSON.stringify(menuData.value));
 };
 
-const onDelete = (record: Menu.MenuOptions) => {
+const refreshRoutes = async (changedNode?: any) => {
+  const currentPath = router.currentRoute.value.fullPath;
+  const previousPath = addFrom.value.path;
+
+  await routeStore.resetRoute();
+  await routeStore.initSetRouter();
+
+  if (changedNode?.path && formType.value === 1 && currentPath === previousPath && router.hasRoute(changedNode.name)) {
+    await router.replace(changedNode.path);
+    return;
+  }
+
+  const currentPathStillExists = routeStore.routeList.some((item: any) => {
+    if (item.path === currentPath) return true;
+    return item.path && currentPath.startsWith(item.path + "/");
+  });
+
+  if (!currentPathStillExists) {
+    await router.replace("/home");
+  }
+};
+
+const onDelete = async (record: Menu.MenuOptions) => {
   if (removeMenuNode(menuData.value, record.id)) {
     persistMenuData();
+    await refreshRoutes();
     arcoMessage("success", "删除成功");
     getMenuList();
   }
