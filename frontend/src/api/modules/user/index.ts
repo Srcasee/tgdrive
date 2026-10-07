@@ -4,7 +4,7 @@ export const loginAPI = async (data: { username: string; password: string }) => 
   const response = await axios.post("/auth/login", data, { withCredentials: true });
   return {
     data: {
-      token: "cookie",
+      token: response.data.role === "admin" ? "Admin-Token" : "Common-Token",
       user: response.data
     }
   };
