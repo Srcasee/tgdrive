@@ -2,7 +2,7 @@ import asyncio
 import re
 from pathlib import Path
 
-from telethon import errors, functions
+from telethon import functions, types
 
 from config import settings
 from repositories.accounts import AccountRepository
@@ -16,6 +16,7 @@ class TelegramAccountService:
     def __init__(self):
         self._accounts = AccountRepository()
         self._phone_changes = {}
+        self._email_changes = {}
         self._lock = asyncio.Lock()
 
     def _validate_login_name(self, value):
@@ -96,6 +97,44 @@ class TelegramAccountService:
             "phone_code_hash": sent.phone_code_hash,
         }
         return {"status": "code_required", "message": "验证码已发送，请输入 Telegram 验证码"}
+
+    async def start_login_email_change(self, account_id, email):
+        email = email.strip()
+        if not email or "@" not in email:
+            raise ValueError("请输入有效的登录邮箱")
+        client = await self._get_authorized_client(account_id)
+        sent = await client(functions.account.SendVerifyEmailCodeRequest(
+            purpose=types.EmailVerifyPurposeLoginChange(),
+            email=email,
+        ))
+        self._email_changes[account_id] = {
+            "email": email,
+            "length": getattr(sent, "length", None),
+        }
+        return {
+            "status": "code_required",
+            "email": email,
+            "length": getattr(sent, "length", None),
+            "message": "验证邮件已发送，请输入邮箱中的验证码",
+        }
+
+    async def confirm_login_email_change(self, account_id, code):
+        state = self._email_changes.get(account_id)
+        if not state:
+            raise ValueError("登录邮箱修改流程不存在或已过期")
+        client = await self._get_authorized_client(account_id)
+        try:
+            result = await client(functions.account.VerifyEmailRequest(
+                purpose=types.EmailVerifyPurposeLoginChange(),
+                verification=types.EmailVerificationCode(code=code.strip()),
+            ))
+        finally:
+            self._email_changes.pop(account_id, None)
+        email = getattr(result, "email", None) or state["email"]
+        return {
+            "status": "ok",
+            "email": email,
+        }
 
     async def confirm_phone_change(self, account_id, code):
         state = self._phone_changes.get(account_id)
