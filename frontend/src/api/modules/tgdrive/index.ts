@@ -7,6 +7,14 @@ export const getAccountInfoAPI = (id: number) => http.get(`/api/telegram/account
 export const setAccountEnabledAPI = (id: number, enabled: boolean) =>
   http.put(`/api/telegram/accounts/${id}/enabled`, { enabled });
 export const deleteAccountAPI = (id: number) => http.delete(`/api/telegram/accounts/${id}`);
+export const updateAccountProfileAPI = (
+  id: number,
+  data: { login_name?: string; nickname?: string; username?: string }
+) => http.put(`/api/telegram/accounts/${id}/profile`, data);
+export const startAccountPhoneChangeAPI = (id: number, phone: string) =>
+  http.post(`/api/telegram/accounts/${id}/phone/start`, { phone });
+export const confirmAccountPhoneChangeAPI = (id: number, code: string) =>
+  http.post(`/api/telegram/accounts/${id}/phone/confirm`, { code });
 
 export const startAccountLoginAPI = (data: { login_name: string; phone: string }) =>
   http.post("/api/telegram/accounts/login/start", data);
