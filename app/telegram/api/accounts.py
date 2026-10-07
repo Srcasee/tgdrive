@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 from auth.dependencies import require_admin
 from auth.models import Principal
 from repositories.accounts import AccountRepository
-from telegram.client import get_client
+from telegram.client import get_client, sync_sessions
 from telegram.login_service import login_service
 
 
@@ -49,6 +49,7 @@ async def _account_view(account):
 
 @router.get("/accounts")
 async def list_accounts(_: Principal = Depends(require_admin)):
+    sync_sessions()
     return [await _account_view(account) for account in account_repository.list_all()]
 
 
