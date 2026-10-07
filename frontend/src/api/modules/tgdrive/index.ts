@@ -7,6 +7,9 @@ export const getAccountInfoAPI = (id: number) => http.get(`/api/telegram/account
 export const setAccountEnabledAPI = (id: number, enabled: boolean) =>
   http.put(`/api/telegram/accounts/${id}/enabled`, { enabled });
 export const deleteAccountAPI = (id: number) => http.delete(`/api/telegram/accounts/${id}`);
+export const getDeletedAccountsAPI = () => http.get("/api/telegram/accounts/deleted");
+export const restoreDeletedAccountAPI = (session: string) =>
+  http.post("/api/telegram/accounts/restore", { session });
 export const updateAccountProfileAPI = (
   id: number,
   data: { login_name?: string; nickname?: string; username?: string }
