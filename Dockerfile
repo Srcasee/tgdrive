@@ -1,10 +1,11 @@
 # Frontend build stage
 FROM node:20-bookworm-slim AS frontend-build
 WORKDIR /frontend
-COPY frontend/package.json ./
-RUN npm install --no-audit --no-fund
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+COPY frontend/package.json frontend/pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
 COPY frontend/ ./
-RUN npm run build
+RUN pnpm run build:prod
 
 # Core runtime
 FROM python:3.12-slim
