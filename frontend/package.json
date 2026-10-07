@@ -29,7 +29,8 @@
     "lint:lint-staged": "lint-staged",
     "fix": "eslint src --fix",
     "prepare": "husky",
-    "preinstall": "npx only-allow pnpm"
+    "preinstall": "npx only-allow pnpm",
+    "prebuild:prod": "node build/fetch-snowadmin-assets.mjs"
   },
   "dependencies": {
     "@arco-design/color": "^0.4.0",
