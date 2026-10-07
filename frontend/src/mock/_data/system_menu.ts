@@ -1421,7 +1421,7 @@ export const systemMenu = [
   },
   {
     id: "20", parentId: "0", path: "/tgdrive/telegram/accounts", name: "tgdrive-accounts", component: "tgdrive/telegram/accounts",
-    meta: { title: "Telegram 账号", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], icon: "icon-menu", sort: 20, type: 2 },
+    meta: { title: "账号管理", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], icon: "icon-menu", sort: 20, type: 2 },
     children: null
   },
   {
