@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 from auth.dependencies import require_admin
 from auth.models import Principal
 from repositories.accounts import AccountRepository
-from telegram.client import get_client, list_archived_sessions, restore_account_session, sync_sessions, refresh_clients, list_archived_sessions, restore_account_session
+from telegram.client import get_client, list_archived_sessions, restore_account_session, sync_sessions
 from telegram.login import login_service
 from telegram.account_service import telegram_account_service
 
