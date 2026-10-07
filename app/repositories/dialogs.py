@@ -23,15 +23,14 @@ class DialogRepository:
 
     def replace_for_account(self, account_id, dialogs):
         self.ensure_table()
-        resource_dialogs = [dialog for dialog in dialogs if dialog.get("is_channel", False)]
-        current_ids = {dialog["id"] for dialog in resource_dialogs}
+        current_ids = {dialog["id"] for dialog in dialogs}
         with transaction() as conn:
             with conn.cursor() as cursor:
                 cursor.execute("SELECT telegram_chat_id FROM telegram_dialogs WHERE account_id=%s", (account_id,))
                 previous_ids = {row["telegram_chat_id"] for row in cursor.fetchall()}
                 removed_ids = sorted(previous_ids - current_ids)
                 cursor.execute("DELETE FROM telegram_dialogs WHERE account_id=%s", (account_id,))
-                for dialog in resource_dialogs:
+                for dialog in dialogs:
                     cursor.execute(
                         """
                         INSERT INTO telegram_dialogs
@@ -40,9 +39,32 @@ class DialogRepository:
                         VALUES (%s, %s, %s, %s, %s, %s, %s, EXTRACT(EPOCH FROM NOW())::BIGINT)
                         """,
                         (account_id, dialog["id"], dialog.get("name"), dialog.get("username"),
-                         dialog.get("entity_type", "channel"), False, True),
+                         dialog.get("entity_type", "unknown"), dialog.get("is_group", False), dialog.get("is_channel", False)),
                     )
         return removed_ids
+
+    def list_all(self):
+        self.ensure_table()
+        with connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT d.account_id, d.telegram_chat_id AS id, d.name, d.username,
+                           d.entity_type, d.is_group, d.is_channel, d.updated_at,
+                           COALESCE(s.enabled, FALSE) AS source_enabled,
+                           s.id AS source_id,
+                           s.scan_status
+                    FROM telegram_dialogs d
+                    LEFT JOIN telegram_sources s
+                      ON s.account_id=d.account_id AND s.telegram_chat_id=d.telegram_chat_id
+                    WHERE EXISTS (
+                        SELECT 1 FROM accounts a
+                        WHERE a.id=d.account_id AND a.enabled=TRUE
+                    )
+                    ORDER BY d.account_id, d.name NULLS LAST, d.telegram_chat_id
+                    """
+                )
+                return cursor.fetchall()
 
     def list_for_account(self, account_id):
         self.ensure_table()
@@ -58,7 +80,7 @@ class DialogRepository:
                     FROM telegram_dialogs d
                     LEFT JOIN telegram_sources s
                       ON s.account_id=d.account_id AND s.telegram_chat_id=d.telegram_chat_id
-                    WHERE d.account_id=%s AND d.is_channel=TRUE
+                    WHERE d.account_id=%s
                     ORDER BY d.name NULLS LAST, d.telegram_chat_id
                     """,
                     (account_id,),
