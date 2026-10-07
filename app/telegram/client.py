@@ -77,6 +77,12 @@ def refresh_clients():
     return clients
 
 
+async def disconnect_account_session(session_name):
+    client = clients.pop(session_name, None)
+    if client is not None and client.is_connected():
+        await client.disconnect()
+
+
 async def reconnect_clients():
     """Rebuild Telegram clients so current proxy/account settings take effect."""
     for name, client in list(clients.items()):
