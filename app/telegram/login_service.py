@@ -128,7 +128,7 @@ class TelegramLoginService:
         state = self._sessions.pop(login_id, None)
         if state:
             await state["client"].disconnect()
-            session_file = Path(settings.TG_SESSION_DIR) / f"{state[\"login_name\"]}.session"
+            session_file = Path(settings.TG_SESSION_DIR) / f"{state['login_name']}.session"
             if session_file.exists():
                 session_file.unlink()
         return {"status": "cancelled"}
