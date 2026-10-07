@@ -315,13 +315,13 @@ See `docs/ARCHITECTURE.md` for the architectural invariants and `docs/PROJECT-ST
 
 ## Admin frontend
 
-The legacy static admin UI has been retired. The management console is now a Vue 3 + TypeScript + Vite + Arco Design frontend under `frontend/`, adapted from the SnowAdmin ecosystem.
+The legacy static admin frontend has been removed. The public/user-facing Web UI remains at `/`; the administrator console is the full SnowAdmin frontend under `frontend/` and is served at `/admin`.
 
-- Admin URL: `/admin`
+- Public Web UI: `http://<server-ip>:8080/`
+- Administrator console: `http://<server-ip>:8080/admin`
 - Local frontend: `pnpm --dir frontend install && pnpm --dir frontend dev`
 - Production: Docker builds `frontend/dist` and Core serves it from `/admin`
-- Authentication remains the existing tgdrive session cookie; no JWT was introduced.
-- Integration/API mapping: `docs/ADMIN-FRONTEND.md`
-- Audit record (not remediated in this change): `docs/SECURITY-AUDIT.md`
+- Login integration only: SnowAdmin's login calls tgdrive `/auth/login` and `/auth/me`, using the existing HttpOnly session cookie. No JWT is introduced.
+- All other SnowAdmin pages, layouts, menus, components, and demo/mock functionality remain unchanged for now.
 
 SnowAdmin is MIT licensed. See `frontend/LICENSE` for the required license notice.
