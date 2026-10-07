@@ -1,13 +1,35 @@
-import { deepClone, buildTreeOptimized, treeSort } from "@/mock/_utils";
+import { deepClone, buildTreeOptimized, filterByDisable, treeSort } from "@/mock/_utils";
 import { systemMenu, permissionData } from "@/mock/_data/system_menu";
 import axios from "@/api";
 
 // 获取菜单数据
+// 菜单管理与动态路由共用同一份持久化配置，避免“管理页改了，但侧边栏仍使用旧 mock 数据”。
 export const getRoutersAPI = () => {
-  return axios({
-    url: "/mock/menu/getRouters",
-    method: "get"
-  });
+  const stored = localStorage.getItem("snowadmin-menu-data");
+  const menuData = stored
+    ? JSON.parse(stored)
+    : treeSort(buildTreeOptimized([...deepClone(systemMenu)]));
+  const userInfo = JSON.parse(localStorage.getItem("user-info") || "{}");
+  const userRoles = userInfo?.account?.roles?.length
+    ? userInfo.account.roles
+    : userInfo?.account?.user?.role
+      ? [userInfo.account.user.role]
+      : userInfo?.token === "Admin-Token"
+        ? ["admin"]
+        : ["common"];
+
+  const filterTree = (nodes: any[]): any[] =>
+    filterByDisable(
+      nodes
+        .filter(node => node?.meta?.type !== 3)
+        .map(node => ({
+          ...node,
+          children: node.children?.length ? filterTree(node.children) : null
+        })),
+      userRoles
+    );
+
+  return Promise.resolve({ data: treeSort(filterTree(deepClone(menuData))) });
 };
 
 // 获取字典数据
