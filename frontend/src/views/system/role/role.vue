@@ -287,8 +287,8 @@ const treeSwitchReset = () => {
     selectAll: false // 全选
   };
 };
-const permissionTree = ref([]);
-const permissionKeys = ref([]);
+const permissionTree = ref<any[]>([]);
+const permissionKeys = ref<any[]>([]);
 const getMenuList = async () => {
   let { data } = await getMenuListAPI();
   translation(data);
