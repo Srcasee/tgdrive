@@ -2,6 +2,7 @@ import asyncio
 import os
 import shutil
 from pathlib import Path
+import uuid
 
 from telethon import TelegramClient
 
@@ -86,9 +87,7 @@ def archive_account_session(session_name):
         return None
     archive_dir = session_dir / ".deleted"
     archive_dir.mkdir(parents=True, exist_ok=True)
-    target = archive_dir / session_file.name
-    if target.exists():
-        target.unlink()
+    target = archive_dir / f"{session_name}.{uuid.uuid4().hex}.session"
     shutil.move(str(session_file), str(target))
     return target
 
