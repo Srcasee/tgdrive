@@ -4,10 +4,7 @@
       <a-space direction="vertical" fill size="large">
         <a-row justify="end">
           <a-space>
-            <a-button @click="openRestore">
-              <template #icon><icon-restore /></template>
-              <span>恢复</span>
-            </a-button>
+            <a-button @click="openRestore">恢复</a-button>
             <a-button type="primary" @click="openLogin">
               <template #icon><icon-plus /></template>
               <span>新增</span>
