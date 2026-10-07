@@ -10,7 +10,7 @@ export const loginAPI = async (data: { username: string; password: string }) => 
   };
 };
 
-export const getUserInfoAPI = async () => {
+export const getUserInfoAPI = async (_params?: Record<string, unknown>) => {
   const response = await axios.get("/auth/me", { withCredentials: true });
   const user = response.data;
   return {
