@@ -592,7 +592,7 @@ const onIframe = (is: boolean) => {
 const onSearch = () => getMenuList();
 const loading = ref(false);
 const tableRef = ref();
-const tableTree = ref([]);
+const tableTree = ref<any[]>([]);
 const menuTree = ref<any>([]);
 const getMenuList = async () => {
   try {
