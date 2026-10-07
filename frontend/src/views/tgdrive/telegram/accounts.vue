@@ -52,7 +52,7 @@
 
     <a-modal v-model:visible="restoreVisible" :width="520" :mask-closable="false" :footer="false">
       <template #title>恢复账号</template>
-      <a-table :data="deletedSessions" :loading="restoreLoading" :pagination="false" row-key="session">
+      <a-table :data="deletedSessions" :loading="restoreLoading" :pagination="false">
         <template #columns>
           <a-table-column title="Session" :width="360" ellipsis tooltip><template #cell="{ record }">{{ record }}</template></a-table-column>
           <a-table-column title="操作" :width="90" align="center">
