@@ -15,6 +15,10 @@ export const startAccountPhoneChangeAPI = (id: number, phone: string) =>
   http.post(`/api/telegram/accounts/${id}/phone/start`, { phone });
 export const confirmAccountPhoneChangeAPI = (id: number, code: string) =>
   http.post(`/api/telegram/accounts/${id}/phone/confirm`, { code });
+export const startAccountEmailChangeAPI = (id: number, email: string) =>
+  http.post(`/api/telegram/accounts/${id}/email/start`, { email });
+export const confirmAccountEmailChangeAPI = (id: number, code: string) =>
+  http.post(`/api/telegram/accounts/${id}/email/confirm`, { code });
 
 export const startAccountLoginAPI = (data: { login_name: string; phone: string }) =>
   http.post("/api/telegram/accounts/login/start", data);
