@@ -11,7 +11,7 @@ from database_pool import close_pool, initialize, open_pool
 from plugins.runtime import PluginRuntime
 from repositories.accounts import AccountRepository
 from config import settings, validate_telegram_credentials
-from telegram import client as telegram_client
+from telegram.account_registry import refresh_enabled_clients
 from telegram.runtime_events import notify_source_change
 
 
@@ -157,10 +157,7 @@ class LoginService:
         await state["client"].disconnect()
         self._sessions.pop(state["id"], None)
 
-        # Let the normal runtime own this session from this point on.
-        telegram_client.refresh_clients()
-        # Wake reconciliation immediately so the new account gets its Dialogs
-        # without requiring an unrelated account change or a periodic tick.
+        refresh_enabled_clients()
         notify_source_change()
         return self._snapshot(state)
 
@@ -183,7 +180,7 @@ def parse_args():
     args = parser.parse_args()
     if not args.account:
         parser.error("--account is required (or set TG_ACCOUNT_NAME)")
-    if args.account in {".", ".."} or "/" in args.account or "\\" in args.account:
+    if args.account in {".", ".."} or "/" in args.account or "\" in args.account:
         parser.error("account name must be a single path-safe name")
     return args
 
@@ -192,6 +189,7 @@ async def main():
     args = parse_args()
     api_id = int(os.environ["TG_API_ID"])
     api_hash = os.environ["TG_API_HASH"]
+    phone = os.environ["TG_API_HASH"]
     phone = os.environ["TG_PHONE"]
     session_dir = Path(os.getenv("TG_SESSION_DIR", "/data/accounts"))
     session_dir.mkdir(parents=True, exist_ok=True)
