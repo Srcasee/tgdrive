@@ -6,7 +6,6 @@ from auth.models import Principal
 from repositories.accounts import AccountRepository
 from telegram.account_registry import sync_sessions
 from telegram.client import get_client, list_archived_sessions
-from telegram.runtime_events import notify_source_change
 from telegram.login import login_service
 from telegram.account_service import telegram_account_service
 from telegram.delete import delete_account as delete_account_service
