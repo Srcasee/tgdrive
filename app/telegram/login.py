@@ -12,7 +12,7 @@ from plugins.runtime import PluginRuntime
 from repositories.accounts import AccountRepository
 from config import settings, validate_telegram_credentials
 from telegram import client as telegram_client
-from telegram.runtime_events import notify_source_change
+from telegram.runtime_events import notify_dialog_refresh
 
 
 _ACCOUNT_NAME_RE = re.compile(r"^[A-Za-z0-9._-]{1,80}$")
@@ -159,7 +159,7 @@ class LoginService:
 
         enabled = self._accounts.list_enabled_sessions()
         telegram_client.refresh_clients(row["session"] for row in enabled)
-        notify_source_change()
+        notify_dialog_refresh()
         return self._snapshot(state)
 
     def _get(self, login_id: str):
