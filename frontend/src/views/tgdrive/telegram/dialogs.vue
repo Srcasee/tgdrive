@@ -1,21 +1,40 @@
 <template>
   <div class="snow-page">
     <a-card title="群组/频道管理">
-      <a-table :data="rows" :loading="loading" row-key="row_key" :pagination="{ pageSize: 20 }">
-        <template #columns>
-          <a-table-column title="Chat ID" data-index="telegram_chat_id" />
-          <a-table-column title="名称" data-index="name" />
-          <a-table-column title="用户名" data-index="username">
-            <template #cell="{ record }">{{ record.username ? `@${record.username}` : "-" }}</template>
-          </a-table-column>
-        
-          <a-table-column title="状态">
-            <template #cell="{ record }">
-              <a-switch v-model="record.source_enabled" :loading="record.toggling" @change="toggle(record)" />
+      <a-empty v-if="!loading && accounts.length === 0" description="暂无已启用账号" />
+
+      <div v-else class="account-list">
+        <a-card
+          v-for="account in accounts"
+          :key="account.account_id"
+          class="account-card"
+          :title="accountTitle(account)"
+        >
+          <a-table
+            :data="account.channels"
+            :loading="loading"
+            row-key="row_key"
+            :pagination="{ pageSize: 20 }"
+          >
+            <template #columns>
+              <a-table-column title="Chat ID" data-index="telegram_chat_id" />
+              <a-table-column title="名称" data-index="name" />
+              <a-table-column title="用户名" data-index="username">
+                <template #cell="{ record }">{{ record.username ? `@${record.username}` : "-" }}</template>
+              </a-table-column>
+              <a-table-column title="状态">
+                <template #cell="{ record }">
+                  <a-switch
+                    v-model="record.source_enabled"
+                    :loading="record.toggling"
+                    @change="toggle(record)"
+                  />
+                </template>
+              </a-table-column>
             </template>
-          </a-table-column>
-        </template>
-      </a-table>
+          </a-table>
+        </a-card>
+      </div>
     </a-card>
   </div>
 </template>
@@ -24,27 +43,54 @@
 import { ref } from "vue";
 import { getDialogsAPI, setDialogEnabledAPI } from "@/api/modules/tgdrive";
 
-const rows = ref<any[]>([]);
+type ChannelRow = {
+  account_id: number;
+  telegram_chat_id: number;
+  name: string | null;
+  username: string | null;
+  source_enabled: boolean;
+  toggling: boolean;
+  row_key: string;
+};
+
+type AccountGroup = {
+  account_id: number;
+  name: string | null;
+  username: string | null;
+  channels: ChannelRow[];
+};
+
+const accounts = ref<AccountGroup[]>([]);
 const loading = ref(false);
+
+const accountTitle = (account: AccountGroup) => {
+  const name = account.name?.trim();
+  const username = account.username?.trim();
+  if (name && username) return `${name} (@${username})`;
+  return name || (username ? `@${username}` : `账号 #${account.account_id}`);
+};
 
 const load = async () => {
   loading.value = true;
   try {
     const data = (await getDialogsAPI()).data || [];
-    rows.value = data
-      .filter((item: any) => item.entity_type === "Channel")
-      .map((item: any) => ({
-        ...item,
-        source_enabled: Boolean(item.source_enabled),
-        toggling: false,
-        row_key: `${item.account_id}:${item.telegram_chat_id}`
-      }));
+    accounts.value = data.map((account: any) => ({
+      ...account,
+      channels: (account.channels || [])
+        .filter((item: any) => item.entity_type === "Channel" && item.is_channel)
+        .map((item: any) => ({
+          ...item,
+          source_enabled: Boolean(item.source_enabled),
+          toggling: false,
+          row_key: `${item.account_id}:${item.telegram_chat_id}`
+        }))
+    }));
   } finally {
     loading.value = false;
   }
 };
 
-const toggle = async (row: any) => {
+const toggle = async (row: ChannelRow) => {
   row.toggling = true;
   try {
     await setDialogEnabledAPI(row.account_id, row.telegram_chat_id, row.source_enabled);
@@ -58,3 +104,15 @@ const toggle = async (row: any) => {
 
 load();
 </script>
+
+<style scoped>
+.account-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.account-card {
+  width: 100%;
+}
+</style>
