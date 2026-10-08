@@ -1,10 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 
 from auth.dependencies import require_admin
 from auth.models import Principal
 from repositories.accounts import AccountRepository
 from repositories.dialogs import DialogRepository
 from repositories.sources import SourceRepository
+from telegram.runtime_events import notify_source_change
 
 router = APIRouter()
 account_repository = AccountRepository()
@@ -15,6 +17,40 @@ source_repository = SourceRepository()
 @router.get("/dialogs")
 async def list_all_dialogs(_: Principal = Depends(require_admin)):
     return dialog_repository.list_all()
+
+
+class DialogEnabledInput(BaseModel):
+    enabled: bool
+
+
+@router.put("/accounts/{account_id}/dialogs/{telegram_chat_id}/enabled")
+async def set_dialog_enabled(
+    account_id: int,
+    telegram_chat_id: int,
+    data: DialogEnabledInput,
+    _: Principal = Depends(require_admin),
+):
+    account = account_repository.get(account_id)
+    if not account:
+        raise HTTPException(status_code=404, detail="account not found")
+    if not account["enabled"]:
+        raise HTTPException(status_code=409, detail="account disabled")
+
+    dialog = dialog_repository.get_for_account(account_id, telegram_chat_id)
+    if not dialog or dialog["entity_type"] != "Channel" or not dialog["is_channel"]:
+        raise HTTPException(status_code=404, detail="channel not found")
+
+    if data.enabled:
+        source = source_repository.ensure_enabled(account_id, telegram_chat_id, dialog["name"] or str(telegram_chat_id))
+    else:
+        source = source_repository.get_for_chat(account_id, telegram_chat_id)
+        if source is not None:
+            source = source_repository.set_enabled(source["id"], False)
+        else:
+            source = {"account_id": account_id, "telegram_chat_id": telegram_chat_id, "enabled": False}
+
+    notify_source_change()
+    return {"status": "ok", "account_id": account_id, "telegram_chat_id": telegram_chat_id, "enabled": source["enabled"]}
 
 
 @router.get("/accounts/{account_id}/dialogs")
