@@ -11,7 +11,7 @@ from database_pool import close_pool, initialize, open_pool
 from plugins.runtime import PluginRuntime
 from repositories.accounts import AccountRepository
 from config import settings, validate_telegram_credentials
-from telegram.account_registry import refresh_enabled_clients
+from telegram import client as telegram_client
 from telegram.runtime_events import notify_source_change
 
 
@@ -157,7 +157,8 @@ class LoginService:
         await state["client"].disconnect()
         self._sessions.pop(state["id"], None)
 
-        refresh_enabled_clients()
+        enabled = self._accounts.list_enabled_sessions()
+        telegram_client.refresh_clients(row["session"] for row in enabled)
         notify_source_change()
         return self._snapshot(state)
 
