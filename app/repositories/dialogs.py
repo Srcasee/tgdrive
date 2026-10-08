@@ -43,13 +43,27 @@ class DialogRepository:
                     )
         return removed_ids
 
+    def get_for_account(self, account_id, telegram_chat_id):
+        self.ensure_table()
+        with connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT account_id, telegram_chat_id, name, entity_type, is_channel
+                    FROM telegram_dialogs
+                    WHERE account_id=%s AND telegram_chat_id=%s
+                    """,
+                    (account_id, telegram_chat_id),
+                )
+                return cursor.fetchone()
+
     def list_all(self):
         self.ensure_table()
         with connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     """
-                    SELECT d.account_id, d.telegram_chat_id AS id, d.name, d.username,
+                    SELECT d.account_id, d.telegram_chat_id, d.name, d.username,
                            d.entity_type, d.is_group, d.is_channel, d.updated_at,
                            COALESCE(s.enabled, FALSE) AS source_enabled,
                            s.id AS source_id,
@@ -57,7 +71,9 @@ class DialogRepository:
                     FROM telegram_dialogs d
                     LEFT JOIN telegram_sources s
                       ON s.account_id=d.account_id AND s.telegram_chat_id=d.telegram_chat_id
-                    WHERE EXISTS (
+                    WHERE d.entity_type='Channel'
+                      AND d.is_channel=TRUE
+                      AND EXISTS (
                         SELECT 1 FROM accounts a
                         WHERE a.id=d.account_id AND a.enabled=TRUE
                     )
