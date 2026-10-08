@@ -8,42 +8,23 @@ from telethon import TelegramClient
 
 from config import settings, validate_telegram_credentials
 from plugins.runtime import PluginRuntime
-from repositories.accounts import AccountRepository
 
 
 clients = {}
-account_repository = AccountRepository()
 plugin_runtime = PluginRuntime()
 
 _LEGACY_ARCHIVED_SESSION_RE = re.compile(r"^(?P<name>.+)\.(?P<suffix>[0-9a-f]{32})\.session$")
 
 
-def sync_sessions():
-    session_dir = settings.TG_SESSION_DIR
-    if not os.path.exists(session_dir):
-        return
-
-    for filename in os.listdir(session_dir):
-        if not filename.endswith(".session"):
-            continue
-        session = filename[:-8]
-        if account_repository.get_id_by_session(session) is None:
-            account_repository.upsert_session(session)
-            print("[ACCOUNT] auto added:", session, flush=True)
-
-
 def get_clients():
     validate_telegram_credentials()
-    sync_sessions()
-    refresh_clients()
     return clients
 
 
-def refresh_clients():
-    """Reconcile runtime Telegram clients with enabled account records."""
+def refresh_clients(session_names):
+    """Reconcile runtime Telegram clients with the supplied enabled sessions."""
     session_dir = settings.TG_SESSION_DIR
-    enabled_accounts = account_repository.list_enabled_sessions()
-    enabled_sessions = {row["session"] for row in enabled_accounts}
+    enabled_sessions = set(session_names)
 
     for name in list(clients):
         if name in enabled_sessions:
@@ -138,23 +119,20 @@ async def disconnect_account_session(session_name):
         await client.disconnect()
 
 
-async def reconnect_clients():
-    """Rebuild Telegram clients so current proxy/account settings take effect."""
+async def reconnect_clients(session_names):
+    """Rebuild Telegram clients for the supplied enabled sessions."""
     for name, client in list(clients.items()):
         if client.is_connected():
             await client.disconnect()
         clients.pop(name, None)
     plugin_runtime.refresh()
-    refresh_clients()
-    return clients
+    return refresh_clients(session_names)
 
 
-def get_client(account_id: int):
-    session_name = account_repository.get_session(account_id)
+def get_client(session_name):
     if not session_name:
-        raise RuntimeError(f"Telegram account {account_id} not found or disabled")
-
-    all_clients = get_clients()
+        raise RuntimeError("Telegram session is required")
+    all_clients = refresh_clients([session_name])
     if session_name not in all_clients:
         raise RuntimeError(f"Session {session_name} not loaded")
     return all_clients[session_name]
