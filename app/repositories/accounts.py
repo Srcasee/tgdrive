@@ -57,17 +57,20 @@ class AccountRepository:
                 cursor.execute("SELECT 1 FROM accounts WHERE id=%s", (account_id,))
                 return cursor.fetchone() is not None
 
-    def set_enabled(self, account_id, enabled):
-        with transaction() as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(
-                    "UPDATE accounts SET enabled=%s WHERE id=%s RETURNING id",
-                    (enabled, account_id),
-                )
-                row = cursor.fetchone()
-                if row is None:
-                    raise ValueError("account not found")
-                return row["id"]
+    # Account enable/disable is intentionally disabled for now.
+    # Keep the repository mutation commented for future reintroduction.
+    #
+    # def set_enabled(self, account_id, enabled):
+    #     with transaction() as conn:
+    #         with conn.cursor() as cursor:
+    #             cursor.execute(
+    #                 "UPDATE accounts SET enabled=%s WHERE id=%s RETURNING id",
+    #                 (enabled, account_id),
+    #             )
+    #             row = cursor.fetchone()
+    #             if row is None:
+    #                 raise ValueError("account not found")
+    #             return row["id"]
 
     def delete(self, account_id):
         with transaction() as conn:
