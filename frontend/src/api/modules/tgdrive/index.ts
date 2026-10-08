@@ -35,7 +35,8 @@ export const submitAccountLoginPasswordAPI = (data: { login_id: string; password
 export const cancelAccountLoginAPI = (loginId: string) =>
   http.post("/api/telegram/accounts/login/cancel", { login_id: loginId });
 
-export const getDialogsAPI = () => http.get("/api/telegram/dialogs");\nexport const refreshDialogsAPI = () => http.post("/api/telegram/dialogs/refresh");
+export const getDialogsAPI = () => http.get("/api/telegram/dialogs");
+export const refreshDialogsAPI = () => http.post("/api/telegram/dialogs/refresh");
 export const deleteDialogAPI = (accountId: number, chatId: number) =>
   http.delete(`/api/telegram/accounts/${accountId}/dialogs/${chatId}`);
 export const setDialogEnabledAPI = (accountId: number, chatId: number, enabled: boolean) =>
