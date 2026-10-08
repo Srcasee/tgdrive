@@ -24,8 +24,11 @@ async def list_all_dialogs(_: Principal = Depends(require_admin)):
         account_id = row["account_id"]
         account = account_map.get(account_id)
         if account is None:
+            account_row = account_repository.get(account_id)
             account = {
                 "account_id": account_id,
+                "nickname": account_row["name"] if account_row else None,
+                "username": account_row["username"] if account_row else None,
                 "channels": [],
             }
             account_map[account_id] = account
