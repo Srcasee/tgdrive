@@ -9,7 +9,7 @@ from repositories.accounts import AccountRepository
 from repositories.dialogs import DialogRepository
 from repositories.sources import SourceRepository
 from telegram.account_lock import account_lock
-from telegram.client import get_client, get_clients, refresh_clients
+from telegram.client import get_clients, refresh_clients
 from telegram.dialog_discovery import DialogDiscoveryService
 from telegram.runtime_events import initialize_runtime_events, wait_for_runtime_event
 from telegram.scanner import scan_source
