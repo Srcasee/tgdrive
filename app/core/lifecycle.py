@@ -2,6 +2,7 @@ import asyncio
 
 from auth.repository import UserRepository
 from auth.security import hash_password
+from catalog.repository import CatalogRepository
 from config import settings, validate_telegram_credentials
 from database_pool import close_pool, initialize, open_pool
 from repositories.accounts import AccountRepository
@@ -10,7 +11,7 @@ from repositories.sources import SourceRepository
 from telegram.account_lock import account_lock
 from telegram.client import get_client, get_clients, refresh_clients
 from telegram.dialog_discovery import DialogDiscoveryService
-from telegram.runtime_events import initialize_source_change_event, notify_source_change, wait_for_source_change
+from telegram.runtime_events import initialize_runtime_events, wait_for_runtime_event
 from telegram.scanner import scan_source
 from telegram.scanner_manager import ScannerManager
 
@@ -22,15 +23,15 @@ class ApplicationLifecycle:
     def __init__(self):
         self.scanner_task = None
         self.authorized_accounts = set()
-        self.discovered_accounts = set()
         self.telegram_enabled = False
 
         self.account_repository = AccountRepository()
         self.dialog_repository = DialogRepository()
         self.source_repository = SourceRepository()
+        self.catalog_repository = CatalogRepository()
         self.user_repository = UserRepository()
 
-        self.dialog_discovery = DialogDiscoveryService(self.dialog_repository)
+        self.dialog_discovery = DialogDiscoveryService()
         self.scanner_manager = ScannerManager()
 
     async def startup(self):
@@ -42,7 +43,7 @@ class ApplicationLifecycle:
             print("[TG] Telegram is not configured; Telegram runtime disabled", flush=True)
             return
 
-        initialize_source_change_event()
+        initialize_runtime_events()
         self.scanner_task = asyncio.create_task(self._run_scanners())
         print("[TG] Telegram runtime reconciliation started", flush=True)
 
@@ -63,107 +64,97 @@ class ApplicationLifecycle:
                 hash_password(settings.ADMIN_PASSWORD),
             )
 
-    async def set_account_enabled(self, account_id, enabled):
-        """Persist account state; enabling performs the single Dialog discovery."""
-        async with account_lock:
-            account = self.account_repository.get(account_id)
-            if not account:
-                raise ValueError("account not found")
-
-            session_name = account["session"]
-            if account["enabled"] == enabled:
-                return {"discovered": False}
-
-            self.account_repository.set_enabled(account_id, enabled)
-
-            if not enabled:
-                self.authorized_accounts.discard(session_name)
-                self.discovered_accounts.discard(session_name)
-                dialog_error = None
-                try:
-                    self.dialog_repository.delete_all_for_account(account_id)
-                except Exception as exc:
-                    dialog_error = str(exc)
-                    print(f"[TG] dialog cleanup failed: {session_name}: {exc!r}", flush=True)
-                self._cancel_account_sources(account_id)
-                notify_source_change()
-                result = {"discovered": False}
-                if dialog_error:
-                    result["dialog_cleanup_error"] = dialog_error
-                return result
-
-            discovered = False
-            discovery_error = None
-            try:
-                client = get_client(session_name)
-                if not client.is_connected():
-                    await client.connect()
-                if await client.is_user_authorized():
-                    self.authorized_accounts.add(session_name)
-                    self.telegram_enabled = True
-                    await self.dialog_discovery.refresh(client, account_id, session_name)
-                    self.discovered_accounts.add(session_name)
-                    discovered = True
-                else:
-                    discovery_error = "Telegram 账号尚未授权"
-            except Exception as exc:
-                discovery_error = str(exc)
-                print(f"[TG] dialog discovery failed: {session_name}: {exc!r}", flush=True)
-
-            notify_source_change()
-            result = {"discovered": discovered}
-            if discovery_error:
-                result["discovery_error"] = discovery_error
-            return result
-
     async def _run_scanners(self):
+        first_run = True
         while True:
             try:
                 async with account_lock:
-                    enabled = self.account_repository.list_enabled_sessions()
-                    clients = refresh_clients(row["session"] for row in enabled)
-                    enabled = {row["session"]: row["id"] for row in enabled}
+                    await self._reconcile_accounts(discover_dialogs=first_run)
+                first_run = False
 
-                    await self._reconcile_disabled_accounts(enabled)
+                event = await wait_for_runtime_event(RECONCILIATION_INTERVAL)
+                if event["dialog_refresh"] or event["timed_out"]:
+                    async with account_lock:
+                        await self._reconcile_accounts(discover_dialogs=True)
+                elif event["source_change"]:
+                    async with account_lock:
+                        await self._reconcile_accounts(discover_dialogs=False)
 
-                    for name, account_id in enabled.items():
-                        client = clients.get(name)
-                        if client is None:
-                            continue
-
-                        if not client.is_connected():
-                            self.authorized_accounts.discard(name)
-                            try:
-                                await client.connect()
-                            except Exception as exc:
-                                print(f"[TG] connect failed: {name}: {exc!r}", flush=True)
-                                continue
-
-                        if name not in self.authorized_accounts:
-                            try:
-                                if not await client.is_user_authorized():
-                                    continue
-                                self.telegram_enabled = True
-                                self.authorized_accounts.add(name)
-                            except Exception as exc:
-                                print(f"[TG] authorization failed: {name}: {exc!r}", flush=True)
-                                continue
-
-                        if name not in self.discovered_accounts:
-                            try:
-                                await self.dialog_discovery.refresh(client, account_id, name)
-                                self.discovered_accounts.add(name)
-                            except Exception as exc:
-                                print(f"[TG] dialog discovery failed: {name}: {exc!r}", flush=True)
-
-                        await self._reconcile_sources(account_id, name, client)
-
-                await wait_for_source_change(RECONCILIATION_INTERVAL)
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
                 print(f"[SCAN] account reconciliation error: {exc!r}", flush=True)
                 await asyncio.sleep(60)
+
+    async def _reconcile_accounts(self, discover_dialogs):
+        enabled_rows = self.account_repository.list_enabled_sessions()
+        clients = refresh_clients(row["session"] for row in enabled_rows)
+        enabled = {row["session"]: row["id"] for row in enabled_rows}
+
+        await self._reconcile_disabled_accounts(enabled)
+
+        for session_name, account_id in enabled.items():
+            client = clients.get(session_name)
+            if client is None:
+                continue
+
+            if not client.is_connected():
+                self.authorized_accounts.discard(session_name)
+                try:
+                    await client.connect()
+                except Exception as exc:
+                    print(f"[TG] connect failed: {session_name}: {exc!r}", flush=True)
+                    continue
+
+            if session_name not in self.authorized_accounts:
+                try:
+                    if not await client.is_user_authorized():
+                        continue
+                    self.telegram_enabled = True
+                    self.authorized_accounts.add(session_name)
+                except Exception as exc:
+                    print(f"[TG] authorization failed: {session_name}: {exc!r}", flush=True)
+                    continue
+
+            if discover_dialogs:
+                await self._refresh_dialogs_for_account(
+                    client,
+                    account_id,
+                    session_name,
+                )
+
+            await self._reconcile_sources(account_id, session_name, client)
+
+    async def _refresh_dialogs_for_account(self, client, account_id, account_name):
+        try:
+            dialogs = await self.dialog_discovery.discover(client)
+            dialog_ids = [dialog["id"] for dialog in dialogs]
+
+            removed_chat_ids = self.source_repository.remove_missing_dialogs(
+                account_id,
+                dialog_ids,
+            )
+            removed_dialog_ids = self.dialog_repository.replace_for_account(
+                account_id,
+                dialogs,
+            )
+
+            stale_ids = sorted(set(removed_chat_ids) | set(removed_dialog_ids))
+            if stale_ids:
+                self.catalog_repository.deactivate_telegram_chats(
+                    account_id,
+                    stale_ids,
+                )
+
+            print(
+                f"[TG] dialogs refreshed: {account_name} ({len(dialogs)})",
+                flush=True,
+            )
+        except Exception as exc:
+            print(
+                f"[TG] dialog discovery failed: {account_name}: {exc!r}",
+                flush=True,
+            )
 
     async def _reconcile_disabled_accounts(self, enabled):
         enabled_ids = set(enabled.values())
@@ -179,12 +170,13 @@ class ApplicationLifecycle:
                 except asyncio.CancelledError:
                     pass
 
-        enabled_names = set(enabled)
-        self.authorized_accounts.intersection_update(enabled_names)
-        self.discovered_accounts.intersection_update(enabled_names)
+        self.authorized_accounts.intersection_update(set(enabled))
 
     async def _reconcile_sources(self, account_id, account_name, client):
-        sources = await asyncio.to_thread(self.source_repository.list_enabled_for_account, account_id)
+        sources = await asyncio.to_thread(
+            self.source_repository.list_enabled_for_account,
+            account_id,
+        )
         enabled_ids = {source["id"] for source in sources}
 
         for key in list(self.scanner_manager.tasks):
@@ -207,15 +199,6 @@ class ApplicationLifecycle:
             self.scanner_manager.tasks[key] = asyncio.create_task(
                 self._run_source(account_id, account_name, client, source)
             )
-
-    def _cancel_account_sources(self, account_id):
-        for key, task in list(self.scanner_manager.tasks.items()):
-            task_account, _ = key
-            if task_account != account_id:
-                continue
-            self.scanner_manager.tasks.pop(key, None)
-            if not task.done():
-                task.cancel()
 
     async def _run_source(self, account_id, account_name, client, source):
         print(
@@ -252,7 +235,6 @@ class ApplicationLifecycle:
 
         await self.scanner_manager.stop_all()
         self.authorized_accounts.clear()
-        self.discovered_accounts.clear()
 
         if self.telegram_enabled:
             for name, client in get_clients().items():
@@ -261,3 +243,10 @@ class ApplicationLifecycle:
                     print(f"[TG] disconnected: {name}", flush=True)
 
         close_pool()
+
+    # Account enable/disable is intentionally disabled for now.
+    # Restore and login create active accounts; re-enable this lifecycle API
+    # only when an explicit enable/disable feature is needed again.
+    #
+    # async def set_account_enabled(self, account_id, enabled):
+    #     ...
