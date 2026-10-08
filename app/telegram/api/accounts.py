@@ -85,53 +85,21 @@ async def account_info(account_id: int, _: Principal = Depends(require_admin)):
     return await _account_view(account)
 
 
-class AccountEnabledInput(BaseModel):
-    enabled: bool
 
-
-@router.put("/accounts/{account_id}/enabled")
-async def set_account_enabled(
-    account_id: int,
-    data: AccountEnabledInput,
-    request: Request,
-    _: Principal = Depends(require_admin),
-):
-    account = account_repository.get(account_id)
-    if not account:
-        raise HTTPException(status_code=404, detail="account not found")
-
-    lifecycle = getattr(request.app.state, "lifecycle", None)
-    if lifecycle is None:
-        raise HTTPException(status_code=503, detail="Telegram runtime is not initialized")
-
-    try:
-        lifecycle_result = await lifecycle.set_account_enabled(account_id, data.enabled)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"更新账号状态失败: {exc}") from exc
-
-    updated = account_repository.get(account_id)
-    result = await _account_view(updated)
-    result["status"] = "ok"
-    result["discovered"] = lifecycle_result.get("discovered", False)
-    if lifecycle_result.get("discovery_error"):
-        result["discovery_error"] = lifecycle_result["discovery_error"]
-    return result
-
-
-@router.delete("/accounts/{account_id}")
-async def delete_account(
-    account_id: int,
-    _: Principal = Depends(require_admin),
-):
-    try:
-        return await delete_account_service(account_id)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"删除账号失败: {exc}") from exc
-
+# Account enable/disable is intentionally disabled for now.
+# Keep the old API commented for future reintroduction.
+#
+# class AccountEnabledInput(BaseModel):
+#     enabled: bool
+#
+# @router.put("/accounts/{account_id}/enabled")
+# async def set_account_enabled(
+#     account_id: int,
+#     data: AccountEnabledInput,
+#     request: Request,
+#     _: Principal = Depends(require_admin),
+# ):
+#     ...
 
 class AccountProfileUpdateInput(BaseModel):
     login_name: str | None = Field(default=None, max_length=80)
