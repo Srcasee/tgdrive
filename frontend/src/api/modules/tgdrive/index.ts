@@ -5,8 +5,8 @@ const http = axios.create({ withCredentials: true });
 export const getAccountsAPI = () => http.get("/api/telegram/accounts");
 export const getAccountInfoAPI = (id: number) => http.get(`/api/telegram/accounts/${id}/info`);
 // Account enable/disable is intentionally disabled for now.
- // export const setAccountEnabledAPI = (id: number, enabled: boolean) =>
- //   http.put(`/api/telegram/accounts/${id}/enabled`, { enabled });
+// export const setAccountEnabledAPI = (id: number, enabled: boolean) =>
+//   http.put(`/api/telegram/accounts/${id}/enabled`, { enabled });
 export const deleteAccountAPI = (id: number) => http.delete(`/api/telegram/accounts/${id}`);
 export const getDeletedAccountsAPI = () => http.get("/api/telegram/accounts/deleted");
 export const restoreDeletedAccountAPI = (session: string) =>
@@ -37,8 +37,6 @@ export const cancelAccountLoginAPI = (loginId: string) =>
 
 export const getDialogsAPI = () => http.get("/api/telegram/dialogs");
 export const refreshDialogsAPI = () => http.post("/api/telegram/dialogs/refresh");
-export const deleteDialogAPI = (accountId: number, chatId: number) =>
-  http.delete(`/api/telegram/accounts/${accountId}/dialogs/${chatId}`);
 export const setDialogEnabledAPI = (accountId: number, chatId: number, enabled: boolean) =>
   http.put(`/api/telegram/accounts/${accountId}/dialogs/${chatId}/enabled`, { enabled });
 
@@ -48,8 +46,6 @@ export const createSourceAPI = (data: { account_id: number; telegram_chat_id: nu
 export const setSourceEnabledAPI = (id: number, enabled: boolean) =>
   http.put(`/api/telegram/sources/${id}/enabled`, { enabled });
 export const deleteSourceAPI = (id: number) => http.delete(`/api/telegram/sources/${id}`);
-export const reconnectTelegramAPI = () => http.post("/api/telegram/reconnect");
-export const reconcileTelegramAPI = () => http.post("/api/telegram/reconcile");
 
 export const getCategoriesAPI = () => http.get("/api/admin/categories");
 export const createCategoryAPI = (name: string) => http.post("/api/admin/categories", { name });

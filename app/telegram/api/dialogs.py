@@ -79,36 +79,26 @@ async def set_dialog_enabled(
         raise HTTPException(status_code=404, detail="channel not found")
 
     if data.enabled:
-        source = source_repository.ensure_enabled(account_id, telegram_chat_id, dialog["name"] or str(telegram_chat_id))
+        source = source_repository.ensure_enabled(
+            account_id,
+            telegram_chat_id,
+            dialog["name"] or str(telegram_chat_id),
+        )
     else:
         source = source_repository.get_for_chat(account_id, telegram_chat_id)
         if source is not None:
             source = source_repository.set_enabled(source["id"], False)
         else:
-            source = {"account_id": account_id, "telegram_chat_id": telegram_chat_id, "enabled": False}
+            source = {
+                "account_id": account_id,
+                "telegram_chat_id": telegram_chat_id,
+                "enabled": False,
+            }
 
     notify_source_change()
-    return {"status": "ok", "account_id": account_id, "telegram_chat_id": telegram_chat_id, "enabled": source["enabled"]}
-
-
-@router.get("/accounts/{account_id}/dialogs")
-async def list_dialogs(account_id: int, _: Principal = Depends(require_admin)):
-    account = account_repository.get(account_id)
-    if not account:
-        raise HTTPException(status_code=404, detail="account not found")
-    if not account["enabled"]:
-        return []
-    return dialog_repository.list_for_account(account_id)
-
-
-@router.delete("/accounts/{account_id}/dialogs/{telegram_chat_id}")
-async def delete_dialog(account_id: int, telegram_chat_id: int, _: Principal = Depends(require_admin)):
-    if not account_repository.exists(account_id):
-        raise HTTPException(status_code=404, detail="account not found")
-    source = source_repository.get_for_chat(account_id, telegram_chat_id)
-    if source is not None and source.get("enabled"):
-        raise HTTPException(status_code=409, detail="disable source before deleting dialog")
-    deleted = dialog_repository.delete(account_id, telegram_chat_id)
-    if not deleted:
-        raise HTTPException(status_code=404, detail="dialog not found")
-    return {"status": "ok", "account_id": account_id, "telegram_chat_id": telegram_chat_id}
+    return {
+        "status": "ok",
+        "account_id": account_id,
+        "telegram_chat_id": telegram_chat_id,
+        "enabled": source["enabled"],
+    }
