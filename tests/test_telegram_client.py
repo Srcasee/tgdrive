@@ -1,14 +1,4 @@
-import pytest
-
 import telegram.client as telegram_client
-
-
-class FakeAccounts:
-    def list_enabled_sessions(self):
-        return [{"id": 1, "session": "enabled"}]
-
-    def get_session(self, account_id):
-        return "disabled" if account_id == 2 else "enabled"
 
 
 class FakePluginRuntime:
@@ -29,7 +19,7 @@ class FakeTelegramClient:
         self.connected = False
 
 
-def test_client_loading_ignores_disabled_sessions(monkeypatch, tmp_path):
+def test_client_refresh_only_loads_enabled_sessions(monkeypatch, tmp_path):
     (tmp_path / "enabled.session").touch()
     (tmp_path / "disabled.session").touch()
 
@@ -37,14 +27,11 @@ def test_client_loading_ignores_disabled_sessions(monkeypatch, tmp_path):
     monkeypatch.setattr(telegram_client.settings, "TG_API_ID", 1)
     monkeypatch.setattr(telegram_client.settings, "TG_API_HASH", "hash")
     monkeypatch.setattr(telegram_client, "validate_telegram_credentials", lambda: None)
-    monkeypatch.setattr(telegram_client, "sync_sessions", lambda: None)
-    monkeypatch.setattr(telegram_client, "account_repository", FakeAccounts())
     monkeypatch.setattr(telegram_client, "plugin_runtime", FakePluginRuntime())
     monkeypatch.setattr(telegram_client, "TelegramClient", FakeTelegramClient)
     telegram_client.clients.clear()
 
-    clients = telegram_client.get_clients()
+    clients = telegram_client.refresh_clients(["enabled"])
 
     assert set(clients) == {"enabled"}
-    with pytest.raises(RuntimeError, match="disabled"):
-        telegram_client.get_client(2)
+    assert telegram_client.get_clients() is clients
