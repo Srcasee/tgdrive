@@ -7,6 +7,7 @@ from telethon import functions, types
 from config import settings
 from repositories.accounts import AccountRepository
 from telegram import client as telegram_client
+from telegram.account_registry import refresh_enabled_clients
 
 
 _ACCOUNT_NAME_RE = re.compile(r"^[A-Za-z0-9._-]{1,80}$")
@@ -26,7 +27,10 @@ class TelegramAccountService:
         return value
 
     async def _get_authorized_client(self, account_id):
-        client = telegram_client.get_client(account_id)
+        account = self._accounts.get(account_id)
+        if not account:
+            raise ValueError("account not found")
+        client = telegram_client.get_client(account["session"])
         if not client.is_connected():
             await client.connect()
         if not await client.is_user_authorized():
@@ -82,7 +86,7 @@ class TelegramAccountService:
                 await telegram_client.disconnect_account_session(account["session"])
                 old_file.rename(new_file)
                 self._accounts.update_session(account_id, login_name)
-                telegram_client.refresh_clients()
+                refresh_enabled_clients()
 
             return self._accounts.get(account_id)
 
