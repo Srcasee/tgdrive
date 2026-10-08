@@ -49,10 +49,6 @@ async def _account_view(account):
     return item
 
 
-class RestoreAccountInput(BaseModel):
-    session: str = Field(min_length=1, max_length=160)
-
-
 @router.get("/accounts/deleted")
 async def list_deleted_accounts(_: Principal = Depends(require_admin)):
     return list_archived_sessions()
