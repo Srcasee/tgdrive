@@ -36,6 +36,11 @@
             <template #columns>
               <a-table-column title="Chat ID" data-index="telegram_chat_id" :width="180" />
               <a-table-column title="名称" data-index="name" :width="280" ellipsis tooltip />
+              <a-table-column title="类型" :width="100" align="center">
+                <template #cell="{ record }">
+                  {{ record.is_group ? "群组" : "频道" }}
+                </template>
+              </a-table-column>
               <a-table-column title="用户名" data-index="username" :width="220" ellipsis tooltip>
                 <template #cell="{ record }">
                   {{ record.username ? `@${record.username}` : "-" }}
@@ -67,6 +72,7 @@ type ChannelRow = {
   telegram_chat_id: number;
   name: string | null;
   username: string | null;
+  is_group: boolean;
   source_enabled: boolean;
   toggling: boolean;
   row_key: string;
