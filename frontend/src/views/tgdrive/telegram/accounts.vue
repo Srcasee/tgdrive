@@ -25,7 +25,7 @@
             <a-table-column title="状态" :width="90" align="center">
               <template #cell="{ record }">
                 <a-tag bordered size="small" :color="record.authorized === false ? 'red' : 'arcoblue'">
-                  {{ record.authorized === false ? "未登录" : record.enabled ? "启用" : "禁用" }}
+                  {{ record.authorized === false ? "未登录" : "已登录" }}
                 </a-tag>
               </template>
             </a-table-column>
