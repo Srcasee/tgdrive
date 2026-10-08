@@ -189,7 +189,6 @@ async def main():
     args = parse_args()
     api_id = int(os.environ["TG_API_ID"])
     api_hash = os.environ["TG_API_HASH"]
-    phone = os.environ["TG_API_HASH"]
     phone = os.environ["TG_PHONE"]
     session_dir = Path(os.getenv("TG_SESSION_DIR", "/data/accounts"))
     session_dir.mkdir(parents=True, exist_ok=True)
