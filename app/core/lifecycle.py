@@ -74,10 +74,15 @@ class ApplicationLifecycle:
             self.discovered_accounts.discard(session_name)
             self._cancel_account_sources(account_id)
             await disconnect_account_session(session_name)
+            archive_account_session(session_name)
             deleted = self.account_repository.delete(account_id)
             if not deleted:
+                try:
+                    from telegram.client import restore_account_session
+                    restore_account_session(session_name)
+                except Exception as restore_exc:
+                    print(f"[ACCOUNT] restore after delete failure failed: {session_name}: {restore_exc!r}", flush=True)
                 raise ValueError("account not found")
-            archive_account_session(session_name)
             notify_source_change()
             return {"status": "ok", "session": session_name, "session_archived": True}
 
@@ -137,45 +142,49 @@ class ApplicationLifecycle:
     async def _run_scanners(self):
         while True:
             try:
-                clients = get_clients()
-                enabled = {
-                    row["session"]: row["id"]
-                    for row in self.account_repository.list_enabled_sessions()
-                }
+                # Account/session reconciliation must be serialized with delete/enable
+                # operations. Otherwise sync_sessions() can recreate a just-deleted
+                # account while its session is between DB deletion and archiving.
+                async with self.account_lock:
+                    clients = get_clients()
+                    enabled = {
+                        row["session"]: row["id"]
+                        for row in self.account_repository.list_enabled_sessions()
+                    }
 
-                await self._reconcile_disabled_accounts(enabled)
+                    await self._reconcile_disabled_accounts(enabled)
 
-                for name, account_id in enabled.items():
-                    client = clients.get(name)
-                    if client is None:
-                        continue
-
-                    if not client.is_connected():
-                        self.authorized_accounts.discard(name)
-                        try:
-                            await client.connect()
-                        except Exception as exc:
-                            print(f"[TG] connect failed: {name}: {exc!r}", flush=True)
+                    for name, account_id in enabled.items():
+                        client = clients.get(name)
+                        if client is None:
                             continue
 
-                    if name not in self.authorized_accounts:
-                        try:
-                            if not await client.is_user_authorized():
+                        if not client.is_connected():
+                            self.authorized_accounts.discard(name)
+                            try:
+                                await client.connect()
+                            except Exception as exc:
+                                print(f"[TG] connect failed: {name}: {exc!r}", flush=True)
                                 continue
-                            self.telegram_enabled = True
-                            self.authorized_accounts.add(name)
-                        except Exception as exc:
-                            print(f"[TG] authorization failed: {name}: {exc!r}", flush=True)
-                            continue
 
-                    if name not in self.discovered_accounts:
-                        try:
-                            await self.dialog_discovery.refresh(client, account_id, name)
-                            self.discovered_accounts.add(name)
-                        except Exception as exc:
-                            print(f"[TG] dialog discovery failed: {name}: {exc!r}", flush=True)
+                        if name not in self.authorized_accounts:
+                            try:
+                                if not await client.is_user_authorized():
+                                    continue
+                                self.telegram_enabled = True
+                                self.authorized_accounts.add(name)
+                            except Exception as exc:
+                                print(f"[TG] authorization failed: {name}: {exc!r}", flush=True)
+                                continue
 
-                    await self._reconcile_sources(account_id, name, client)
+                        if name not in self.discovered_accounts:
+                            try:
+                                await self.dialog_discovery.refresh(client, account_id, name)
+                                self.discovered_accounts.add(name)
+                            except Exception as exc:
+                                print(f"[TG] dialog discovery failed: {name}: {exc!r}", flush=True)
+
+                        await self._reconcile_sources(account_id, name, client)
 
                 await wait_for_source_change(RECONCILIATION_INTERVAL)
             except asyncio.CancelledError:
