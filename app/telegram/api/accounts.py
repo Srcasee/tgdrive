@@ -77,6 +77,14 @@ async def list_accounts(_: Principal = Depends(require_admin)):
     return [await _account_view(account) for account in account_repository.list_all()]
 
 
+@router.delete("/accounts/{account_id}")
+async def delete_account(account_id: int, _: Principal = Depends(require_admin)):
+    try:
+        return await delete_account_service(account_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
 @router.get("/accounts/{account_id}/info")
 async def account_info(account_id: int, _: Principal = Depends(require_admin)):
     account = account_repository.get(account_id)
