@@ -103,6 +103,39 @@ class DialogRepository:
                 )
                 return cursor.fetchall()
 
+    def list_enabled_accounts_with_channels(self):
+        self.ensure_table()
+        with connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT a.id AS account_id,
+                           a.name AS account_name,
+                           a.username AS account_username,
+                           d.telegram_chat_id,
+                           d.name,
+                           d.username,
+                           d.entity_type,
+                           d.is_group,
+                           d.is_channel,
+                           d.updated_at,
+                           COALESCE(s.enabled, FALSE) AS source_enabled,
+                           s.id AS source_id,
+                           s.scan_status
+                    FROM accounts a
+                    LEFT JOIN telegram_dialogs d
+                      ON d.account_id=a.id
+                     AND d.entity_type='Channel'
+                     AND d.is_channel=TRUE
+                    LEFT JOIN telegram_sources s
+                      ON s.account_id=d.account_id
+                     AND s.telegram_chat_id=d.telegram_chat_id
+                    WHERE a.enabled=TRUE
+                    ORDER BY a.id, d.name NULLS LAST, d.telegram_chat_id
+                    """
+                )
+                return cursor.fetchall()
+
     def delete(self, account_id, telegram_chat_id):
         self.ensure_table()
         with transaction() as conn:
