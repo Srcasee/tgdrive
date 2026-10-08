@@ -132,7 +132,25 @@ async def reconnect_clients(session_names):
 def get_client(session_name):
     if not session_name:
         raise RuntimeError("Telegram session is required")
-    all_clients = refresh_clients([session_name])
-    if session_name not in all_clients:
-        raise RuntimeError(f"Session {session_name} not loaded")
-    return all_clients[session_name]
+
+    existing = clients.get(session_name)
+    if existing is not None and existing.is_connected():
+        return existing
+    if existing is not None:
+        clients.pop(session_name, None)
+
+    session_dir = settings.TG_SESSION_DIR
+    session_file = Path(session_dir) / f"{session_name}.session"
+    if not session_file.exists():
+        raise RuntimeError(f"Session {session_name} not found")
+
+    proxy_plugin = plugin_runtime.get_capability("telegram.proxy")
+    proxy = proxy_plugin.get_proxy(session_name) if proxy_plugin else None
+    client = TelegramClient(
+        str(session_file.with_suffix("")),
+        settings.TG_API_ID,
+        settings.TG_API_HASH,
+        proxy=proxy,
+    )
+    clients[session_name] = client
+    return client
