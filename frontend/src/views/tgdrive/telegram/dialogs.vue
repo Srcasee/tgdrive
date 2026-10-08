@@ -1,6 +1,6 @@
 <template>
   <div class="snow-page">
-    <a-card title="群组/频道管理">
+    <a-card title="群组/频道管理" :bordered="false">
       <a-empty v-if="!loading && accounts.length === 0" description="暂无已启用账号" />
 
       <div v-else class="account-list">
@@ -8,21 +8,32 @@
           v-for="account in accounts"
           :key="account.account_id"
           class="account-card"
-          :title="accountTitle(account)"
+          :bordered="true"
         >
+          <template #title>
+            <div class="account-title">
+              <span class="account-label">用户名</span>
+              <span class="account-username">{{ displayUsername(account) }}</span>
+            </div>
+          </template>
+
           <a-table
             :data="account.channels"
             :loading="loading"
             row-key="row_key"
-            :pagination="{ pageSize: 20 }"
+            :bordered="{ cell: true }"
+            :scroll="{ x: '100%' }"
+            :pagination="{ pageSize: 20, showPageSize: false }"
           >
             <template #columns>
-              <a-table-column title="Chat ID" data-index="telegram_chat_id" />
-              <a-table-column title="名称" data-index="name" />
-              <a-table-column title="用户名" data-index="username">
-                <template #cell="{ record }">{{ record.username ? `@${record.username}` : "-" }}</template>
+              <a-table-column title="Chat ID" data-index="telegram_chat_id" :width="180" />
+              <a-table-column title="名称" data-index="name" :width="280" ellipsis tooltip />
+              <a-table-column title="用户名" data-index="username" :width="220" ellipsis tooltip>
+                <template #cell="{ record }">
+                  {{ record.username ? `@${record.username}` : "-" }}
+                </template>
               </a-table-column>
-              <a-table-column title="状态">
+              <a-table-column title="状态" :width="100" align="center">
                 <template #cell="{ record }">
                   <a-switch
                     v-model="record.source_enabled"
@@ -63,11 +74,9 @@ type AccountGroup = {
 const accounts = ref<AccountGroup[]>([]);
 const loading = ref(false);
 
-const accountTitle = (account: AccountGroup) => {
-  const name = account.name?.trim();
+const displayUsername = (account: AccountGroup) => {
   const username = account.username?.trim();
-  if (name && username) return `${name} (@${username})`;
-  return name || (username ? `@${username}` : `账号 #${account.account_id}`);
+  return username ? `@${username}` : "-";
 };
 
 const load = async () => {
@@ -114,5 +123,20 @@ load();
 
 .account-card {
   width: 100%;
+}
+
+.account-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.account-label {
+  color: var(--color-text-3);
+  font-weight: 400;
+}
+
+.account-username {
+  font-weight: 600;
 }
 </style>
