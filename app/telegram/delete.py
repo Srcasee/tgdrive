@@ -1,5 +1,5 @@
 from repositories.accounts import AccountRepository
-from telegram.account_registry import account_lock
+from telegram.account_lock import account_lock
 from telegram.client import archive_account_session, disconnect_account_session, restore_account_session
 from telegram.runtime_events import notify_source_change
 
