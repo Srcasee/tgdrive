@@ -7,7 +7,8 @@ from database_pool import close_pool, initialize, open_pool
 from repositories.accounts import AccountRepository
 from repositories.dialogs import DialogRepository
 from repositories.sources import SourceRepository
-from telegram.client import archive_account_session, disconnect_account_session, get_client, get_clients
+from telegram.account_registry import account_lock, enabled_sessions
+from telegram.client import get_client, get_clients, refresh_clients
 from telegram.dialog_discovery import DialogDiscoveryService
 from telegram.runtime_events import initialize_source_change_event, notify_source_change, wait_for_source_change
 from telegram.scanner import scan_source
@@ -23,7 +24,6 @@ class ApplicationLifecycle:
         self.authorized_accounts = set()
         self.discovered_accounts = set()
         self.telegram_enabled = False
-        self.account_lock = asyncio.Lock()
 
         self.account_repository = AccountRepository()
         self.dialog_repository = DialogRepository()
@@ -63,32 +63,9 @@ class ApplicationLifecycle:
                 hash_password(settings.ADMIN_PASSWORD),
             )
 
-    async def delete_account(self, account_id):
-        async with self.account_lock:
-            account = self.account_repository.get(account_id)
-            if not account:
-                raise ValueError("account not found")
-
-            session_name = account["session"]
-            self.authorized_accounts.discard(session_name)
-            self.discovered_accounts.discard(session_name)
-            self._cancel_account_sources(account_id)
-            await disconnect_account_session(session_name)
-            archive_account_session(session_name)
-            deleted = self.account_repository.delete(account_id)
-            if not deleted:
-                try:
-                    from telegram.client import restore_account_session
-                    restore_account_session(session_name)
-                except Exception as restore_exc:
-                    print(f"[ACCOUNT] restore after delete failure failed: {session_name}: {restore_exc!r}", flush=True)
-                raise ValueError("account not found")
-            notify_source_change()
-            return {"status": "ok", "session": session_name, "session_archived": True}
-
     async def set_account_enabled(self, account_id, enabled):
         """Persist account state; enabling performs the single Dialog discovery."""
-        async with self.account_lock:
+        async with account_lock:
             account = self.account_repository.get(account_id)
             if not account:
                 raise ValueError("account not found")
@@ -118,7 +95,7 @@ class ApplicationLifecycle:
             discovered = False
             discovery_error = None
             try:
-                client = get_client(account_id)
+                client = get_client(session_name)
                 if not client.is_connected():
                     await client.connect()
                 if await client.is_user_authorized():
@@ -142,15 +119,10 @@ class ApplicationLifecycle:
     async def _run_scanners(self):
         while True:
             try:
-                # Account/session reconciliation must be serialized with delete/enable
-                # operations. Otherwise sync_sessions() can recreate a just-deleted
-                # account while its session is between DB deletion and archiving.
-                async with self.account_lock:
-                    clients = get_clients()
-                    enabled = {
-                        row["session"]: row["id"]
-                        for row in self.account_repository.list_enabled_sessions()
-                    }
+                async with account_lock:
+                    enabled = enabled_sessions()
+                    clients = refresh_clients(row["session"] for row in enabled)
+                    enabled = {row["session"]: row["id"] for row in enabled}
 
                     await self._reconcile_disabled_accounts(enabled)
 
@@ -268,8 +240,6 @@ class ApplicationLifecycle:
 
                 await asyncio.sleep(source.get("scan_interval") or 300)
         finally:
-            # A deliberate disable must not leave the UI stuck at "scanning"
-            # or report a failed scan merely because its task was cancelled.
             await asyncio.to_thread(self.source_repository.mark_idle, source["id"])
 
     async def shutdown(self):
