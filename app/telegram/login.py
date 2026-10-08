@@ -181,7 +181,7 @@ def parse_args():
     args = parser.parse_args()
     if not args.account:
         parser.error("--account is required (or set TG_ACCOUNT_NAME)")
-    if args.account in {".", ".."} or "/" in args.account or "\" in args.account:
+    if args.account in {".", ".."} or "/" in args.account or "\\" in args.account:
         parser.error("account name must be a single path-safe name")
     return args
 
