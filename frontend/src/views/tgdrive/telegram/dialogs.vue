@@ -77,7 +77,7 @@ const load = async () => {
     accounts.value = data.map((account: any) => ({
       ...account,
       channels: (account.channels || [])
-        .filter((item: any) => item.entity_type === "Channel" && item.is_channel)
+        .filter((item: any) => item.entity_type === "Channel")
         .map((item: any) => ({
           ...item,
           source_enabled: Boolean(item.source_enabled),
