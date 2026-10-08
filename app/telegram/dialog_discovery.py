@@ -1,18 +1,7 @@
-from repositories.dialogs import DialogRepository
-from repositories.sources import SourceRepository
-from catalog.repository import CatalogRepository
-
-
 class DialogDiscoveryService:
-    def __init__(self, dialog_repository=None, source_repository=None, catalog_repository=None):
-        self.dialog_repository = dialog_repository or DialogRepository()
-        self.source_repository = source_repository or SourceRepository()
-        self.catalog_repository = catalog_repository or CatalogRepository()
+    """Read the complete Dialog list from Telegram for one authorized client."""
 
-    async def refresh(self, client, account_id, account_name):
-        if account_id is None:
-            return
-
+    async def discover(self, client):
         dialogs = []
         async for dialog in client.iter_dialogs():
             entity = dialog.entity
@@ -24,14 +13,4 @@ class DialogDiscoveryService:
                 "is_group": bool(dialog.is_group),
                 "is_channel": bool(dialog.is_channel),
             })
-
-        dialog_ids = [d["id"] for d in dialogs]
-
-        removed_chat_ids = self.source_repository.remove_missing_dialogs(account_id, dialog_ids)
-        removed_dialog_ids = self.dialog_repository.replace_for_account(account_id, dialogs)
-
-        stale_ids = sorted(set(removed_chat_ids) | set(removed_dialog_ids))
-        if stale_ids:
-            self.catalog_repository.deactivate_telegram_chats(account_id, stale_ids)
-
-        print(f"[TG] dialogs refreshed: {account_name} ({len(dialogs)})", flush=True)
+        return dialogs
