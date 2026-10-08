@@ -7,7 +7,6 @@ from telethon import functions, types
 from config import settings
 from repositories.accounts import AccountRepository
 from telegram import client as telegram_client
-from telegram.account_registry import refresh_enabled_clients
 
 
 _ACCOUNT_NAME_RE = re.compile(r"^[A-Za-z0-9._-]{1,80}$")
@@ -86,7 +85,8 @@ class TelegramAccountService:
                 await telegram_client.disconnect_account_session(account["session"])
                 old_file.rename(new_file)
                 self._accounts.update_session(account_id, login_name)
-                refresh_enabled_clients()
+                enabled = self._accounts.list_enabled_sessions()
+                telegram_client.refresh_clients(row["session"] for row in enabled)
 
             return self._accounts.get(account_id)
 
