@@ -16,7 +16,7 @@ source_repository = SourceRepository()
 
 @router.get("/dialogs")
 async def list_all_dialogs(_: Principal = Depends(require_admin)):
-    rows = dialog_repository.list_enabled_accounts_with_channels()
+    rows = dialog_repository.list_all()
     accounts = []
     account_map = {}
 
@@ -26,27 +26,24 @@ async def list_all_dialogs(_: Principal = Depends(require_admin)):
         if account is None:
             account = {
                 "account_id": account_id,
-                "name": row["account_name"],
-                "username": row["account_username"],
                 "channels": [],
             }
             account_map[account_id] = account
             accounts.append(account)
 
-        if row["telegram_chat_id"] is not None:
-            account["channels"].append({
-                "account_id": account_id,
-                "telegram_chat_id": row["telegram_chat_id"],
-                "name": row["name"],
-                "username": row["username"],
-                "entity_type": row["entity_type"],
-                "is_group": row["is_group"],
-                "is_channel": row["is_channel"],
-                "updated_at": row["updated_at"],
-                "source_enabled": row["source_enabled"],
-                "source_id": row["source_id"],
-                "scan_status": row["scan_status"],
-            })
+        account["channels"].append({
+            "account_id": account_id,
+            "telegram_chat_id": row["telegram_chat_id"],
+            "name": row["name"],
+            "username": row["username"],
+            "entity_type": row["entity_type"],
+            "is_group": row["is_group"],
+            "is_channel": row["is_channel"],
+            "updated_at": row["updated_at"],
+            "source_enabled": row["source_enabled"],
+            "source_id": row["source_id"],
+            "scan_status": row["scan_status"],
+        })
 
     return accounts
 
