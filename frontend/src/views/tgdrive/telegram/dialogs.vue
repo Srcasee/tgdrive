@@ -1,6 +1,12 @@
 <template>
   <div class="snow-page">
-    <a-card title="群组/频道管理" :bordered="false">
+    <a-card :bordered="false">
+      <template #title>群组/频道管理</template>
+      <template #extra>
+        <a-button type="primary" :loading="refreshing" @click="refresh">
+          刷新
+        </a-button>
+      </template>
       <a-empty v-if="!loading && accounts.length === 0" description="暂无已启用账号" />
 
       <template v-else>
@@ -54,7 +60,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { getDialogsAPI, setDialogEnabledAPI } from "@/api/modules/tgdrive";
+import { getDialogsAPI, refreshDialogsAPI, setDialogEnabledAPI } from "@/api/modules/tgdrive";
 
 type ChannelRow = {
   account_id: number;
@@ -76,6 +82,7 @@ type AccountGroup = {
 const accounts = ref<AccountGroup[]>([]);
 const selectedAccountId = ref<number | null>(null);
 const loading = ref(false);
+const refreshing = ref(false);
 
 const selectedAccount = computed(() =>
   accounts.value.find(account => account.account_id === selectedAccountId.value) || null
@@ -109,6 +116,17 @@ const load = async () => {
     }
   } finally {
     loading.value = false;
+  }
+};
+
+const refresh = async () => {
+  refreshing.value = true;
+  try {
+    await refreshDialogsAPI();
+    await new Promise(resolve => setTimeout(resolve, 800));
+    await load();
+  } finally {
+    refreshing.value = false;
   }
 };
 
