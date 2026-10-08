@@ -7,7 +7,7 @@ from database_pool import close_pool, initialize, open_pool
 from repositories.accounts import AccountRepository
 from repositories.dialogs import DialogRepository
 from repositories.sources import SourceRepository
-from telegram.account_registry import account_lock, enabled_sessions
+from telegram.account_lock import account_lock
 from telegram.client import get_client, get_clients, refresh_clients
 from telegram.dialog_discovery import DialogDiscoveryService
 from telegram.runtime_events import initialize_source_change_event, notify_source_change, wait_for_source_change
@@ -120,7 +120,7 @@ class ApplicationLifecycle:
         while True:
             try:
                 async with account_lock:
-                    enabled = enabled_sessions()
+                    enabled = self.account_repository.list_enabled_sessions()
                     clients = refresh_clients(row["session"] for row in enabled)
                     enabled = {row["session"]: row["id"] for row in enabled}
 
