@@ -51,6 +51,12 @@ async def list_all_dialogs(_: Principal = Depends(require_admin)):
     return accounts
 
 
+@router.post("/dialogs/refresh")
+async def refresh_dialogs(_: Principal = Depends(require_admin)):
+    notify_dialog_refresh()
+    return {"status": "accepted"}
+
+
 class DialogEnabledInput(BaseModel):
     enabled: bool
 
