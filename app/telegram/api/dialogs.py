@@ -6,7 +6,7 @@ from auth.models import Principal
 from repositories.accounts import AccountRepository
 from repositories.dialogs import DialogRepository
 from repositories.sources import SourceRepository
-from telegram.runtime_events import notify_source_change
+from telegram.runtime_events import notify_dialog_refresh, notify_source_change
 
 router = APIRouter()
 account_repository = AccountRepository()
