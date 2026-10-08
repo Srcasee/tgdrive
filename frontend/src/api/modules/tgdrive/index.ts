@@ -4,8 +4,9 @@ const http = axios.create({ withCredentials: true });
 
 export const getAccountsAPI = () => http.get("/api/telegram/accounts");
 export const getAccountInfoAPI = (id: number) => http.get(`/api/telegram/accounts/${id}/info`);
-export const setAccountEnabledAPI = (id: number, enabled: boolean) =>
-  http.put(`/api/telegram/accounts/${id}/enabled`, { enabled });
+// Account enable/disable is intentionally disabled for now.
+ // export const setAccountEnabledAPI = (id: number, enabled: boolean) =>
+ //   http.put(`/api/telegram/accounts/${id}/enabled`, { enabled });
 export const deleteAccountAPI = (id: number) => http.delete(`/api/telegram/accounts/${id}`);
 export const getDeletedAccountsAPI = () => http.get("/api/telegram/accounts/deleted");
 export const restoreDeletedAccountAPI = (session: string) =>
@@ -34,7 +35,7 @@ export const submitAccountLoginPasswordAPI = (data: { login_id: string; password
 export const cancelAccountLoginAPI = (loginId: string) =>
   http.post("/api/telegram/accounts/login/cancel", { login_id: loginId });
 
-export const getDialogsAPI = () => http.get("/api/telegram/dialogs");
+export const getDialogsAPI = () => http.get("/api/telegram/dialogs");\nexport const refreshDialogsAPI = () => http.post("/api/telegram/dialogs/refresh");
 export const deleteDialogAPI = (accountId: number, chatId: number) =>
   http.delete(`/api/telegram/accounts/${accountId}/dialogs/${chatId}`);
 export const setDialogEnabledAPI = (accountId: number, chatId: number, enabled: boolean) =>
