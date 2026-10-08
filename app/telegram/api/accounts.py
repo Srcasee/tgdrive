@@ -4,10 +4,13 @@ from pydantic import BaseModel, Field
 from auth.dependencies import require_admin
 from auth.models import Principal
 from repositories.accounts import AccountRepository
-from telegram.client import get_client, list_archived_sessions, refresh_clients, restore_account_session, sync_sessions
+from telegram.account_registry import sync_sessions
+from telegram.client import get_client, list_archived_sessions
 from telegram.runtime_events import notify_source_change
 from telegram.login import login_service
 from telegram.account_service import telegram_account_service
+from telegram.delete import delete_account as delete_account_service
+from telegram.restore import restore_account as restore_account_service
 
 
 router = APIRouter()
@@ -28,7 +31,7 @@ async def _account_view(account):
         return item
 
     try:
-        client = get_client(account["id"])
+        client = get_client(account["session"])
         if not client.is_connected():
             await client.connect()
         if not await client.is_user_authorized():
@@ -64,13 +67,7 @@ async def restore_deleted_account(
     _: Principal = Depends(require_admin),
 ):
     try:
-        session_path = restore_account_session(data.session)
-        # Re-register the restored session, rebuild its runtime client, and wake
-        # the lifecycle reconciler immediately instead of waiting up to an hour.
-        sync_sessions()
-        refresh_clients()
-        notify_source_change()
-        return {"status": "ok", "session": session_path.name, "restored": True}
+        return await restore_account_service(data.session)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except (FileExistsError, ValueError) as exc:
@@ -129,14 +126,10 @@ async def set_account_enabled(
 @router.delete("/accounts/{account_id}")
 async def delete_account(
     account_id: int,
-    request: Request,
     _: Principal = Depends(require_admin),
 ):
-    lifecycle = getattr(request.app.state, "lifecycle", None)
-    if lifecycle is None:
-        raise HTTPException(status_code=503, detail="Telegram runtime is not initialized")
     try:
-        return await lifecycle.delete_account(account_id)
+        return await delete_account_service(account_id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except Exception as exc:
@@ -240,8 +233,6 @@ async def confirm_account_login_email_change(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"修改登录邮箱失败: {exc}") from exc
-
-
 
 
 class LoginStartInput(BaseModel):
