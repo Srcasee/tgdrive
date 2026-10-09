@@ -6,6 +6,9 @@
         <a-select v-model="categoryId" allow-clear placeholder="分类" style="width: 180px" @change="load">
           <a-option v-for="item in categories" :key="item.id" :value="item.id">{{ item.name }}</a-option>
         </a-select>
+        <a-select v-model="accountId" allow-clear placeholder="Telegram 账号" style="width: 220px" @change="load">
+          <a-option v-for="item in accounts" :key="item.id" :value="item.id">{{ item.nickname || item.name || item.login_name || `账号 ${item.id}` }}</a-option>
+        </a-select>
       </a-space>
       <a-table :data="rows" :loading="loading" :pagination="pagination">
         <template #columns>
@@ -29,16 +32,16 @@
 
 <script setup lang="ts">
 import { ref } from "vue";
-import { getResourcesAPI, getResourceAPI, searchResourcesAPI, getCategoriesAPI, createShareAPI, deleteShareAPI, setResourceCategoriesAPI } from "@/api/modules/tgdrive";
-const rows=ref<any[]>([]), categories=ref<any[]>([]), loading=ref(false), keyword=ref(""), categoryId=ref<number>();
+import { getResourcesAPI, getResourceAPI, searchResourcesAPI, getCategoriesAPI, getAccountsAPI, createShareAPI, deleteShareAPI, setResourceCategoriesAPI } from "@/api/modules/tgdrive";
+const rows=ref<any[]>([]), categories=ref<any[]>([]), accounts=ref<any[]>([]), loading=ref(false), keyword=ref(""), categoryId=ref<number>(), accountId=ref<number>();
 const detailOpen=ref(false), categoryOpen=ref(false), currentId=ref<number>(), categoryText=ref(""), detailRows=ref<any[]>([]);
 const pagination=ref({pageSize:20});
 const load=async()=>{
   loading.value=true;
   try {
     const r=keyword.value
-      ? await searchResourcesAPI({q:keyword.value,category_id:categoryId.value})
-      : await getResourcesAPI({page:1,size:100,category_id:categoryId.value});
+      ? await searchResourcesAPI({q:keyword.value,category_id:categoryId.value,account_id:accountId.value})
+      : await getResourcesAPI({page:1,size:100,category_id:categoryId.value,account_id:accountId.value});
     const payload=r.data?.data;
     rows.value=Array.isArray(payload?.items) ? payload.items : Array.isArray(payload) ? payload : [];
   } finally {
@@ -55,7 +58,7 @@ const detail=async(r:any)=>{
 };
 const setCategories=async(r:any)=>{currentId.value=r.id;categoryText.value=(r.category_ids||[]).join(",");categoryOpen.value=true};
 const saveCategories=async()=>{if(!currentId.value)return;const ids=categoryText.value.split(",").map(x=>Number(x.trim())).filter(x=>Number.isInteger(x)&&x>0);await setResourceCategoriesAPI(currentId.value,ids);categoryOpen.value=false;await load()};
-Promise.all([load(),getCategoriesAPI().then(r=>categories.value=r.data||[])]);
+Promise.all([load(),getCategoriesAPI().then(r=>categories.value=r.data||[]),getAccountsAPI().then(r=>accounts.value=Array.isArray(r.data?.data)?r.data.data:Array.isArray(r.data)?r.data:[])]);
 </script>
 
 <style scoped>.toolbar{margin-bottom:16px;}</style>
