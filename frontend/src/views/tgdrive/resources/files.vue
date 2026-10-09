@@ -33,10 +33,26 @@ import { getResourcesAPI, getResourceAPI, searchResourcesAPI, getCategoriesAPI, 
 const rows=ref<any[]>([]), categories=ref<any[]>([]), loading=ref(false), keyword=ref(""), categoryId=ref<number>();
 const detailOpen=ref(false), categoryOpen=ref(false), currentId=ref<number>(), categoryText=ref(""), detailRows=ref<any[]>([]);
 const pagination=ref({pageSize:20});
-const load=async()=>{loading.value=true;try{const r=keyword.value?await searchResourcesAPI({q:keyword.value,category_id:categoryId.value}):await getResourcesAPI({page:1,size:100,category_id:categoryId.value});rows.value=r.data?.items||r.data||[]}finally{loading.value=false}};
+const load=async()=>{
+  loading.value=true;
+  try {
+    const r=keyword.value
+      ? await searchResourcesAPI({q:keyword.value,category_id:categoryId.value})
+      : await getResourcesAPI({page:1,size:100,category_id:categoryId.value});
+    const payload=r.data?.data;
+    rows.value=Array.isArray(payload?.items) ? payload.items : Array.isArray(payload) ? payload : [];
+  } finally {
+    loading.value=false;
+  }
+};
 const share=async(r:any)=>{await createShareAPI(r.id);await load()};
 const removeShare=async(s:any)=>{await deleteShareAPI(s.id);await load()};
-const detail=async(r:any)=>{const x=(await getResourceAPI(r.id)).data;detailRows.value=Object.entries(x||{}).map(([label,value])=>({label,value:String(value??"")}));detailOpen.value=true};
+const detail=async(r:any)=>{
+  const response=await getResourceAPI(r.id);
+  const resource=response.data?.data;
+  detailRows.value=Object.entries(resource||{}).map(([label,value])=>({label,value:String(value??"")}));
+  detailOpen.value=true;
+};
 const setCategories=async(r:any)=>{currentId.value=r.id;categoryText.value=(r.category_ids||[]).join(",");categoryOpen.value=true};
 const saveCategories=async()=>{if(!currentId.value)return;const ids=categoryText.value.split(",").map(x=>Number(x.trim())).filter(x=>Number.isInteger(x)&&x>0);await setResourceCategoriesAPI(currentId.value,ids);categoryOpen.value=false;await load()};
 Promise.all([load(),getCategoriesAPI().then(r=>categories.value=r.data||[])]);
