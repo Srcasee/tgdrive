@@ -1,5 +1,4 @@
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
 
 from auth.dependencies import require_admin
 from auth.models import Principal
