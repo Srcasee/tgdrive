@@ -85,7 +85,7 @@ class CatalogRepository:
                     scoped_condition = " AND sf.account_id=" + str(int(account_id))
                     active_source_exists = active_source_exists.replace("WHERE sf.resource_id=r.id", "WHERE sf.resource_id=r.id" + scoped_condition)
                     resource_sources_sql = resource_sources_sql.replace("WHERE sf.resource_id=r.id", "WHERE sf.resource_id=r.id" + scoped_condition)
-                    source_count_sql = "COUNT(DISTINCT f.id) FILTER (WHERE f.account_id=" + str(int(account_id)) + ")"
+                    source_count_sql = "COUNT(DISTINCT f.id) FILTER (WHERE f.account_id=" + str(int(account_id)) + " AND EXISTS (SELECT 1 FROM telegram_sources ts_count WHERE ts_count.account_id=f.account_id AND ts_count.telegram_chat_id=f.telegram_chat_id AND ts_count.enabled=TRUE))"
                 where = f"WHERE r.status='active' AND {active_source_exists}"
                 params = []
                 if category_id is not None:
