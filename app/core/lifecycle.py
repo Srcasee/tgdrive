@@ -158,18 +158,7 @@ class ApplicationLifecycle:
 
     async def _reconcile_disabled_accounts(self, enabled):
         enabled_ids = set(enabled.values())
-        for key in list(self.scanner_manager.tasks):
-            account_id, source_id = key
-            if account_id in enabled_ids:
-                continue
-            task = self.scanner_manager.tasks.pop(key, None)
-            if task is not None and not task.done():
-                task.cancel()
-                try:
-                    await task
-                except asyncio.CancelledError:
-                    pass
-
+        await self.scanner_manager.stop_accounts_except(enabled_ids)
         self.authorized_accounts.intersection_update(set(enabled))
 
     async def _reconcile_sources(self, account_id, account_name, client):
@@ -177,28 +166,13 @@ class ApplicationLifecycle:
             self.source_repository.list_enabled_for_account,
             account_id,
         )
-        enabled_ids = {source["id"] for source in sources}
-
-        for key in list(self.scanner_manager.tasks):
-            task_account, source_id = key
-            if task_account != account_id or source_id in enabled_ids:
-                continue
-            task = self.scanner_manager.tasks.pop(key, None)
-            if task is not None and not task.done():
-                task.cancel()
-                try:
-                    await task
-                except asyncio.CancelledError:
-                    pass
-
-        for source in sources:
-            key = (account_id, source["id"])
-            task = self.scanner_manager.tasks.get(key)
-            if task is not None:
-                continue
-            self.scanner_manager.tasks[key] = asyncio.create_task(
-                self._run_source(account_id, account_name, client, source)
-            )
+        await self.scanner_manager.reconcile_sources(
+            account_id,
+            sources,
+            lambda source: self._run_source(
+                account_id, account_name, client, source
+            ),
+        )
 
     async def _run_source(self, account_id, account_name, client, source):
         print(
