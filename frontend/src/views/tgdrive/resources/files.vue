@@ -33,7 +33,7 @@ import { getResourcesAPI, getResourceAPI, searchResourcesAPI, getCategoriesAPI, 
 const rows=ref<any[]>([]), categories=ref<any[]>([]), loading=ref(false), keyword=ref(""), categoryId=ref<number>();
 const detailOpen=ref(false), categoryOpen=ref(false), currentId=ref<number>(), categoryText=ref(""), detailRows=ref<any[]>([]);
 const pagination=ref({pageSize:20});
-const load=async()=>{loading.value=true;try{const r=keyword.value?await searchResourcesAPI({q:keyword.value,category_id:categoryId.value}):await getResourcesAPI({page:1,size:100,category_id:categoryId.value});rows.value=r.data?.items||r.data||[]}finally{loading.value=false}};
+const load=async()=>{loading.value=true;try{const r=keyword.value?await searchResourcesAPI({q:keyword.value,category_id:categoryId.value}):await getResourcesAPI({page:1,size:100,category_id:categoryId.value});const payload=r.data?.data??r.data;rows.value=Array.isArray(payload)?payload:(payload?.items??[])}finally{loading.value=false}};
 const share=async(r:any)=>{await createShareAPI(r.id);await load()};
 const removeShare=async(s:any)=>{await deleteShareAPI(s.id);await load()};
 const detail=async(r:any)=>{const x=(await getResourceAPI(r.id)).data;detailRows.value=Object.entries(x||{}).map(([label,value])=>({label,value:String(value??"")}));detailOpen.value=true};
