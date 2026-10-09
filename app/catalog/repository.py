@@ -23,7 +23,7 @@ COALESCE(
                 'account_id', sf.account_id,
                 'account_name', a.name,
                 'telegram_chat_id', sf.telegram_chat_id,
-                'chat_name', d.name,
+                'chat_name', sts.name,
                 'message_id', sf.message_id,
                 'topic_id', sf.topic_id,
                 'filename', sf.filename,
@@ -39,9 +39,6 @@ COALESCE(
          AND sts.telegram_chat_id=sf.telegram_chat_id
          AND sts.enabled=TRUE
         LEFT JOIN accounts a ON a.id=sf.account_id
-        LEFT JOIN telegram_dialogs d
-          ON d.account_id=sf.account_id
-         AND d.telegram_chat_id=sf.telegram_chat_id
         WHERE sf.resource_id=r.id
           AND sf.is_available=TRUE
           AND sf.status='active'
