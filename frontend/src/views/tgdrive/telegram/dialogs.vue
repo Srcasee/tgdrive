@@ -55,6 +55,17 @@
                   />
                 </template>
               </a-table-column>
+              <a-table-column title="操作" :width="100" align="center">
+                <template #cell="{ record }">
+                  <a-popconfirm
+                    v-if="record.source_id"
+                    content="确定删除该来源及其映射吗？"
+                    @ok="removeSource(record)"
+                  >
+                    <a-button size="small" status="danger">删除</a-button>
+                  </a-popconfirm>
+                </template>
+              </a-table-column>
             </template>
           </a-table>
         </a-card>
@@ -65,7 +76,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { getDialogsAPI, refreshDialogsAPI, setDialogEnabledAPI } from "@/api/modules/tgdrive";
+import { getDialogsAPI, refreshDialogsAPI, setDialogSourceEnabledAPI, deleteSourceAPI } from "@/api/modules/tgdrive";
 
 type ChannelRow = {
   account_id: number;
@@ -76,6 +87,7 @@ type ChannelRow = {
   source_enabled: boolean;
   toggling: boolean;
   row_key: string;
+  source_id: number | null;
 };
 
 type AccountGroup = {
@@ -136,10 +148,17 @@ const refresh = async () => {
   }
 };
 
+const removeSource = async (row: ChannelRow) => {
+  if (!row.source_id) return;
+  await deleteSourceAPI(row.source_id);
+  await load();
+};
+
 const toggle = async (row: ChannelRow) => {
   row.toggling = true;
   try {
-    await setDialogEnabledAPI(row.account_id, row.telegram_chat_id, row.source_enabled);
+    await setDialogSourceEnabledAPI(row.account_id, row.telegram_chat_id, row.source_enabled);
+    await load();
   } catch (error) {
     row.source_enabled = !row.source_enabled;
     throw error;
