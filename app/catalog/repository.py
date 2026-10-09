@@ -14,6 +14,42 @@ EXISTS (
 )
 """
 
+_RESOURCE_SOURCES_SQL = """
+COALESCE(
+    (
+        SELECT json_agg(
+            json_build_object(
+                'file_id', sf.id,
+                'account_id', sf.account_id,
+                'account_name', a.name,
+                'telegram_chat_id', sf.telegram_chat_id,
+                'chat_name', d.name,
+                'message_id', sf.message_id,
+                'topic_id', sf.topic_id,
+                'filename', sf.filename,
+                'size', sf.size,
+                'mime_type', sf.mime_type,
+                'upload_time', sf.upload_time
+            )
+            ORDER BY sf.account_id, sf.telegram_chat_id, sf.topic_id NULLS FIRST, sf.message_id
+        )
+        FROM files sf
+        JOIN telegram_sources sts
+          ON sts.account_id=sf.account_id
+         AND sts.telegram_chat_id=sf.telegram_chat_id
+         AND sts.enabled=TRUE
+        LEFT JOIN accounts a ON a.id=sf.account_id
+        LEFT JOIN telegram_dialogs d
+          ON d.account_id=sf.account_id
+         AND d.telegram_chat_id=sf.telegram_chat_id
+        WHERE sf.resource_id=r.id
+          AND sf.is_available=TRUE
+          AND sf.status='active'
+    ),
+    '[]'::json
+) AS sources
+"""
+
 _SHARE_SQL = """
 COALESCE(
     (
@@ -58,6 +94,7 @@ class CatalogRepository:
                     SELECT r.id, r.content_hash, r.filename, r.size, r.mime_type,
                            COALESCE(array_agg(DISTINCT c.id) FILTER (WHERE c.id IS NOT NULL), '{{}}') AS category_ids,
                            COUNT(DISTINCT f.id) AS source_count,
+                           {_RESOURCE_SOURCES_SQL},
                            {_SHARE_SQL}
                     FROM resources r
                     LEFT JOIN resource_categories rc ON rc.resource_id=r.id
@@ -81,6 +118,7 @@ class CatalogRepository:
                     SELECT r.id, r.content_hash, r.filename, r.size, r.mime_type,
                            COALESCE(array_agg(DISTINCT c.id) FILTER (WHERE c.id IS NOT NULL), '{{}}') AS category_ids,
                            COUNT(DISTINCT f.id) AS source_count,
+                           {_RESOURCE_SOURCES_SQL},
                            {_SHARE_SQL}
                     FROM resources r
                     LEFT JOIN resource_categories rc ON rc.resource_id=r.id
@@ -99,6 +137,7 @@ class CatalogRepository:
                     SELECT r.id, r.content_hash, r.filename, r.size, r.mime_type, r.status,
                            COALESCE(array_agg(DISTINCT c.id) FILTER (WHERE c.id IS NOT NULL), '{{}}') AS category_ids,
                            COUNT(DISTINCT f.id) FILTER (WHERE f.is_available=TRUE AND f.status='active') AS source_count,
+                           {_RESOURCE_SOURCES_SQL},
                            {_SHARE_SQL}
                     FROM resources r
                     LEFT JOIN resource_categories rc ON rc.resource_id=r.id
