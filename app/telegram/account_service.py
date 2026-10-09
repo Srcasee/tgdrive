@@ -85,8 +85,9 @@ class TelegramAccountService:
                 await telegram_client.disconnect_account_session(account["session"])
                 old_file.rename(new_file)
                 self._accounts.update_session(account_id, login_name)
-                enabled = self._accounts.list_enabled_sessions()
-                telegram_client.refresh_clients(row["session"] for row in enabled)
+                enabled_accounts = self._accounts.list_enabled_sessions()
+                enabled_session_names = [account["session"] for account in enabled_accounts]
+                telegram_client.refresh_clients(enabled_session_names)
 
             return self._accounts.get(account_id)
 
