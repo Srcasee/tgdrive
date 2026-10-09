@@ -59,7 +59,7 @@
                 <template #cell="{ record }">
                   <a-popconfirm
                     v-if="record.source_id"
-                    content="确定删除该来源及其映射吗？"
+                    content="确定删除这个 Source 条目吗？"
                     @ok="removeSource(record)"
                   >
                     <a-button size="small" status="danger">删除</a-button>
