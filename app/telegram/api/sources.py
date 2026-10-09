@@ -19,6 +19,40 @@ class SourceEnabledInput(BaseModel):
     enabled: bool
 
 
+def _get_account_and_channel(account_id: int, telegram_chat_id: int):
+    account = account_repository.get(account_id)
+    if not account:
+        raise HTTPException(status_code=404, detail="account not found")
+    if not account["enabled"]:
+        raise HTTPException(status_code=409, detail="account disabled")
+
+    dialog = dialog_repository.get_for_account(account_id, telegram_chat_id)
+    if not dialog or dialog["entity_type"] != "Channel" or not dialog["is_channel"]:
+        raise HTTPException(status_code=404, detail="channel not found")
+    return dialog
+
+
+@router.post("/sources/accounts/{account_id}/chats/{telegram_chat_id}")
+def create_source(
+    account_id: int,
+    telegram_chat_id: int,
+    _: Principal = Depends(require_admin),
+):
+    dialog = _get_account_and_channel(account_id, telegram_chat_id)
+    existing = source_repository.get_for_chat(account_id, telegram_chat_id)
+    if existing is not None:
+        raise HTTPException(status_code=409, detail="source already exists")
+
+    source_id = source_repository.add(
+        account_id,
+        telegram_chat_id,
+        dialog["name"] or str(telegram_chat_id),
+    )
+    source = source_repository.get(source_id)
+    notify_source_change()
+    return {"status": "ok", "source": source}
+
+
 @router.delete("/sources/{source_id}")
 async def delete_source(source_id: int, _: Principal = Depends(require_admin)):
     source = source_repository.delete(source_id)
@@ -35,33 +69,11 @@ def set_dialog_source_enabled(
     data: SourceEnabledInput,
     _: Principal = Depends(require_admin),
 ):
-    account = account_repository.get(account_id)
-    if not account:
-        raise HTTPException(status_code=404, detail="account not found")
-    if not account["enabled"]:
-        raise HTTPException(status_code=409, detail="account disabled")
+    _get_account_and_channel(account_id, telegram_chat_id)
+    source = source_repository.get_for_chat(account_id, telegram_chat_id)
+    if source is None:
+        raise HTTPException(status_code=404, detail="source not found; create it first")
 
-    dialog = dialog_repository.get_for_account(account_id, telegram_chat_id)
-    if not dialog or dialog["entity_type"] != "Channel" or not dialog["is_channel"]:
-        raise HTTPException(status_code=404, detail="channel not found")
-
-    if data.enabled:
-        source = source_repository.ensure_enabled(
-            account_id,
-            telegram_chat_id,
-            dialog["name"] or str(telegram_chat_id),
-        )
-    else:
-        source = source_repository.get_for_chat(account_id, telegram_chat_id)
-        if source is not None:
-            source = source_repository.set_enabled(source["id"], False)
-        else:
-            source = {
-                "account_id": account_id,
-                "telegram_chat_id": telegram_chat_id,
-                "enabled": False,
-                "id": None,
-            }
-
+    source = source_repository.set_enabled(source["id"], data.enabled)
     notify_source_change()
     return {"status": "ok", "source": source, "enabled": source["enabled"]}
