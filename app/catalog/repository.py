@@ -75,17 +75,25 @@ _SORT_COLUMNS = {
 
 
 class CatalogRepository:
-    def list_resources(self, limit, offset, category_id=None, sort="id", order="desc", account_id=None):
+    def list_resources(self, limit, offset, category_id=None, sort="id", order="desc", account_id=None, chat_id=None, topic_id=None):
         with connection() as conn:
             with conn.cursor() as cursor:
                 active_source_exists = _ACTIVE_SOURCE_EXISTS
                 resource_sources_sql = _RESOURCE_SOURCES_SQL
                 source_count_sql = "COUNT(DISTINCT f.id)"
-                if account_id is not None:
-                    scoped_condition = " AND sf.account_id=" + str(int(account_id))
-                    active_source_exists = active_source_exists.replace("WHERE sf.resource_id=r.id", "WHERE sf.resource_id=r.id" + scoped_condition)
-                    resource_sources_sql = resource_sources_sql.replace("WHERE sf.resource_id=r.id", "WHERE sf.resource_id=r.id" + scoped_condition)
-                    source_count_sql = "COUNT(DISTINCT f.id) FILTER (WHERE f.account_id=" + str(int(account_id)) + " AND EXISTS (SELECT 1 FROM telegram_sources ts_count WHERE ts_count.account_id=f.account_id AND ts_count.telegram_chat_id=f.telegram_chat_id AND ts_count.enabled=TRUE))"
+                scoped_conditions = ""
+                if account_id is not None: scoped_conditions += " AND sf.account_id=" + str(int(account_id))
+                if chat_id is not None: scoped_conditions += " AND sf.telegram_chat_id=" + str(int(chat_id))
+                if topic_id is not None: scoped_conditions += " AND sf.topic_id=" + str(int(topic_id))
+                if scoped_conditions:
+                    active_source_exists = active_source_exists.replace("WHERE sf.resource_id=r.id", "WHERE sf.resource_id=r.id" + scoped_conditions)
+                    resource_sources_sql = resource_sources_sql.replace("WHERE sf.resource_id=r.id", "WHERE sf.resource_id=r.id" + scoped_conditions)
+                    filters = []
+                    if account_id is not None: filters.append("f.account_id=" + str(int(account_id)))
+                    if chat_id is not None: filters.append("f.telegram_chat_id=" + str(int(chat_id)))
+                    if topic_id is not None: filters.append("f.topic_id=" + str(int(topic_id)))
+                    filters.append("EXISTS (SELECT 1 FROM telegram_sources ts_count WHERE ts_count.account_id=f.account_id AND ts_count.telegram_chat_id=f.telegram_chat_id AND ts_count.enabled=TRUE)")
+                    source_count_sql = "COUNT(DISTINCT f.id) FILTER (WHERE " + " AND ".join(filters) + ")"
                 where = f"WHERE r.status='active' AND {active_source_exists}"
                 params = []
                 if category_id is not None:
@@ -111,17 +119,25 @@ class CatalogRepository:
                 """, params + [limit, offset])
                 return total, cursor.fetchall()
 
-    def search_resources(self, query, limit=100, category_id=None, account_id=None):
+    def search_resources(self, query, limit=100, category_id=None, account_id=None, chat_id=None, topic_id=None):
         with connection() as conn:
             with conn.cursor() as cursor:
                 active_source_exists = _ACTIVE_SOURCE_EXISTS
                 resource_sources_sql = _RESOURCE_SOURCES_SQL
                 source_count_sql = "COUNT(DISTINCT f.id)"
-                if account_id is not None:
-                    scoped_condition = " AND sf.account_id=" + str(int(account_id))
-                    active_source_exists = active_source_exists.replace("WHERE sf.resource_id=r.id", "WHERE sf.resource_id=r.id" + scoped_condition)
-                    resource_sources_sql = resource_sources_sql.replace("WHERE sf.resource_id=r.id", "WHERE sf.resource_id=r.id" + scoped_condition)
-                    source_count_sql = "COUNT(DISTINCT f.id) FILTER (WHERE f.account_id=" + str(int(account_id)) + ")"
+                scoped_conditions = ""
+                if account_id is not None: scoped_conditions += " AND sf.account_id=" + str(int(account_id))
+                if chat_id is not None: scoped_conditions += " AND sf.telegram_chat_id=" + str(int(chat_id))
+                if topic_id is not None: scoped_conditions += " AND sf.topic_id=" + str(int(topic_id))
+                if scoped_conditions:
+                    active_source_exists = active_source_exists.replace("WHERE sf.resource_id=r.id", "WHERE sf.resource_id=r.id" + scoped_conditions)
+                    resource_sources_sql = resource_sources_sql.replace("WHERE sf.resource_id=r.id", "WHERE sf.resource_id=r.id" + scoped_conditions)
+                    filters = []
+                    if account_id is not None: filters.append("f.account_id=" + str(int(account_id)))
+                    if chat_id is not None: filters.append("f.telegram_chat_id=" + str(int(chat_id)))
+                    if topic_id is not None: filters.append("f.topic_id=" + str(int(topic_id)))
+                    filters.append("EXISTS (SELECT 1 FROM telegram_sources ts_count WHERE ts_count.account_id=f.account_id AND ts_count.telegram_chat_id=f.telegram_chat_id AND ts_count.enabled=TRUE)")
+                    source_count_sql = "COUNT(DISTINCT f.id) FILTER (WHERE " + " AND ".join(filters) + ")"
                 where = f"r.status='active' AND r.filename ILIKE %s AND {active_source_exists}"
                 params = [f"%{query}%"]
                 if category_id is not None:
@@ -142,6 +158,46 @@ class CatalogRepository:
                     ORDER BY r.id DESC LIMIT %s
                 """, params + [limit])
                 return cursor.fetchall()
+
+    def get_resource_tree(self):
+        """Build the account -> group -> topic tree from active Telegram file sources."""
+        with connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("""
+                    SELECT a.id AS account_id, COALESCE(a.name, '账号 ' || a.id::TEXT) AS account_name,
+                           ts.telegram_chat_id AS chat_id,
+                           COALESCE(ts.name, '群组 ' || ts.telegram_chat_id::TEXT) AS chat_name,
+                           f.topic_id
+                    FROM telegram_sources ts
+                    JOIN accounts a ON a.id=ts.account_id
+                    JOIN files f ON f.account_id=ts.account_id AND f.telegram_chat_id=ts.telegram_chat_id
+                    JOIN resources r ON r.id=f.resource_id
+                    WHERE ts.enabled=TRUE AND f.is_available=TRUE AND f.status='active' AND r.status='active'
+                    GROUP BY a.id, a.name, ts.telegram_chat_id, ts.name, f.topic_id
+                    ORDER BY a.id, ts.name, ts.telegram_chat_id, f.topic_id NULLS FIRST
+                """)
+                rows = cursor.fetchall()
+        accounts = {}
+        for row in rows:
+            aid, cid, tid = row["account_id"], row["chat_id"], row["topic_id"]
+            if aid not in accounts:
+                accounts[aid] = {"key": f"account:{aid}", "title": row["account_name"], "account_id": aid, "children": [], "_groups": {}}
+            account = accounts[aid]
+            if cid not in account["_groups"]:
+                group = {"key": f"group:{aid}:{cid}", "title": row["chat_name"], "account_id": aid, "chat_id": cid, "children": [], "_topics": set()}
+                account["_groups"][cid] = group
+                account["children"].append(group)
+            group = account["_groups"][cid]
+            if tid is not None and tid not in group["_topics"]:
+                group["_topics"].add(tid)
+                group["children"].append({"key": f"topic:{aid}:{cid}:{tid}", "title": f"话题 {tid}", "account_id": aid, "chat_id": cid, "topic_id": tid, "isLeaf": True})
+        result = list(accounts.values())
+        for account in result:
+            account.pop("_groups", None)
+            for group in account["children"]:
+                group.pop("_topics", None)
+                if not group["children"]: group["isLeaf"] = True
+        return result
 
     def get_resource(self, resource_id):
         with connection() as conn:
