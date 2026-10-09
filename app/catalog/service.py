@@ -4,11 +4,14 @@ class CatalogService:
     def __init__(self, repository):
         self.repository = repository
 
-    def list_resources(self, page, size, category_id=None, sort="id", order="desc", account_id=None):
-        return self.repository.list_resources(size, (page - 1) * size, category_id, sort, order, account_id)
+    def list_resources(self, page, size, category_id=None, sort="id", order="desc", account_id=None, chat_id=None, topic_id=None):
+        return self.repository.list_resources(size, (page - 1) * size, category_id, sort, order, account_id, chat_id, topic_id)
 
-    def search(self, query, limit=100, category_id=None, account_id=None):
-        return self.repository.search_resources(query, limit, category_id, account_id)
+    def search(self, query, limit=100, category_id=None, account_id=None, chat_id=None, topic_id=None):
+        return self.repository.search_resources(query, limit, category_id, account_id, chat_id, topic_id)
+
+    def get_tree(self):
+        return self.repository.get_resource_tree()
 
     def get(self, resource_id):
         return self.repository.get_resource(resource_id)
