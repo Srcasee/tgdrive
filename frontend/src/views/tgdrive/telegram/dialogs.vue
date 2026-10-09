@@ -60,21 +60,22 @@
                 <template #cell="{ record }">
                   <a-space>
                     <a-button
-                      v-if="!record.source_id"
                       size="small"
                       type="primary"
+                      :disabled="Boolean(record.source_id)"
                       :loading="record.creating"
                       @click="createSource(record)"
                     >
                       新增
                     </a-button>
                     <a-popconfirm
-                      v-else
+                      v-if="record.source_id"
                       content="确定删除这个 Source 条目吗？删除后该 Source 将不再参与扫描。"
                       @ok="removeSource(record)"
                     >
                       <a-button size="small" status="danger" :loading="record.deleting">删除</a-button>
                     </a-popconfirm>
+                    <a-button v-else size="small" status="danger" disabled>删除</a-button>
                   </a-space>
                 </template>
               </a-table-column>
