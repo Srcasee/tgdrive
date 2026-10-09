@@ -560,6 +560,7 @@ const onUpdate = (row: Menu.MenuOptions) => {
   typeChange(form.type);
   addFrom.value = form;
   title.value = "修改菜单";
+  formType.value = 1;
   open.value = true;
 };
 // 列表新增
@@ -571,6 +572,7 @@ const onCurrentAdd = (record: any) => {
   addFrom.value.parentId = id;
   addFrom.value.type = type == 2 ? 3 : type;
   title.value = "新增菜单";
+  formType.value = 0;
   open.value = true;
 };
 
