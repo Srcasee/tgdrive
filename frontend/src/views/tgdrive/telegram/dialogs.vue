@@ -50,20 +50,32 @@
                 <template #cell="{ record }">
                   <a-switch
                     v-model="record.source_enabled"
+                    :disabled="!record.source_id"
                     :loading="record.toggling"
                     @change="toggle(record)"
                   />
                 </template>
               </a-table-column>
-              <a-table-column title="操作" :width="100" align="center">
+              <a-table-column title="操作" :width="180" align="center">
                 <template #cell="{ record }">
-                  <a-popconfirm
-                    v-if="record.source_id"
-                    content="确定删除这个 Source 条目吗？"
-                    @ok="removeSource(record)"
-                  >
-                    <a-button size="small" status="danger">删除</a-button>
-                  </a-popconfirm>
+                  <a-space>
+                    <a-button
+                      v-if="!record.source_id"
+                      size="small"
+                      type="primary"
+                      :loading="record.creating"
+                      @click="createSource(record)"
+                    >
+                      新增
+                    </a-button>
+                    <a-popconfirm
+                      v-else
+                      content="确定删除这个 Source 条目吗？删除后该 Source 将不再参与扫描。"
+                      @ok="removeSource(record)"
+                    >
+                      <a-button size="small" status="danger" :loading="record.deleting">删除</a-button>
+                    </a-popconfirm>
+                  </a-space>
                 </template>
               </a-table-column>
             </template>
@@ -76,7 +88,13 @@
 
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { getDialogsAPI, refreshDialogsAPI, setDialogSourceEnabledAPI, deleteSourceAPI } from "@/api/modules/tgdrive";
+import {
+  getDialogsAPI,
+  refreshDialogsAPI,
+  createSourceAPI,
+  setDialogSourceEnabledAPI,
+  deleteSourceAPI
+} from "@/api/modules/tgdrive";
 
 type ChannelRow = {
   account_id: number;
@@ -86,6 +104,8 @@ type ChannelRow = {
   is_group: boolean;
   source_enabled: boolean;
   toggling: boolean;
+  creating: boolean;
+  deleting: boolean;
   row_key: string;
   source_id: number | null;
 };
@@ -125,6 +145,8 @@ const load = async () => {
           ...item,
           source_enabled: Boolean(item.source_enabled),
           toggling: false,
+          creating: false,
+          deleting: false,
           row_key: `${item.account_id}:${item.telegram_chat_id}`
         }))
     }));
@@ -148,13 +170,33 @@ const refresh = async () => {
   }
 };
 
+const createSource = async (row: ChannelRow) => {
+  if (row.source_id) return;
+  row.creating = true;
+  try {
+    await createSourceAPI(row.account_id, row.telegram_chat_id);
+    await load();
+  } finally {
+    row.creating = false;
+  }
+};
+
 const removeSource = async (row: ChannelRow) => {
   if (!row.source_id) return;
-  await deleteSourceAPI(row.source_id);
-  await load();
+  row.deleting = true;
+  try {
+    await deleteSourceAPI(row.source_id);
+    await load();
+  } finally {
+    row.deleting = false;
+  }
 };
 
 const toggle = async (row: ChannelRow) => {
+  if (!row.source_id) {
+    row.source_enabled = false;
+    return;
+  }
   row.toggling = true;
   try {
     await setDialogSourceEnabledAPI(row.account_id, row.telegram_chat_id, row.source_enabled);
