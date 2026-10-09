@@ -15,11 +15,12 @@ def list_resources(
     page: int = Query(1, ge=1),
     size: int = Query(50, ge=1, le=200),
     category_id: int | None = Query(None, ge=1),
+    account_id: int | None = Query(None, ge=1),
     sort: str = Query("id"),
     order: str = Query("desc", pattern="^(asc|desc)$"),
     _: Principal = Depends(require_user),
 ):
-    total, items = service.list_resources(page, size, category_id, sort, order)
+    total, items = service.list_resources(page, size, category_id, sort, order, account_id)
     return api_success({"total": total, "page": page, "size": size, "items": items})
 
 
@@ -27,10 +28,11 @@ def list_resources(
 def search_resources(
     q: str = Query("", min_length=1),
     category_id: int | None = Query(None, ge=1),
+    account_id: int | None = Query(None, ge=1),
     limit: int = Query(100, ge=1, le=200),
     _: Principal = Depends(require_user),
 ):
-    return api_success(service.search(q, limit, category_id))
+    return api_success(service.search(q, limit, category_id, account_id))
 
 
 @router.get("/{resource_id}")
