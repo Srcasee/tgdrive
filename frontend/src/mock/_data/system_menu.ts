@@ -1430,11 +1430,6 @@ export const systemMenu = [
     children: null
   },
   {
-    id: "22", parentId: "0", path: "/tgdrive/telegram/sources", name: "tgdrive-sources", component: "tgdrive/telegram/sources",
-    meta: { title: "Telegram 来源", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], icon: "icon-menu", sort: 22, type: 2 },
-    children: null
-  },
-  {
     id: "23", parentId: "0", path: "/tgdrive/resources/files", name: "tgdrive-resources", component: "tgdrive/resources/files",
     meta: { title: "资源文件", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], icon: "icon-menu", sort: 23, type: 2 },
     children: null
