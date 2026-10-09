@@ -51,10 +51,11 @@ export const setResourceCategoriesAPI = (id: number, category_ids: number[]) =>
   http.put(`/api/admin/resources/${id}/categories`, { category_ids });
 export const deleteShareAPI = (id: number) => http.delete(`/api/admin/shares/${id}`);
 
+export const getResourceTreeAPI = () => http.get("/catalog/tree");
 export const getResourceAPI = (id: number) => http.get(`/catalog/${id}`);
-export const getResourcesAPI = (params: { page?: number; size?: number; category_id?: number; account_id?: number; sort?: string; order?: string }) =>
+export const getResourcesAPI = (params: { page?: number; size?: number; category_id?: number; account_id?: number; chat_id?: number; topic_id?: number; sort?: string; order?: string }) =>
   http.get("/catalog", { params });
-export const searchResourcesAPI = (params: { q: string; category_id?: number; account_id?: number; limit?: number }) =>
+export const searchResourcesAPI = (params: { q: string; category_id?: number; account_id?: number; chat_id?: number; topic_id?: number; limit?: number }) =>
   http.get("/catalog/search", { params });
 export const createShareAPI = (id: number) => http.post(`/resources/${id}/share`);
 
