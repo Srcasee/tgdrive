@@ -37,9 +37,10 @@ export const cancelAccountLoginAPI = (loginId: string) =>
 
 export const getDialogsAPI = () => http.get("/api/telegram/dialogs");
 export const refreshDialogsAPI = () => http.post("/api/telegram/dialogs/refresh");
+export const createSourceAPI = (accountId: number, chatId: number) =>
+  http.post(`/api/telegram/sources/accounts/${accountId}/chats/${chatId}`);
 export const setDialogSourceEnabledAPI = (accountId: number, chatId: number, enabled: boolean) =>
   http.put(`/api/telegram/sources/accounts/${accountId}/chats/${chatId}/enabled`, { enabled });
-
 export const deleteSourceAPI = (id: number) => http.delete(`/api/telegram/sources/${id}`);
 
 export const getCategoriesAPI = () => http.get("/api/admin/categories");
