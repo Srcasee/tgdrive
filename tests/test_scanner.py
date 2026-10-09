@@ -1,7 +1,7 @@
 import asyncio
 from types import SimpleNamespace
 
-import telegram.scanner as scanner
+import ingestion.scanner as scanner
 
 
 class FakeSourceRepository:

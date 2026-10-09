@@ -2,7 +2,7 @@ from fastapi import APIRouter
 
 from telegram.api.accounts import router as accounts_router
 from telegram.api.dialogs import router as dialogs_router
-from telegram.api.sources import router as sources_router
+from ingestion.api.sources import router as sources_router
 
 router = APIRouter(prefix="/api/telegram", tags=["telegram"])
 

@@ -12,8 +12,8 @@ from telegram.account_lock import account_lock
 from telegram.client import get_clients, refresh_clients
 from telegram.dialog_discovery import DialogDiscoveryService
 from telegram.runtime_events import initialize_runtime_events, wait_for_runtime_event
-from telegram.scanner import scan_source
-from telegram.scanner_manager import ScannerManager
+from ingestion.scanner import scan_source
+from ingestion.scanner_manager import ScannerManager
 
 
 RECONCILIATION_INTERVAL = 3600
