@@ -12,6 +12,7 @@ class TelegramFileObservation:
     size: int | None
     mime_type: str | None
     upload_time: int
+    topic_id: int | None = None
 
     @property
     def resource_metadata(self):
@@ -31,4 +32,5 @@ class TelegramFileObservation:
             "message_id": self.message_id,
             "upload_time": self.upload_time,
             "account_id": self.account_id,
+            "topic_id": self.topic_id,
         }

@@ -8,11 +8,14 @@ from database_pool import close_pool, initialize, open_pool
 from repositories.accounts import AccountRepository
 from repositories.dialogs import DialogRepository
 from repositories.sources import SourceRepository
+from repositories.resources import ResourceRepository
+from repositories.telegram_files import TelegramFileRepository
 from telegram.account_lock import account_lock
 from telegram.client import get_clients, refresh_clients
 from telegram.dialog_discovery import DialogDiscoveryService
 from telegram.runtime_events import initialize_runtime_events, wait_for_runtime_event
-from ingestion.scanner import scan_source
+from ingestion.service import IngestionService
+from ingestion.source_scan import SourceScanCoordinator
 from ingestion.scanner_manager import ScannerManager
 
 
@@ -33,6 +36,12 @@ class ApplicationLifecycle:
 
         self.dialog_discovery = DialogDiscoveryService()
         self.scanner_manager = ScannerManager()
+        self.ingestion_service = IngestionService(
+            self.source_repository,
+            TelegramFileRepository(),
+            ResourceRepository(),
+        )
+        self.source_scan_coordinator = SourceScanCoordinator(self.ingestion_service)
 
     async def startup(self):
         open_pool()
@@ -182,7 +191,7 @@ class ApplicationLifecycle:
         try:
             while True:
                 try:
-                    count = await scan_source(client, account_id, source)
+                    count = await self.source_scan_coordinator.scan_source(client, account_id, source)
                     print(
                         f"[SCAN] source finished {source['name']} ({source['telegram_chat_id']}): {count} files",
                         flush=True,
