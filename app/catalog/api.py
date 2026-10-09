@@ -16,11 +16,13 @@ def list_resources(
     size: int = Query(50, ge=1, le=200),
     category_id: int | None = Query(None, ge=1),
     account_id: int | None = Query(None, ge=1),
+    chat_id: int | None = Query(None),
+    topic_id: int | None = Query(None, ge=0),
     sort: str = Query("id"),
     order: str = Query("desc", pattern="^(asc|desc)$"),
     _: Principal = Depends(require_user),
 ):
-    total, items = service.list_resources(page, size, category_id, sort, order, account_id)
+    total, items = service.list_resources(page, size, category_id, sort, order, account_id, chat_id, topic_id)
     return api_success({"total": total, "page": page, "size": size, "items": items})
 
 
@@ -29,10 +31,17 @@ def search_resources(
     q: str = Query("", min_length=1),
     category_id: int | None = Query(None, ge=1),
     account_id: int | None = Query(None, ge=1),
+    chat_id: int | None = Query(None),
+    topic_id: int | None = Query(None, ge=0),
     limit: int = Query(100, ge=1, le=200),
     _: Principal = Depends(require_user),
 ):
-    return api_success(service.search(q, limit, category_id, account_id))
+    return api_success(service.search(q, limit, category_id, account_id, chat_id, topic_id))
+
+
+@router.get("/tree")
+def resource_tree(_: Principal = Depends(require_user)):
+    return api_success(service.get_tree())
 
 
 @router.get("/{resource_id}")
