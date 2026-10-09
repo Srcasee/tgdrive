@@ -76,11 +76,11 @@ class FakeResources:
     def _rows(self):
         return list(self.available.values())
 
-    def list_resources(self, limit, offset, category_id=None, sort="id", order="desc", account_id=None):
+    def list_resources(self, limit, offset, category_id=None, sort="id", order="desc", account_id=None, chat_id=None, topic_id=None):
         rows = self._rows()[offset:offset + limit]
         return len(self.available), rows
 
-    def search_resources(self, query, limit=100, category_id=None, account_id=None):
+    def search_resources(self, query, limit=100, category_id=None, account_id=None, chat_id=None, topic_id=None):
         return [x for x in self._rows() if query.lower() in x["filename"].lower()][:limit]
 
     def get_resource(self, resource_id):
