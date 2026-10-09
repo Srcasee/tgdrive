@@ -1,3 +1,5 @@
+from uuid import uuid4
+
 from database_pool import connection, transaction
 
 
@@ -21,6 +23,9 @@ class ResourceRepository:
             identity_key = build_content_identity_key(content_hash)
             with transaction() as conn:
                 with conn.cursor() as cursor:
+                    # Keep the verified-content identity path compatible for now.
+                    # Revisit content-hash deduplication together with the identity
+                    # model and database constraints in a later stage.
                     cursor.execute(
                         """
                         INSERT INTO resources(identity_key, content_hash, filename, size, mime_type)
@@ -36,18 +41,20 @@ class ResourceRepository:
                     )
                     return cursor.fetchone()["id"]
 
-        identity_key = build_index_identity_key(filename, size, mime_type)
+        # Previous metadata-based deduplication (disabled for this stage):
+        # identity_key = build_index_identity_key(filename, size, mime_type)
+        # INSERT ... ON CONFLICT (identity_key) DO UPDATE ...
+        #
+        # The identity-key builder remains public for compatibility, but each
+        # newly indexed Resource gets a distinct key so the existing unique
+        # constraint can remain unchanged without merging same-metadata items.
+        identity_key = f"{build_index_identity_key(filename, size, mime_type)}|resource:{uuid4().hex}"
         with transaction() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     """
                     INSERT INTO resources(identity_key, filename, size, mime_type)
                     VALUES(%s,%s,%s,%s)
-                    ON CONFLICT (identity_key) DO UPDATE
-                    SET filename=EXCLUDED.filename,
-                        size=EXCLUDED.size,
-                        mime_type=EXCLUDED.mime_type,
-                        updated_at=EXTRACT(EPOCH FROM NOW())::BIGINT
                     RETURNING id
                     """,
                     (identity_key, filename, size, mime_type),
