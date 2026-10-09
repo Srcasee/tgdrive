@@ -97,19 +97,15 @@ echo "[DEPLOY] step 4/7: validating Compose configuration"
 docker compose config >/dev/null
 
 echo "[DEPLOY] step 5/7: building Core + PostgreSQL"
-BUILD_CPUS=${DEPLOY_BUILD_CPUS:-1.0}
-BUILD_QUOTA=$(awk -v cpus="$BUILD_CPUS" 'BEGIN { printf "%d", cpus * 100000 }')
-if docker buildx version >/dev/null 2>&1 && docker buildx build --help 2>/dev/null | grep -q -- '--resource'; then
-    echo "[DEPLOY] limiting Core build to ${BUILD_CPUS} CPU"
+if docker buildx version >/dev/null 2>&1; then
+    echo "[DEPLOY] building Core image without a CPU quota"
     BUILDX_NO_DEFAULT_ATTESTATIONS=1 docker buildx build \
         --load \
         --provenance=false \
-        --resource "cpu-period=100000" \
-        --resource "cpu-quota=${BUILD_QUOTA}" \
         -t tgdrive-core:local \
         -f Dockerfile .
 else
-    echo "[DEPLOY] Buildx resource limits unavailable; using Compose build"
+    echo "[DEPLOY] Buildx unavailable; using Compose build without a CPU quota"
     docker compose build telegram-drive
 fi
 
