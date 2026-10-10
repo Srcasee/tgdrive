@@ -102,7 +102,7 @@ class CatalogRepository:
                 sort_sql = source_count_sql if sort == "source_count" else _SORT_COLUMNS.get(sort, _SORT_COLUMNS["id"])
                 direction = "ASC" if order == "asc" else "DESC"
                 cursor.execute(f"""
-                    SELECT r.id, r.content_hash, r.filename, r.size, r.mime_type,
+                    SELECT r.id, r.content_hash, r.filename, r.size, r.mime_type, r.status,
                            {source_count_sql} AS source_count,
                            {resource_sources_sql},
                            {_SHARE_SQL}
@@ -136,7 +136,7 @@ class CatalogRepository:
                 where = f"r.status='active' AND r.filename ILIKE %s AND {active_source_exists}"
                 params = [f"%{query}%"]
                 cursor.execute(f"""
-                    SELECT r.id, r.content_hash, r.filename, r.size, r.mime_type,
+                    SELECT r.id, r.content_hash, r.filename, r.size, r.mime_type, r.status,
                            {source_count_sql} AS source_count,
                            {resource_sources_sql},
                            {_SHARE_SQL}
