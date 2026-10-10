@@ -27,13 +27,13 @@
             <a-breadcrumb-item v-for="item in breadcrumb" :key="item.key">{{ item.title }}</a-breadcrumb-item>
             <a-breadcrumb-item v-if="!breadcrumb.length">全部资源</a-breadcrumb-item>
           </a-breadcrumb>
-          <a-input-search v-model="keyword" placeholder="搜索文件名" class="resource-search" @search="onSearch" />
+          <div class="header-actions">
+            <a-button @click="resetTreeSelection">全部资源</a-button>
+            <a-input-search v-model="keyword" placeholder="搜索文件名" class="resource-search" @search="onSearch" />
+          </div>
         </div>
         <a-divider margin="0" />
         <div class="resource-content">
-          <a-space class="toolbar" wrap>
-            <a-button @click="resetTreeSelection">全部资源</a-button>
-          </a-space>
           <a-table
             :data="rows"
             :loading="loading"
@@ -55,11 +55,16 @@
                   </a-space>
                 </template>
               </a-table-column>
-              <a-table-column title="文件名" data-index="filename" />
-              <a-table-column title="大小" data-index="size" :width="100" />
-              <a-table-column title="类型" data-index="mime_type" :width="130" />
-              <a-table-column title="来源数" data-index="source_count" :width="90" />
-              <a-table-column title="分享" :width="180">
+              <a-table-column
+                v-for="item in visibleDetailColumns"
+                :key="item.key"
+                :title="item.label"
+                :data-index="item.key"
+                :width="columnWidth(item.key)"
+              >
+                <template #cell="{ record }">{{ formatCell(record[item.key]) }}</template>
+              </a-table-column>
+              <a-table-column title="分享操作" :width="180">
                 <template #cell="{ record }">
                   <a-space>
                     <a-button size="small" @click="share(record)">创建</a-button>
@@ -77,7 +82,7 @@
         <a-checkbox :model-value="allDetailsVisible" :indeterminate="someDetailsVisible" @change="toggleAllDetails">全部显示</a-checkbox>
         <a-divider margin="0" />
         <div v-for="item in detailRows" :key="item.key" class="detail-row">
-          <a-checkbox v-model="item.visible">{{ item.label }}</a-checkbox>
+          <a-checkbox :model-value="fieldVisibility[item.key] !== false" @change="setDetailVisibility(item.key, $event)">{{ item.label }}</a-checkbox>
           <div v-if="item.visible" class="detail-value">{{ item.value }}</div>
         </div>
       </a-space>
@@ -152,9 +157,25 @@ const detailOpen = ref(false);
 // const categoryText = ref("");
 type DetailItem = { key: string; label: string; value: string; visible: boolean };
 const detailRows = ref<DetailItem[]>([]);
-const allDetailsVisible = computed(() => detailRows.value.length > 0 && detailRows.value.every(item => item.visible));
-const someDetailsVisible = computed(() => detailRows.value.some(item => item.visible) && !allDetailsVisible.value);
-const toggleAllDetails = (visible: boolean) => detailRows.value.forEach(item => item.visible = visible);
+const fieldVisibility = ref<Record<string, boolean>>({});
+const visibleDetailColumns = computed(() => detailRows.value.filter(item => fieldVisibility.value[item.key] !== false));
+const allDetailsVisible = computed(() => detailRows.value.length > 0 && detailRows.value.every(item => fieldVisibility.value[item.key] !== false));
+const someDetailsVisible = computed(() => detailRows.value.some(item => fieldVisibility.value[item.key] !== false) && !allDetailsVisible.value);
+const setDetailVisibility = (key: string, visible: boolean) => {
+  fieldVisibility.value[key] = visible;
+  const item = detailRows.value.find(row => row.key === key);
+  if (item) item.visible = visible;
+};
+const toggleAllDetails = (visible: boolean) => detailRows.value.forEach(item => {
+  fieldVisibility.value[item.key] = visible;
+  item.visible = visible;
+});
+const formatCell = (value: unknown) => {
+  if (value === null || value === undefined) return "—";
+  if (typeof value === "object") return JSON.stringify(value, null, 2);
+  return String(value);
+};
+const columnWidth = (key: string) => ["id", "size", "source_count", "status"].includes(key) ? 110 : undefined;
 const pagination = ref({
   current: 1,
   pageSize: 15,
@@ -198,6 +219,7 @@ const load = async () => {
       const payload = response.data?.data;
       rows.value = Array.isArray(payload?.items) ? payload.items : Array.isArray(payload) ? payload : [];
       pagination.value.total = rows.value.length;
+      await ensureDetailColumns();
     } else {
       const response = await getResourcesAPI({
         page: pagination.value.current,
@@ -207,6 +229,7 @@ const load = async () => {
       const payload = response.data?.data;
       rows.value = Array.isArray(payload?.items) ? payload.items : Array.isArray(payload) ? payload : [];
       pagination.value.total = Number(payload?.total ?? rows.value.length);
+      await ensureDetailColumns();
     }
   } finally {
     loading.value = false;
@@ -265,11 +288,18 @@ const removeShare = async (item: any) => {
   await deleteShareAPI(item.id);
   await load();
 };
+const applyDetailData = (data: any[]) => data.map((item: any) => ({
+  ...item,
+  visible: fieldVisibility.value[item.key] !== false
+}));
+const ensureDetailColumns = async () => {
+  if (detailRows.value.length || !rows.value.length) return;
+  const response = await getResourceAPI(rows.value[0].id);
+  detailRows.value = Array.isArray(response.data?.data) ? applyDetailData(response.data.data) : [];
+};
 const detail = async (record: any) => {
   const response = await getResourceAPI(record.id);
-  detailRows.value = Array.isArray(response.data?.data)
-    ? response.data.data.map((item: any) => ({ ...item, visible: true }))
-    : [];
+  detailRows.value = Array.isArray(response.data?.data) ? applyDetailData(response.data.data) : [];
   detailOpen.value = true;
 };
 // Manual category assignment functions are disabled; retained as comments.
@@ -360,6 +390,12 @@ Promise.all([
   justify-content: space-between;
   gap: 16px;
 }
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
 .resource-search {
   width: 260px;
   flex: 0 1 260px;
@@ -410,9 +446,6 @@ Promise.all([
   padding: 12px 0 4px;
   background: var(--color-bg-1, var(--color-bg-2));
 }
-.toolbar {
-  margin-bottom: 16px;
-}
 .detail-row {
   display: grid;
   grid-template-columns: minmax(140px, 220px) minmax(0, 1fr);
@@ -453,9 +486,12 @@ Promise.all([
     padding-top: 8px;
     padding-bottom: 8px;
   }
+  .header-actions {
+    width: 100%;
+  }
   .resource-search {
     width: 100%;
-    flex: 1 1 100%;
+    flex: 1 1 0;
   }
   .resource-panel {
     width: 100%;
