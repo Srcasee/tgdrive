@@ -62,7 +62,7 @@
                 :data-index="item.key"
                 :width="columnWidth(item.key)"
               >
-                <template #cell="{ record }">{{ formatCell(record[item.key]) }}</template>
+                <template #cell="{ record }">{{ formatCell(record._detailValues?.[item.key] ?? record[item.key]) }}</template>
               </a-table-column>
               <a-table-column title="分享操作" :width="180">
                 <template #cell="{ record }">
@@ -219,7 +219,7 @@ const load = async () => {
       const payload = response.data?.data;
       rows.value = Array.isArray(payload?.items) ? payload.items : Array.isArray(payload) ? payload : [];
       pagination.value.total = rows.value.length;
-      await ensureDetailColumns();
+      await hydrateRowDetails();
     } else {
       const response = await getResourcesAPI({
         page: pagination.value.current,
@@ -292,10 +292,22 @@ const applyDetailData = (data: any[]) => data.map((item: any) => ({
   ...item,
   visible: fieldVisibility.value[item.key] !== false
 }));
-const ensureDetailColumns = async () => {
-  if (detailRows.value.length || !rows.value.length) return;
-  const response = await getResourceAPI(rows.value[0].id);
-  detailRows.value = Array.isArray(response.data?.data) ? applyDetailData(response.data.data) : [];
+const hydrateRowDetails = async () => {
+  if (!rows.value.length) return;
+  const currentRows = rows.value;
+  const detailedRows = await Promise.all(currentRows.map(async (record: any) => {
+    const response = await getResourceAPI(record.id);
+    const fields = Array.isArray(response.data?.data) ? response.data.data : [];
+    return {
+      ...record,
+      _detailValues: Object.fromEntries(fields.map((item: any) => [item.key, item.value]))
+    };
+  }));
+  rows.value = detailedRows;
+  if (!detailRows.value.length && detailedRows.length) {
+    const first = await getResourceAPI(detailedRows[0].id);
+    detailRows.value = Array.isArray(first.data?.data) ? applyDetailData(first.data.data) : [];
+  }
 };
 const detail = async (record: any) => {
   const response = await getResourceAPI(record.id);
