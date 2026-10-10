@@ -1,7 +1,7 @@
 <template>
   <div class="snow-page">
-    <div class="catalog-layout">
-      <aside class="tree-panel">
+    <div ref="catalogLayout" class="catalog-layout">
+      <aside class="tree-panel" :style="{ width: treeWidth + 'px', flexBasis: treeWidth + 'px' }">
         <div class="panel-title">资源归属</div>
         <a-divider margin="0" />
         <div class="tree-content">
@@ -20,6 +20,7 @@
           </a-spin>
         </div>
       </aside>
+      <div class="tree-resizer" role="separator" aria-orientation="vertical" aria-label="调整资源归属面板宽度" @pointerdown="startResize"></div>
       <section class="resource-panel">
         <div class="panel-title">
           <a-breadcrumb>
@@ -40,6 +41,7 @@
             :data="rows"
             :loading="loading"
             :pagination="pagination"
+            :scroll="{ y: '100%' }"
             row-key="id"
             size="small"
             @page-change="onPageChange"
@@ -88,7 +90,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onBeforeUnmount, ref } from "vue";
 import {
   getResourcesAPI, getResourceAPI, searchResourcesAPI, getCategoriesAPI, getResourceTreeAPI,
   createShareAPI, deleteShareAPI
@@ -103,6 +105,33 @@ type TreeNode = {
   isLeaf?: boolean;
   children?: TreeNode[];
 };
+
+const catalogLayout = ref<HTMLElement | null>(null);
+const treeWidth = ref(280);
+const resizing = ref(false);
+
+const resizeTree = (event: PointerEvent) => {
+  if (!resizing.value || !catalogLayout.value) return;
+  const bounds = catalogLayout.value.getBoundingClientRect();
+  treeWidth.value = Math.max(200, Math.min(event.clientX - bounds.left, bounds.width * 0.5));
+};
+const stopResize = () => {
+  resizing.value = false;
+  document.removeEventListener("pointermove", resizeTree);
+  document.removeEventListener("pointerup", stopResize);
+  document.body.style.cursor = "";
+  document.body.style.userSelect = "";
+};
+const startResize = (event: PointerEvent) => {
+  if (window.matchMedia("(max-width: 768px)").matches) return;
+  event.preventDefault();
+  resizing.value = true;
+  document.body.style.cursor = "col-resize";
+  document.body.style.userSelect = "none";
+  document.addEventListener("pointermove", resizeTree);
+  document.addEventListener("pointerup", stopResize);
+};
+onBeforeUnmount(stopResize);
 
 const rows = ref<any[]>([]);
 const categories = ref<any[]>([]);
@@ -292,12 +321,31 @@ Promise.all([
   background: var(--color-bg-1, var(--color-bg-2));
 }
 .tree-panel {
-  width: 280px;
+  box-sizing: border-box;
   min-width: 200px;
   max-width: 50%;
   flex: 0 0 280px;
-  resize: horizontal;
   overflow: auto;
+}
+.tree-resizer {
+  position: relative;
+  z-index: 2;
+  flex: 0 0 6px;
+  margin: 0 -3px;
+  cursor: col-resize;
+  touch-action: none;
+}
+.tree-resizer::after {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 2px;
+  width: 2px;
+  background: var(--color-border-2);
+  content: "";
+}
+.tree-resizer:hover::after {
+  background: rgb(var(--primary-6));
 }
 .resource-panel {
   display: flex;
@@ -331,17 +379,35 @@ Promise.all([
 }
 .resource-content {
   box-sizing: border-box;
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-height: 0;
+  padding: 16px 16px 8px;
+  overflow: hidden;
+}
+.resource-content :deep(.arco-table-wrapper) {
   flex: 1 1 0;
   min-height: 0;
-  padding: 16px 16px 12px;
-  overflow: auto;
+}
+.resource-content :deep(.arco-table) {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.resource-content :deep(.arco-table-container) {
+  flex: 1 1 0;
+  min-height: 0;
+}
+.resource-content :deep(.arco-table-pagination) {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 12px 0 4px;
+  background: var(--color-bg-1, var(--color-bg-2));
 }
 .toolbar {
   margin-bottom: 16px;
-}
-:deep(.arco-table-pagination) {
-  margin: 16px 0 8px;
-  padding: 0 0 8px;
 }
 @media (max-width: 768px) {
   .snow-page {
@@ -356,11 +422,14 @@ Promise.all([
     overflow: visible;
   }
   .tree-panel {
-    width: 100%;
+    width: 100% !important;
     max-width: 100%;
     height: auto;
     max-height: 240px;
-    resize: vertical;
+    flex-basis: auto !important;
+  }
+  .tree-resizer {
+    display: none;
   }
   .resource-panel {
     width: 100%;
@@ -370,7 +439,15 @@ Promise.all([
     overflow: visible;
   }
   .resource-content {
+    display: block;
     overflow: visible;
+  }
+  .resource-content :deep(.arco-table-wrapper),
+  .resource-content :deep(.arco-table) {
+    height: auto;
+  }
+  .resource-content :deep(.arco-table-container) {
+    min-height: auto;
   }
 }
 </style>
