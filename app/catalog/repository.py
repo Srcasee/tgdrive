@@ -137,13 +137,10 @@ class CatalogRepository:
                 params = [f"%{query}%"]
                 cursor.execute(f"""
                     SELECT r.id, r.content_hash, r.filename, r.size, r.mime_type,
-                           COALESCE(array_agg(DISTINCT c.id) FILTER (WHERE c.id IS NOT NULL), '{{}}') AS category_ids,
                            {source_count_sql} AS source_count,
                            {resource_sources_sql},
                            {_SHARE_SQL}
                     FROM resources r
-                    LEFT JOIN resource_categories rc ON rc.resource_id=r.id
-                    LEFT JOIN categories c ON c.id=rc.category_id
                     LEFT JOIN files f ON f.resource_id=r.id AND f.is_available=TRUE AND f.status='active'
                     WHERE {where}
                     GROUP BY r.id
