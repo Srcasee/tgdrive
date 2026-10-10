@@ -22,10 +22,19 @@ _DETAIL_LABELS = {
 }
 
 
+def _translate_detail_value(value):
+    if isinstance(value, dict):
+        return {_DETAIL_LABELS.get(key, key): _translate_detail_value(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_translate_detail_value(item) for item in value]
+    return value
+
+
 def _format_detail_value(value):
-    if isinstance(value, (dict, list)):
-        return json.dumps(value, ensure_ascii=False, indent=2, default=str)
-    return "" if value is None else str(value)
+    translated = _translate_detail_value(value)
+    if isinstance(translated, (dict, list)):
+        return json.dumps(translated, ensure_ascii=False, indent=2, default=str)
+    return "" if translated is None else str(translated)
 
 
 def _resource_detail(resource):
