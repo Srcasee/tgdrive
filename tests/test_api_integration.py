@@ -194,16 +194,23 @@ def test_auth_me_refreshes_session_cookie(monkeypatch):
     assert "Path=/" in refreshed.headers["set-cookie"]
 
 
-def test_category_admin_crud(monkeypatch):
+def test_manual_category_mutations_are_disabled(monkeypatch):
     client, _, _ = make_client(monkeypatch)
     client.post("/auth/login", json={"username": "admin", "password": "admin-pass"})
 
-    created = client.post("/api/admin/categories", json={"name": "Movies"})
-    assert created.status_code == 200
-    category_id = created.json()["id"]
-    assert client.get("/api/admin/categories").json()[0]["name"] == "Movies"
-    assert client.put(f"/api/admin/categories/{category_id}", json={"name": "Films"}).status_code == 200
-    assert client.delete(f"/api/admin/categories/{category_id}").status_code == 200
+    # Previous CRUD expectations are intentionally retained as comments because manual
+    # category management is disabled.
+    # created = client.post("/api/admin/categories", json={"name": "Movies"})
+    # assert created.status_code == 200
+    # category_id = created.json()["id"]
+    # assert client.put(f"/api/admin/categories/{category_id}", json={"name": "Films"}).status_code == 200
+    # assert client.delete(f"/api/admin/categories/{category_id}").status_code == 200
+
+    assert client.get("/api/admin/categories").status_code == 200
+    assert client.post("/api/admin/categories", json={"name": "Movies"}).status_code == 405
+    assert client.put("/api/admin/categories/1", json={"name": "Films"}).status_code == 405
+    assert client.delete("/api/admin/categories/1").status_code == 405
+    assert client.put("/api/admin/resources/1/categories", json={"category_ids": [1]}).status_code == 405
 
 
 def test_protected_catalog_and_delivery_apis(monkeypatch):
