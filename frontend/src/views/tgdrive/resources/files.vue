@@ -262,11 +262,19 @@ Promise.all([
 </script>
 
 <style scoped>
+.snow-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
 .catalog-layout {
   display: flex;
+  flex: 1 1 0;
   height: 100%;
-  min-height: 560px;
-  overflow: visible;
+  min-height: 0;
+  overflow: hidden;
   gap: 12px;
   align-items: stretch;
 }
@@ -274,6 +282,7 @@ Promise.all([
 .resource-panel {
   min-width: 0;
   height: 100%;
+  min-height: 0;
   background: var(--color-bg-1, var(--color-bg-2));
 }
 .tree-panel {
@@ -285,18 +294,22 @@ Promise.all([
   overflow: auto;
 }
 .resource-panel {
+  display: flex;
   flex: 1 1 0;
-  overflow: visible;
+  flex-direction: column;
+  overflow: hidden;
 }
 .panel-title {
   display: flex;
+  flex: 0 0 40px;
   align-items: center;
   height: 40px;
   padding: 0 16px;
 }
 .tree-content {
   box-sizing: border-box;
-  height: calc(100% - 41px);
+  flex: 1 1 0;
+  min-height: 0;
   padding: 16px 12px;
   overflow: auto;
 }
@@ -312,20 +325,28 @@ Promise.all([
 }
 .resource-content {
   box-sizing: border-box;
-  min-height: calc(100% - 41px);
-  padding: 16px 16px 32px;
-  overflow: visible;
+  flex: 1 1 0;
+  min-height: 0;
+  padding: 16px 16px 12px;
+  overflow: auto;
 }
 .toolbar {
   margin-bottom: 16px;
 }
 :deep(.arco-table-pagination) {
-  margin-bottom: 16px;
-  padding-bottom: 8px;
+  margin: 16px 0 8px;
+  padding: 0 0 8px;
 }
 @media (max-width: 768px) {
+  .snow-page {
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+  }
   .catalog-layout {
     display: block;
+    height: auto;
+    min-height: 0;
     overflow: visible;
   }
   .tree-panel {
@@ -340,6 +361,10 @@ Promise.all([
     height: auto;
     min-height: 420px;
     margin-top: 12px;
+    overflow: visible;
+  }
+  .resource-content {
+    overflow: visible;
   }
 }
 </style>
