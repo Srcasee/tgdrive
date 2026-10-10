@@ -16,5 +16,6 @@ class CatalogService:
     def get(self, resource_id):
         return self.repository.get_resource(resource_id)
 
-    def set_categories(self, resource_id, category_ids):
-        return self.repository.set_categories(resource_id, category_ids)
+    # Manual category assignment is disabled for now; retain the original implementation as a comment.
+    # def set_categories(self, resource_id, category_ids):
+    #     return self.repository.set_categories(resource_id, category_ids)
