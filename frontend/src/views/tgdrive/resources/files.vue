@@ -79,11 +79,11 @@
     </div>
     <a-modal v-model:visible="detailOpen" title="资源详情" hide-cancel @ok="detailOpen=false" :width="720">
       <a-space direction="vertical" fill size="medium">
-        <a-checkbox :model-value="allDetailsVisible" :indeterminate="someDetailsVisible" @change="toggleAllDetails">全部显示</a-checkbox>
+        <a-checkbox :model-value="allDetailsVisible" :indeterminate="someDetailsVisible" @change="toggleAllDetails">列表全部显示</a-checkbox>
         <a-divider margin="0" />
         <div v-for="item in detailRows" :key="item.key" class="detail-row">
-          <a-checkbox :model-value="fieldVisibility[item.key] !== false" @change="setDetailVisibility(item.key, $event)">{{ item.label }}</a-checkbox>
-          <div v-if="item.visible" class="detail-value">{{ item.value }}</div>
+          <a-checkbox :model-value="fieldVisibility[item.key] !== false" @change="setDetailVisibility(item.key, $event)">列表显示：{{ item.label }}</a-checkbox>
+          <div class="detail-value">{{ item.value }}</div>
         </div>
       </a-space>
     </a-modal>
