@@ -58,6 +58,18 @@ class DialogRepository:
                             dialog.get("is_channel", False),
                         ),
                     )
+                    # Keep the persisted Source label aligned with the canonical
+                    # Telegram Dialog name whenever dialogs are refreshed.
+                    source_name = dialog.get("name") or str(dialog["id"])
+                    cursor.execute(
+                        """
+                        UPDATE telegram_sources
+                        SET name=%s, updated_at=EXTRACT(EPOCH FROM NOW())::BIGINT
+                        WHERE account_id=%s AND telegram_chat_id=%s
+                          AND name IS DISTINCT FROM %s
+                        """,
+                        (source_name, account_id, dialog["id"], source_name),
+                    )
         return removed_ids
 
     def get_for_account(self, account_id, telegram_chat_id):
