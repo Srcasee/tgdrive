@@ -57,6 +57,12 @@ def test_schema_and_repositories_are_transactional():
             resource_id = cur.fetchone()[0]
             cur.execute("INSERT INTO categories(name) VALUES('Docs') RETURNING id")
             category_id = cur.fetchone()[0]
+            # Seed a legacy category relation directly to verify existing data survives;
+            # manual assignment through CatalogRepository is intentionally disabled.
+            cur.execute(
+                "INSERT INTO resource_categories(resource_id, category_id) VALUES(%s, %s)",
+                (resource_id, category_id),
+            )
         conn.commit()
 
     telegram_files.upsert_indexed_message(
@@ -70,8 +76,10 @@ def test_schema_and_repositories_are_transactional():
         account_id=account_id, resource_id=resource_id, content_hash="a" * 64,
     )
 
-    assigned = catalog.set_categories(resource_id, [category_id])
-    assert assigned["category_ids"] == [category_id]
+    # Manual category assignment was previously exercised here; keep the intent as a comment.
+    # assigned = catalog.set_categories(resource_id, [category_id])
+    # assert assigned["category_ids"] == [category_id]
+    assert catalog.get_resource(resource_id)["category_ids"] == [category_id]
     assert catalog.get_resource(resource_id)["source_count"] == 1
 
     first_file = telegram_files.get_by_telegram_location(account_id, 10001, 7)
