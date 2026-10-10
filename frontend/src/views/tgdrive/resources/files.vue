@@ -82,7 +82,7 @@
         <a-checkbox :model-value="allDetailsVisible" :indeterminate="someDetailsVisible" @change="toggleAllDetails">列表全部显示</a-checkbox>
         <a-divider margin="0" />
         <div v-for="item in detailRows" :key="item.key" class="detail-row">
-          <a-checkbox :model-value="fieldVisibility[item.key] !== false" @change="setDetailVisibility(item.key, $event)">列表显示：{{ item.label }}</a-checkbox>
+          <a-checkbox :model-value="isDetailVisible(item.key)" @change="setDetailVisibility(item.key, $event)">列表显示：{{ item.label }}</a-checkbox>
           <div class="detail-value">{{ item.value }}</div>
         </div>
       </a-space>
@@ -158,9 +158,11 @@ const detailOpen = ref(false);
 type DetailItem = { key: string; label: string; value: string; visible: boolean };
 const detailRows = ref<DetailItem[]>([]);
 const fieldVisibility = ref<Record<string, boolean>>({});
-const visibleDetailColumns = computed(() => detailRows.value.filter(item => fieldVisibility.value[item.key] !== false));
-const allDetailsVisible = computed(() => detailRows.value.length > 0 && detailRows.value.every(item => fieldVisibility.value[item.key] !== false));
-const someDetailsVisible = computed(() => detailRows.value.some(item => fieldVisibility.value[item.key] !== false) && !allDetailsVisible.value);
+const defaultVisibleDetailKeys = new Set(["filename", "size", "mime_type"]);
+const isDetailVisible = (key: string) => fieldVisibility.value[key] ?? defaultVisibleDetailKeys.has(key);
+const visibleDetailColumns = computed(() => detailRows.value.filter(item => isDetailVisible(item.key)));
+const allDetailsVisible = computed(() => detailRows.value.length > 0 && detailRows.value.every(item => isDetailVisible(item.key)));
+const someDetailsVisible = computed(() => detailRows.value.some(item => isDetailVisible(item.key)) && !allDetailsVisible.value);
 const setDetailVisibility = (key: string, visible: boolean) => {
   fieldVisibility.value[key] = visible;
   const item = detailRows.value.find(row => row.key === key);
@@ -290,7 +292,7 @@ const removeShare = async (item: any) => {
 };
 const applyDetailData = (data: any[]) => data.map((item: any) => ({
   ...item,
-  visible: fieldVisibility.value[item.key] !== false
+  visible: isDetailVisible(item.key)
 }));
 const hydrateRowDetails = async () => {
   if (!rows.value.length) return;
