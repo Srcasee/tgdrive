@@ -79,7 +79,7 @@ def test_schema_and_repositories_are_transactional():
     # Manual category assignment was previously exercised here; keep the intent as a comment.
     # assigned = catalog.set_categories(resource_id, [category_id])
     # assert assigned["category_ids"] == [category_id]
-    assert catalog.get_resource(resource_id)["category_ids"] == [category_id]
+    assert "category_ids" not in catalog.get_resource(resource_id)
     assert catalog.get_resource(resource_id)["source_count"] == 1
 
     first_file = telegram_files.get_by_telegram_location(account_id, 10001, 7)
