@@ -22,16 +22,16 @@
       </aside>
       <div class="tree-resizer" role="separator" aria-orientation="vertical" aria-label="调整资源归属面板宽度" @pointerdown="startResize"></div>
       <section class="resource-panel">
-        <div class="panel-title">
+        <div class="panel-title resource-panel-title">
           <a-breadcrumb>
             <a-breadcrumb-item v-for="item in breadcrumb" :key="item.key">{{ item.title }}</a-breadcrumb-item>
             <a-breadcrumb-item v-if="!breadcrumb.length">全部资源</a-breadcrumb-item>
           </a-breadcrumb>
+          <a-input-search v-model="keyword" placeholder="搜索文件名" class="resource-search" @search="onSearch" />
         </div>
         <a-divider margin="0" />
         <div class="resource-content">
           <a-space class="toolbar" wrap>
-            <a-input-search v-model="keyword" placeholder="搜索文件名" style="width: 260px" @search="onSearch" />
             <a-button @click="resetTreeSelection">全部资源</a-button>
           </a-space>
           <a-table
@@ -356,6 +356,14 @@ Promise.all([
   height: 40px;
   padding: 0 16px;
 }
+.resource-panel-title {
+  justify-content: space-between;
+  gap: 16px;
+}
+.resource-search {
+  width: 260px;
+  flex: 0 1 260px;
+}
 .tree-content {
   box-sizing: border-box;
   flex: 1 1 0;
@@ -437,6 +445,17 @@ Promise.all([
   }
   .tree-resizer {
     display: none;
+  }
+  .resource-panel-title {
+    height: auto;
+    min-height: 40px;
+    flex-wrap: wrap;
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+  .resource-search {
+    width: 100%;
+    flex: 1 1 100%;
   }
   .resource-panel {
     width: 100%;
