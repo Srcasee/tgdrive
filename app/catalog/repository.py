@@ -252,30 +252,31 @@ class CatalogRepository:
                     (account_id, chat_ids),
                 )
 
-    def set_categories(self, resource_id, category_ids):
-        with transaction() as conn:
-            with conn.cursor() as cursor:
-                cursor.execute("SELECT id FROM resources WHERE id=%s", (resource_id,))
-                if not cursor.fetchone():
-                    return None
-                if category_ids:
-                    cursor.execute("SELECT id FROM categories WHERE id = ANY(%s)", (category_ids,))
-                    found = {row["id"] for row in cursor.fetchall()}
-                    missing = set(category_ids) - found
-                    if missing:
-                        raise ValueError("category not found")
-                cursor.execute("DELETE FROM resource_categories WHERE resource_id=%s", (resource_id,))
-                if category_ids:
-                    cursor.executemany(
-                        "INSERT INTO resource_categories(resource_id, category_id) VALUES(%s,%s) ON CONFLICT DO NOTHING",
-                        [(resource_id, category_id) for category_id in category_ids],
-                    )
-                cursor.execute("""
-                    SELECT r.id, r.filename,
-                           COALESCE(array_agg(DISTINCT c.id) FILTER (WHERE c.id IS NOT NULL), '{}') AS category_ids
-                    FROM resources r
-                    LEFT JOIN resource_categories rc ON rc.resource_id=r.id
-                    LEFT JOIN categories c ON c.id=rc.category_id
-                    WHERE r.id=%s GROUP BY r.id
-                """, (resource_id,))
-                return cursor.fetchone()
+    # Manual resource categorization is disabled for now; keep the implementation for future reactivation.
+    # def set_categories(self, resource_id, category_ids):
+    #     with transaction() as conn:
+    #         with conn.cursor() as cursor:
+    #             cursor.execute("SELECT id FROM resources WHERE id=%s", (resource_id,))
+    #             if not cursor.fetchone():
+    #                 return None
+    #             if category_ids:
+    #                 cursor.execute("SELECT id FROM categories WHERE id = ANY(%s)", (category_ids,))
+    #                 found = {row["id"] for row in cursor.fetchall()}
+    #                 missing = set(category_ids) - found
+    #                 if missing:
+    #                     raise ValueError("category not found")
+    #             cursor.execute("DELETE FROM resource_categories WHERE resource_id=%s", (resource_id,))
+    #             if category_ids:
+    #                 cursor.executemany(
+    #                     "INSERT INTO resource_categories(resource_id, category_id) VALUES(%s,%s) ON CONFLICT DO NOTHING",
+    #                     [(resource_id, category_id) for category_id in category_ids],
+    #                 )
+    #             cursor.execute("""
+    #                 SELECT r.id, r.filename,
+    #                        COALESCE(array_agg(DISTINCT c.id) FILTER (WHERE c.id IS NOT NULL), '{}') AS category_ids
+    #                 FROM resources r
+    #                 LEFT JOIN resource_categories rc ON rc.resource_id=r.id
+    #                 LEFT JOIN categories c ON c.id=rc.category_id
+    #                 WHERE r.id=%s GROUP BY r.id
+    #             """, (resource_id,))
+    #             return cursor.fetchone()
