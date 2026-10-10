@@ -32,9 +32,6 @@
         <div class="resource-content">
           <a-space class="toolbar" wrap>
             <a-input-search v-model="keyword" placeholder="搜索文件名" style="width: 260px" @search="onSearch" />
-            <a-select v-model="categoryId" allow-clear placeholder="分类" style="width: 160px" @change="onFilterChange">
-              <a-option v-for="item in categories" :key="item.id" :value="item.id">{{ item.name }}</a-option>
-            </a-select>
             <a-button @click="resetTreeSelection">全部资源</a-button>
           </a-space>
           <a-table
@@ -62,9 +59,6 @@
               <a-table-column title="大小" data-index="size" :width="100" />
               <a-table-column title="类型" data-index="mime_type" :width="130" />
               <a-table-column title="来源数" data-index="source_count" :width="90" />
-              <a-table-column title="分类" :width="130">
-                <template #cell="{ record }">{{ (record.category_ids || []).join(", ") || "未分类" }}</template>
-              </a-table-column>
               <a-table-column title="分享" :width="180">
                 <template #cell="{ record }">
                   <a-space>
@@ -78,8 +72,15 @@
         </div>
       </section>
     </div>
-    <a-modal v-model:visible="detailOpen" title="资源详情" hide-cancel @ok="detailOpen=false">
-      <a-descriptions :data="detailRows" :column="1" />
+    <a-modal v-model:visible="detailOpen" title="资源详情" hide-cancel @ok="detailOpen=false" :width="720">
+      <a-space direction="vertical" fill size="medium">
+        <a-checkbox v-model="allDetailsVisible" :indeterminate="someDetailsVisible" @change="toggleAllDetails">全部显示</a-checkbox>
+        <a-divider margin="0" />
+        <div v-for="item in detailRows" :key="item.key" class="detail-row">
+          <a-checkbox v-model="item.visible">{{ item.label }}</a-checkbox>
+          <div v-if="item.visible" class="detail-value">{{ item.value }}</div>
+        </div>
+      </a-space>
     </a-modal>
     <!-- Manual category assignment is disabled; original dialog retained as a comment.
     <a-modal v-model:visible="categoryOpen" title="设置分类" @ok="saveCategories">
@@ -92,7 +93,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref } from "vue";
 import {
-  getResourcesAPI, getResourceAPI, searchResourcesAPI, getCategoriesAPI, getResourceTreeAPI,
+  getResourcesAPI, getResourceAPI, searchResourcesAPI, getResourceTreeAPI,
   createShareAPI, deleteShareAPI
 } from "@/api/modules/tgdrive";
 
@@ -134,12 +135,10 @@ const startResize = (event: PointerEvent) => {
 onBeforeUnmount(stopResize);
 
 const rows = ref<any[]>([]);
-const categories = ref<any[]>([]);
 const loading = ref(false);
 const treeLoading = ref(false);
 const keyword = ref("");
 const treeKeyword = ref("");
-const categoryId = ref<number>();
 const accountId = ref<number>();
 const chatId = ref<number>();
 const topicId = ref<number>();
@@ -151,7 +150,11 @@ const detailOpen = ref(false);
 // const categoryOpen = ref(false);
 // const currentId = ref<number>();
 // const categoryText = ref("");
-const detailRows = ref<any[]>([]);
+type DetailItem = { key: string; label: string; value: string; visible: boolean };
+const detailRows = ref<DetailItem[]>([]);
+const allDetailsVisible = computed(() => detailRows.value.length > 0 && detailRows.value.every(item => item.visible));
+const someDetailsVisible = computed(() => detailRows.value.some(item => item.visible) && !allDetailsVisible.value);
+const toggleAllDetails = (visible: boolean) => detailRows.value.forEach(item => item.visible = visible);
 const pagination = ref({
   current: 1,
   pageSize: 15,
@@ -186,7 +189,6 @@ const load = async () => {
   loading.value = true;
   try {
     const params = {
-      category_id: categoryId.value,
       account_id: accountId.value,
       chat_id: chatId.value,
       topic_id: topicId.value
@@ -269,10 +271,9 @@ const removeShare = async (item: any) => {
 };
 const detail = async (record: any) => {
   const response = await getResourceAPI(record.id);
-  detailRows.value = Object.entries(response.data?.data || {}).map(([label, value]) => ({
-    label,
-    value: String(value ?? "")
-  }));
+  detailRows.value = Array.isArray(response.data?.data)
+    ? response.data.data.map((item: any) => ({ ...item, visible: true }))
+    : [];
   detailOpen.value = true;
 };
 // Manual category assignment functions are disabled; retained as comments.
@@ -291,8 +292,7 @@ const detail = async (record: any) => {
 
 Promise.all([
   load(),
-  loadTree(),
-  getCategoriesAPI().then(response => categories.value = response.data?.data || response.data || [])
+  loadTree()
 ]);
 </script>
 
@@ -408,6 +408,17 @@ Promise.all([
 }
 .toolbar {
   margin-bottom: 16px;
+}
+.detail-row {
+  display: grid;
+  grid-template-columns: minmax(140px, 220px) minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+}
+.detail-value {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 @media (max-width: 768px) {
   .snow-page {
