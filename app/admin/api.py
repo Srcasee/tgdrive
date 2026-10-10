@@ -27,23 +27,22 @@ class ResourceCategoriesInput(BaseModel):
 def list_categories(_: Principal = Depends(require_admin)): return category_repository.list_all()
 
 
-@router.post("/categories")
-def create_category(data: CategoryInput, _: Principal = Depends(require_admin)):
-    try: return category_repository.create(data.name)
-    except Exception as exc: raise HTTPException(status_code=409, detail="category already exists") from exc
-
-
-@router.put("/categories/{category_id}")
-def update_category(category_id: int, data: CategoryInput, _: Principal = Depends(require_admin)):
-    category = category_repository.update(category_id, data.name)
-    if not category: raise HTTPException(status_code=404, detail="category not found")
-    return category
-
-
-@router.delete("/categories/{category_id}")
-def delete_category(category_id: int, _: Principal = Depends(require_admin)):
-    if not category_repository.delete(category_id): raise HTTPException(status_code=404, detail="category not found")
-    return {"status":"ok"}
+# Manual category CRUD endpoints are disabled for now; implementation retained as comments.
+# @router.post("/categories")
+# def create_category(data: CategoryInput, _: Principal = Depends(require_admin)):
+#     try: return category_repository.create(data.name)
+#     except Exception as exc: raise HTTPException(status_code=409, detail="category already exists") from exc
+#
+# @router.put("/categories/{category_id}")
+# def update_category(category_id: int, data: CategoryInput, _: Principal = Depends(require_admin)):
+#     category = category_repository.update(category_id, data.name)
+#     if not category: raise HTTPException(status_code=404, detail="category not found")
+#     return category
+#
+# @router.delete("/categories/{category_id}")
+# def delete_category(category_id: int, _: Principal = Depends(require_admin)):
+#     if not category_repository.delete(category_id): raise HTTPException(status_code=404, detail="category not found")
+#     return {"status":"ok"}
 
 
 @router.delete("/shares/{share_id}")
