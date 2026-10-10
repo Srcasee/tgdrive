@@ -51,12 +51,13 @@ def delete_share(share_id: int, _: Principal = Depends(require_admin)):
     return {"status":"ok"}
 
 
-@router.put("/resources/{resource_id}/categories")
-def set_resource_categories(resource_id: int, data: ResourceCategoriesInput, _: Principal = Depends(require_admin)):
-    try: updated = catalog_repository.set_categories(resource_id, data.category_ids)
-    except ValueError as exc: raise HTTPException(status_code=404, detail=str(exc)) from exc
-    if not updated: raise HTTPException(status_code=404, detail="resource not found")
-    return updated
+# Manual resource categorization is disabled for now; implementation retained as comments.
+# @router.put("/resources/{resource_id}/categories")
+# def set_resource_categories(resource_id: int, data: ResourceCategoriesInput, _: Principal = Depends(require_admin)):
+#     try: updated = catalog_repository.set_categories(resource_id, data.category_ids)
+#     except ValueError as exc: raise HTTPException(status_code=404, detail=str(exc)) from exc
+#     if not updated: raise HTTPException(status_code=404, detail="resource not found")
+#     return updated
 
 
 @router.get("/downloads/active")
