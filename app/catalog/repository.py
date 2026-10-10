@@ -76,7 +76,7 @@ _SORT_COLUMNS = {
 
 
 class CatalogRepository:
-    def list_resources(self, limit, offset, category_id=None, sort="id", order="desc", account_id=None, chat_id=None, topic_id=None):
+    def list_resources(self, limit, offset, sort="id", order="desc", account_id=None, chat_id=None, topic_id=None):
         with connection() as conn:
             with conn.cursor() as cursor:
                 active_source_exists = _ACTIVE_SOURCE_EXISTS
@@ -97,22 +97,16 @@ class CatalogRepository:
                     source_count_sql = "COUNT(DISTINCT f.id) FILTER (WHERE " + " AND ".join(filters) + ")"
                 where = f"WHERE r.status='active' AND {active_source_exists}"
                 params = []
-                if category_id is not None:
-                    where += " AND EXISTS (SELECT 1 FROM resource_categories rc WHERE rc.resource_id=r.id AND rc.category_id=%s)"
-                    params.append(category_id)
                 cursor.execute(f"SELECT COUNT(*) AS total FROM resources r {where}", params)
                 total = cursor.fetchone()["total"]
                 sort_sql = source_count_sql if sort == "source_count" else _SORT_COLUMNS.get(sort, _SORT_COLUMNS["id"])
                 direction = "ASC" if order == "asc" else "DESC"
                 cursor.execute(f"""
                     SELECT r.id, r.content_hash, r.filename, r.size, r.mime_type,
-                           COALESCE(array_agg(DISTINCT c.id) FILTER (WHERE c.id IS NOT NULL), '{{}}') AS category_ids,
                            {source_count_sql} AS source_count,
                            {resource_sources_sql},
                            {_SHARE_SQL}
                     FROM resources r
-                    LEFT JOIN resource_categories rc ON rc.resource_id=r.id
-                    LEFT JOIN categories c ON c.id=rc.category_id
                     LEFT JOIN files f ON f.resource_id=r.id AND f.is_available=TRUE AND f.status='active'
                     {where}
                     GROUP BY r.id
@@ -120,7 +114,7 @@ class CatalogRepository:
                 """, params + [limit, offset])
                 return total, cursor.fetchall()
 
-    def search_resources(self, query, limit=100, category_id=None, account_id=None, chat_id=None, topic_id=None):
+    def search_resources(self, query, limit=100, account_id=None, chat_id=None, topic_id=None):
         with connection() as conn:
             with conn.cursor() as cursor:
                 active_source_exists = _ACTIVE_SOURCE_EXISTS
@@ -141,9 +135,6 @@ class CatalogRepository:
                     source_count_sql = "COUNT(DISTINCT f.id) FILTER (WHERE " + " AND ".join(filters) + ")"
                 where = f"r.status='active' AND r.filename ILIKE %s AND {active_source_exists}"
                 params = [f"%{query}%"]
-                if category_id is not None:
-                    where += " AND EXISTS (SELECT 1 FROM resource_categories rc WHERE rc.resource_id=r.id AND rc.category_id=%s)"
-                    params.append(category_id)
                 cursor.execute(f"""
                     SELECT r.id, r.content_hash, r.filename, r.size, r.mime_type,
                            COALESCE(array_agg(DISTINCT c.id) FILTER (WHERE c.id IS NOT NULL), '{{}}') AS category_ids,
@@ -205,7 +196,6 @@ class CatalogRepository:
             with conn.cursor() as cursor:
                 cursor.execute(f"""
                     SELECT r.id, r.content_hash, r.filename, r.size, r.mime_type, r.status,
-                           COALESCE(array_agg(DISTINCT c.id) FILTER (WHERE c.id IS NOT NULL), '{{}}') AS category_ids,
                            COUNT(DISTINCT f.id) FILTER (WHERE f.is_available=TRUE AND f.status='active') AS source_count,
                            {_RESOURCE_SOURCES_SQL},
                            {_SHARE_SQL}
