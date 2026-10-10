@@ -50,7 +50,9 @@
                 <template #cell="{ record }">
                   <a-space>
                     <a-button size="small" @click="detail(record)">查看</a-button>
+                    <!-- Manual category assignment is disabled; original control retained as a comment.
                     <a-button size="small" @click="setCategories(record)">分类</a-button>
+                    -->
                   </a-space>
                 </template>
               </a-table-column>
@@ -77,9 +79,11 @@
     <a-modal v-model:visible="detailOpen" title="资源详情" hide-cancel @ok="detailOpen=false">
       <a-descriptions :data="detailRows" :column="1" />
     </a-modal>
+    <!-- Manual category assignment is disabled; original dialog retained as a comment.
     <a-modal v-model:visible="categoryOpen" title="设置分类" @ok="saveCategories">
       <a-input v-model="categoryText" placeholder="分类 ID，逗号分隔" />
     </a-modal>
+    -->
   </div>
 </template>
 
@@ -87,7 +91,7 @@
 import { computed, ref } from "vue";
 import {
   getResourcesAPI, getResourceAPI, searchResourcesAPI, getCategoriesAPI, getResourceTreeAPI,
-  createShareAPI, deleteShareAPI, setResourceCategoriesAPI
+  createShareAPI, deleteShareAPI
 } from "@/api/modules/tgdrive";
 
 type TreeNode = {
@@ -114,9 +118,10 @@ const treeData = ref<TreeNode[]>([]);
 const selectedTreeKeys = ref<string[]>([]);
 const breadcrumb = ref<TreeNode[]>([]);
 const detailOpen = ref(false);
-const categoryOpen = ref(false);
-const currentId = ref<number>();
-const categoryText = ref("");
+// Manual category assignment state is disabled; retained as comments.
+// const categoryOpen = ref(false);
+// const currentId = ref<number>();
+// const categoryText = ref("");
 const detailRows = ref<any[]>([]);
 const pagination = ref({
   current: 1,
@@ -241,18 +246,19 @@ const detail = async (record: any) => {
   }));
   detailOpen.value = true;
 };
-const setCategories = (record: any) => {
-  currentId.value = record.id;
-  categoryText.value = (record.category_ids || []).join(",");
-  categoryOpen.value = true;
-};
-const saveCategories = async () => {
-  if (!currentId.value) return;
-  const ids = categoryText.value.split(",").map(value => Number(value.trim())).filter(value => Number.isInteger(value) && value > 0);
-  await setResourceCategoriesAPI(currentId.value, ids);
-  categoryOpen.value = false;
-  await load();
-};
+// Manual category assignment functions are disabled; retained as comments.
+// const setCategories = (record: any) => {
+//   currentId.value = record.id;
+//   categoryText.value = (record.category_ids || []).join(",");
+//   categoryOpen.value = true;
+// };
+// const saveCategories = async () => {
+//   if (!currentId.value) return;
+//   const ids = categoryText.value.split(",").map(value => Number(value.trim())).filter(value => Number.isInteger(value) && value > 0);
+//   await setResourceCategoriesAPI(currentId.value, ids);
+//   categoryOpen.value = false;
+//   await load();
+// };
 
 Promise.all([
   load(),
