@@ -125,5 +125,9 @@ def init_database():
                 cursor.execute("ALTER TABLE download_records DROP CONSTRAINT IF EXISTS download_records_resource_id_fkey")
                 cursor.execute("INSERT INTO schema_migrations(version) VALUES (10)")
 
+            if 11 not in applied:
+                cursor.execute("ALTER TABLE files ADD COLUMN IF NOT EXISTS topic_name TEXT")
+                cursor.execute("INSERT INTO schema_migrations(version) VALUES (11)")
+
             conn.commit()
             print("[DB] PostgreSQL database initialized", flush=True)
