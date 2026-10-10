@@ -56,7 +56,6 @@ def list_resources(
 @router.get("/search")
 def search_resources(
     q: str = Query("", min_length=1),
-    category_id: int | None = Query(None, ge=1),
     account_id: int | None = Query(None, ge=1),
     chat_id: int | None = Query(None),
     topic_id: int | None = Query(None, ge=0),
