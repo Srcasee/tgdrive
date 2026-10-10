@@ -26,6 +26,7 @@ COALESCE(
                 'chat_name', sts.name,
                 'message_id', sf.message_id,
                 'topic_id', sf.topic_id,
+                'topic_name', sf.topic_name,
                 'filename', sf.filename,
                 'size', sf.size,
                 'mime_type', sf.mime_type,
@@ -167,7 +168,7 @@ class CatalogRepository:
                     SELECT a.id AS account_id, COALESCE(a.name, '账号 ' || a.id::TEXT) AS account_name,
                            ts.telegram_chat_id AS chat_id,
                            COALESCE(ts.name, '群组 ' || ts.telegram_chat_id::TEXT) AS chat_name,
-                           f.topic_id
+                           f.topic_id, MAX(f.topic_name) AS topic_name
                     FROM telegram_sources ts
                     JOIN accounts a ON a.id=ts.account_id
                     JOIN files f ON f.account_id=ts.account_id AND f.telegram_chat_id=ts.telegram_chat_id
@@ -190,7 +191,7 @@ class CatalogRepository:
             group = account["_groups"][cid]
             if tid is not None and tid not in group["_topics"]:
                 group["_topics"].add(tid)
-                group["children"].append({"key": f"topic:{aid}:{cid}:{tid}", "title": f"话题 {tid}", "account_id": aid, "chat_id": cid, "topic_id": tid, "isLeaf": True})
+                group["children"].append({"key": f"topic:{aid}:{cid}:{tid}", "title": row["topic_name"] or f"话题 {tid}", "account_id": aid, "chat_id": cid, "topic_id": tid, "isLeaf": True})
         result = list(accounts.values())
         for account in result:
             account.pop("_groups", None)
