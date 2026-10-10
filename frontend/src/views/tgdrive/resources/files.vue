@@ -74,7 +74,7 @@
     </div>
     <a-modal v-model:visible="detailOpen" title="资源详情" hide-cancel @ok="detailOpen=false" :width="720">
       <a-space direction="vertical" fill size="medium">
-        <a-checkbox v-model="allDetailsVisible" :indeterminate="someDetailsVisible" @change="toggleAllDetails">全部显示</a-checkbox>
+        <a-checkbox :model-value="allDetailsVisible" :indeterminate="someDetailsVisible" @change="toggleAllDetails">全部显示</a-checkbox>
         <a-divider margin="0" />
         <div v-for="item in detailRows" :key="item.key" class="detail-row">
           <a-checkbox v-model="item.visible">{{ item.label }}</a-checkbox>
@@ -233,10 +233,6 @@ const onPageSizeChange = (pageSize: number) => {
   load();
 };
 const onSearch = () => {
-  pagination.value.current = 1;
-  load();
-};
-const onFilterChange = () => {
   pagination.value.current = 1;
   load();
 };
