@@ -29,6 +29,11 @@ class FakeClient:
     async def iter_dialogs(self):
         yield SimpleNamespace(id=123, entity="entity", name="source")
 
+    async def get_messages(self, entity, ids):
+        assert entity == "entity"
+        assert ids == 42
+        return SimpleNamespace(action=SimpleNamespace(title="Release notes"))
+
     async def iter_messages(self, entity, **kwargs):
         assert entity == "entity"
         assert kwargs == {}
@@ -102,3 +107,16 @@ def test_non_forum_reply_does_not_become_topic_id():
     )
     observation = scanner.recognizer.recognize(message, chat_id=123, account_id=7)
     assert observation.topic_id is None
+
+
+def test_iter_observations_resolves_topic_name_from_root_message():
+    client = FakeClient([make_message(9, forum_topic_id=42)])
+    dialog = SimpleNamespace(id=123, entity="entity", name="source")
+
+    async def collect():
+        return [observation async for observation in scanner.iter_observations(client, dialog, account_id=7)]
+
+    observations = asyncio.run(collect())
+    assert observations[0].topic_id == 42
+    assert observations[0].topic_name == "Release notes"
+    assert observations[0].file_metadata["topic_name"] == "Release notes"
