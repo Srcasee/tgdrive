@@ -229,7 +229,7 @@ const load = async () => {
       const payload = response.data?.data;
       rows.value = Array.isArray(payload?.items) ? payload.items : Array.isArray(payload) ? payload : [];
       pagination.value.total = Number(payload?.total ?? rows.value.length);
-      await ensureDetailColumns();
+      await hydrateRowDetails();
     }
   } finally {
     loading.value = false;
