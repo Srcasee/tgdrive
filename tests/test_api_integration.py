@@ -208,9 +208,9 @@ def test_manual_category_mutations_are_disabled(monkeypatch):
 
     assert client.get("/api/admin/categories").status_code == 200
     assert client.post("/api/admin/categories", json={"name": "Movies"}).status_code == 405
-    assert client.put("/api/admin/categories/1", json={"name": "Films"}).status_code == 405
-    assert client.delete("/api/admin/categories/1").status_code == 405
-    assert client.put("/api/admin/resources/1/categories", json={"category_ids": [1]}).status_code == 405
+    assert client.put("/api/admin/categories/1", json={"name": "Films"}).status_code == 404
+    assert client.delete("/api/admin/categories/1").status_code == 404
+    assert client.put("/api/admin/resources/1/categories", json={"category_ids": [1]}).status_code == 404
 
 
 def test_protected_catalog_and_delivery_apis(monkeypatch):
