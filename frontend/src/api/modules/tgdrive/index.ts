@@ -44,11 +44,12 @@ export const setDialogSourceEnabledAPI = (accountId: number, chatId: number, ena
 export const deleteSourceAPI = (id: number) => http.delete(`/api/telegram/sources/${id}`);
 
 export const getCategoriesAPI = () => http.get("/api/admin/categories");
-export const createCategoryAPI = (name: string) => http.post("/api/admin/categories", { name });
-export const updateCategoryAPI = (id: number, name: string) => http.put(`/api/admin/categories/${id}`, { name });
-export const deleteCategoryAPI = (id: number) => http.delete(`/api/admin/categories/${id}`);
-export const setResourceCategoriesAPI = (id: number, category_ids: number[]) =>
-  http.put(`/api/admin/resources/${id}/categories`, { category_ids });
+// Manual category mutations are disabled; keep API definitions as comments.
+// export const createCategoryAPI = (name: string) => http.post("/api/admin/categories", { name });
+// export const updateCategoryAPI = (id: number, name: string) => http.put(`/api/admin/categories/${id}`, { name });
+// export const deleteCategoryAPI = (id: number) => http.delete(`/api/admin/categories/${id}`);
+// export const setResourceCategoriesAPI = (id: number, category_ids: number[]) =>
+//   http.put(`/api/admin/resources/${id}/categories`, { category_ids });
 export const deleteShareAPI = (id: number) => http.delete(`/api/admin/shares/${id}`);
 
 export const getResourceTreeAPI = () => http.get("/catalog/tree");
