@@ -197,8 +197,6 @@ class CatalogRepository:
                            {_RESOURCE_SOURCES_SQL},
                            {_SHARE_SQL}
                     FROM resources r
-                    LEFT JOIN resource_categories rc ON rc.resource_id=r.id
-                    LEFT JOIN categories c ON c.id=rc.category_id
                     LEFT JOIN files f ON f.resource_id=r.id
                     WHERE r.id=%s
                     GROUP BY r.id
