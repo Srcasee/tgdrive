@@ -6,6 +6,7 @@ import pytest
 from database import init_database
 from database_pool import close_pool, open_pool
 from repositories.accounts import AccountRepository
+from repositories.dialogs import DialogRepository
 from repositories.resources import ResourceRepository
 from repositories.sources import SourceRepository
 from repositories.telegram_files import TelegramFileRepository
@@ -43,10 +44,18 @@ def test_schema_and_repositories_are_transactional():
     telegram_files = TelegramFileRepository()
     resources = ResourceRepository()
     sources = SourceRepository()
+    dialogs = DialogRepository()
     catalog = CatalogRepository()
 
     account_id = accounts.upsert_session("integration-session", "Integration")
-    sources.add(account_id, 10001, "Integration source")
+    sources.add(account_id, 10001, "Old dialog name")
+    dialogs.replace_for_account(account_id, [{
+        "id": 10001,
+        "name": "Renamed dialog",
+        "entity_type": "Channel",
+        "is_channel": True,
+    }])
+    assert sources.get_for_chat(account_id, 10001)["name"] == "Renamed dialog"
 
     with psycopg.connect(DATABASE_URL) as conn:
         with conn.cursor() as cur:
