@@ -155,52 +155,103 @@ Ingestion layer
 Resource metadata and state management
 ```
 
-## 7. Download and Delivery Flow
+## 7. Resource Download / HTTP Delivery Call Chain
+
+The current public download API is Resource-scoped. It streams bytes from Telegram through the server; it does not first download the complete file to local disk.
 
 ```text
-User download request
+GET /resources/{resource_id}/download
+  or GET /resources/{resource_id}/stream
+  or GET /share/{token}
         |
         v
-download/api.py
+app/download/api.py
+  download_resource() / stream_resource() / shared_download()
         |
         v
-download/source_selector.py
+_stream_response()
+  - _resource(): checks active/available Resource
+  - parses a single HTTP Range and sets Content-Length / Content-Range / ETag
+  - DownloadService.start()
         |
         v
-download/downloader.py
+TelegramSourceSelector.stream_resource()
+app/download/source_selector.py
+  - candidates() -> TelegramFileRepository.list_resource_sources()
+  - restricts candidates to the same telegram_chat_id + message_id
+  - resolves an account session and checks Telegram message metadata/size
+  - resumes at the current byte offset after a source fails
+  - waits failover_delay (default 15 seconds) before trying the next candidate
         |
         v
-Telethon iter_download / Telegram file download API
+TelegramDownloader.get_file_info() / stream()
+app/download/downloader.py
+  - client.get_messages(chat_id, ids=message_id)
+  - client.iter_download(media, offset, chunk_size, request_size)
+  - emits byte chunks; request size is capped at 512 KiB
         |
         v
-Streaming byte chunks
+DownloadService.stream() -> _limited_stream()
+app/download/service.py
+  - applies TGDRIVE_MAX_CONCURRENT_DOWNLOADS (default 8)
+  - records queue wait and active transfer state
         |
         v
-download/transfer.py (byte count, hash and lifecycle)
+tracked_stream()
+app/download/transfer.py
+  - counts bytes and checks expected length
+  - records completed / failed / cancelled transfer state
         |
         v
-HTTP StreamingResponse
+FastAPI StreamingResponse
+  app/download/api.py
+        |
+        v
+HTTP client
 ```
 
-## 8. Deferred Issues
+### Download-related persistence and helpers
 
-### Admin refresh coupling
+- `app/repositories/telegram_files.py — TelegramFileRepository.list_resource_sources()`: returns enabled accounts and enabled/available physical Telegram locations for a Resource.
+- `app/repositories/accounts.py — AccountRepository.get_session()`: resolves the Telegram session name for a source account.
+- `app/download/range.py — parse_single_range()`: parses a single HTTP byte range; invalid ranges become HTTP 416.
+- `app/download/repository.py — DownloadRepository.create()/complete()/fail()`: persists transfer history/state through `DownloadService`.
+- `app/repositories/resources.py — ResourceRepository.get()`: resolves the logical Resource metadata used by the HTTP response.
+- `app/download/api.py — download_head()/stream_head()`: return metadata without streaming the file body.
+- `app/download/api.py — create_share()` and `app/download/api.py — shared_download()`: create and serve a Resource share link.
 
-Status: deferred for Admin refactor.
+The normal delivery path does not calculate a SHA-256 digest. An already recorded hash may be used for an ETag; otherwise `_resource_etag()` falls back to a stable Resource-ID-and-size validator.
 
-Current issue:
+The 15-second delay is triggered after a source raises an error or ends before the expected byte count. It is not a general 15-second no-data timeout: a stalled iterator that neither yields nor raises will not trigger failover by this delay alone.
 
-- Source enable/disable operations may refresh unnecessary Dialog UI DOM state.
-- Dialog display, Source configuration, and runtime status should become separate Admin views.
+## 8. Chat-level Download Feasibility
 
-### Source scanner optimization
+Current delivery endpoints accept one `resource_id` at a time. The catalog can filter/list Resources by `chat_id` (`app/catalog/api.py — list_resources()`; query logic in `app/catalog/repository.py — list_resources()`), but there is no Chat-level bulk-download endpoint or archive job in Core today.
 
-Status: deferred.
+A Chat-level download is feasible without changing Resource identity. A future implementation should:
 
-Current behavior:
+1. Accept an explicit Telegram Chat/source scope and resolve its active, available Resources.
+2. Deduplicate logical Resource IDs so the same Resource is not included twice just because multiple accounts expose it.
+3. Download each Resource through the existing Resource delivery/source-selector path.
+4. Package entries into a ZIP archive and stream it or provide a background archive job for large Chats.
+5. Define deterministic filename-collision handling, cancellation/progress reporting, retry behavior, archive-size limits, and access control.
+6. Bound parallel Resource downloads; do not equate the existing transfer semaphore with safe unlimited per-file parallelism.
 
-- Correctness is prioritized by full enabled Source reconciliation after Source changes.
+For small Chats, a streamed ZIP can be enough. For large Chats, a background job plus temporary storage is more robust because ZIP finalization, retries, disconnects, and resumability are harder to manage in one HTTP stream. Ordinary Chat download should remain metadata-only until a user requests the archive; scanning must not download file payloads.
 
-Future:
+## 9. Deferred Work
 
-- Incremental Source-level scanning events.
+### Download performance
+
+Status: deferred; do not implement until the download-state behavior is reliable and measurements identify the bottleneck.
+
+The future optimization outline is maintained in `docs/PHASE-2-DOWNLOAD.md`. It records only candidate directions, not an implementation plan or a commitment to optimize now.
+
+### Chat-level bulk download
+
+Status: feasible but not implemented. See section 8 above.
+
+### Existing operational follow-ups
+
+- Keep Source lifecycle changes and Dialog discovery responsibilities separate.
+- Investigate download resume/completion/file-extraction state consistency before performance work.
