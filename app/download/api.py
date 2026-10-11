@@ -88,6 +88,8 @@ def _stream_response(resource_id, range_header, disposition, created_by=None):
             resource_id,
             offset=start,
             on_source=on_source if hash_full_content else None,
+            expected_hash=resource.get("content_hash"),
+            expected_bytes=content_length,
         )
     )
     body = download_service.stream(
