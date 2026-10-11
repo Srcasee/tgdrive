@@ -60,6 +60,13 @@ class DownloadService:
             if record_id is not None:
                 self.fail(record_id, transferred, str(exc))
             raise
+        finally:
+            close = getattr(chunks, "aclose", None)
+            if close:
+                try:
+                    await close()
+                except Exception:
+                    pass
 
     def complete(self, record_id, bytes_transferred):
         self.repository.complete(record_id, bytes_transferred)
