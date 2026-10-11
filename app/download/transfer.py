@@ -39,6 +39,10 @@ async def tracked_stream(
         if record_id is not None:
             service.fail(record_id, transferred, "download cancelled by client")
         raise
+    except GeneratorExit:
+        if record_id is not None:
+            service.fail(record_id, transferred, "download stream closed before completion")
+        raise
     except Exception as exc:
         if record_id is not None:
             service.fail(record_id, transferred, str(exc))
