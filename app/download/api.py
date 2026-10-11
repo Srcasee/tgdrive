@@ -107,8 +107,6 @@ def _stream_response(resource_id, range_header, disposition, created_by=None, if
         else source_selector.stream_resource(
             resource_id,
             offset=start,
-            on_source=on_source if hash_full_content else None,
-            expected_hash=resource.get("content_hash"),
             expected_bytes=content_length,
         )
     )
@@ -116,8 +114,9 @@ def _stream_response(resource_id, range_header, disposition, created_by=None, if
         chunks,
         record_id,
         content_length,
-        on_digest=record_digest if hash_full_content else None,
-        hash_content=hash_full_content,
+        # Normal delivery does not compute or persist SHA-256. Existing trusted
+        # hashes may still be used for ETag/If-Range, but are not required to
+        # switch accounts for the same Telegram message.
     )
 
     headers = {
