@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 
 class TelegramSourceSelector:
-    """Select and safely fail over between physical Telegram file locations."""
+    """Select Telegram access accounts for the same underlying message."""
 
     def __init__(
         self,
@@ -23,9 +23,16 @@ class TelegramSourceSelector:
         self.downloader_factory = downloader_factory
 
     def candidates(self, resource_id):
-        # Reuse the same Resource -> indexed files -> enabled account/source chain
-        # that the catalog exposes; do not discover resources again in Telegram.
+        # The business model stores one Telegram message, readable by multiple
+        # accounts. The repository returns each account's indexed access path.
         return self.file_repository.list_resource_sources(resource_id)
+
+    @staticmethod
+    def _same_message(row, canonical):
+        return (
+            row.get("telegram_chat_id") == canonical.get("telegram_chat_id")
+            and row.get("message_id") == canonical.get("message_id")
+        )
 
     def _downloader_for(self, row):
         account_id = row.get("account_id")
@@ -59,49 +66,28 @@ class TelegramSourceSelector:
                 f"indexed={expected}, telegram={actual}"
             )
 
-    @staticmethod
-    def _digest(row):
-        value = row.get("content_hash")
-        if not isinstance(value, str) or len(value) != 64:
-            return None
-        try:
-            int(value, 16)
-        except ValueError:
-            return None
-        return value.lower()
-
     async def stream_resource(
         self, resource_id, offset=0, on_source=None, expected_hash=None, expected_bytes=None
     ):
-        """Stream and resume only across sources with matching recorded SHA-256.
+        """Stream and fail over between accounts for the same Telegram message.
 
-        A nonzero offset without a known digest is pinned to one source because
-        filename/size/MIME equality does not prove byte equality. During a live
-        stream, failover after output requires a recorded digest on both sources.
+        Message identity (chat_id + message_id) defines the shared Telegram
+        object in this business model. Hashes are deliberately not required for
+        source selection or resuming; offset tracks the byte position.
+        expected_hash remains accepted for API compatibility but is not used
+        to decide whether an account can access the same message.
         """
         rows = self.candidates(resource_id)
-        expected_hash = self._digest({"content_hash": expected_hash})
-        if expected_hash:
-            # A resource digest is a strong validator for both full and ranged
-            # responses; never emit bytes from a source that contradicts it.
-            rows = [row for row in rows if self._digest(row) == expected_hash]
-        elif offset > 0:
-            # If resource-level identity is ambiguous, resume only from a source
-            # with a recorded digest, if available; otherwise pin to the first
-            # source and never splice another source into the body.
-            first_digest = next(
-                (self._digest(row) for row in rows if self._digest(row)),
-                None,
-            )
-            if first_digest:
-                rows = [row for row in rows if self._digest(row) == first_digest]
-                expected_hash = first_digest
-            else:
-                rows = rows[:1]
+        if not rows:
+            raise RuntimeError("no available Telegram source")
+
+        # Never splice bytes from another message merely because it maps to
+        # the same Resource. All failover candidates must expose this message.
+        canonical = rows[0]
+        rows = [row for row in rows if self._same_message(row, canonical)]
 
         last_error = None
         position = offset
-        required_digest = expected_hash
         attempted = set()
 
         for row in rows:
@@ -109,14 +95,6 @@ class TelegramSourceSelector:
             if source_id in attempted:
                 continue
             attempted.add(source_id)
-
-            row_digest = self._digest(row)
-            if position > offset and (
-                required_digest is None or row_digest != required_digest
-            ):
-                continue
-            if offset > 0 and expected_hash and row_digest != expected_hash:
-                continue
 
             emitted = 0
             try:
@@ -150,32 +128,18 @@ class TelegramSourceSelector:
                 return
             except Exception as exc:
                 last_error = exc
-                if emitted:
-                    # Do not stitch unrelated files together. A recorded digest
-                    # is required before attempting another source at this offset.
-                    if row_digest is None:
-                        logger.exception("telegram_source_failed_after_output_no_digest", extra={
-                            "resource_id": resource_id, "source_id": source_id,
-                            "bytes_emitted": emitted, "resume_offset": position,
-                        })
-                        raise
-                    if required_digest is not None and required_digest != row_digest:
-                        logger.exception("telegram_source_failed_after_output_digest_mismatch", extra={
-                            "resource_id": resource_id, "source_id": source_id,
-                            "bytes_emitted": emitted, "resume_offset": position,
-                        })
-                        raise
-                    required_digest = row_digest
-                    logger.warning("telegram_source_resume_attempt", extra={
-                        "resource_id": resource_id, "source_id": source_id,
-                        "bytes_emitted": emitted, "resume_offset": position,
-                        "content_hash": row_digest,
-                    })
-                    continue
+                logger.warning(
+                    "telegram_source_failed",
+                    extra={
+                        "resource_id": resource_id,
+                        "source_id": source_id,
+                        "bytes_emitted": emitted,
+                        "resume_offset": position,
+                        "error": repr(exc),
+                    },
+                )
+                # If a chunk was emitted, position already points immediately
+                # after it. The next account resumes that same message there.
+                continue
 
-                logger.warning("telegram_source_failed_before_output", extra={
-                    "resource_id": resource_id, "source_id": source_id,
-                    "resume_offset": position, "error": repr(exc),
-                })
-
-        raise RuntimeError("all Telegram sources failed or no verified resume source exists") from last_error
+        raise RuntimeError("all Telegram sources failed or no available source matches the message") from last_error
