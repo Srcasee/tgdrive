@@ -1,5 +1,3 @@
-from uuid import uuid4
-
 from database_pool import connection, transaction
 
 
@@ -19,45 +17,22 @@ def build_content_identity_key(content_hash):
 
 class ResourceRepository:
     def get_or_create(self, *, filename, size, mime_type, content_hash=None):
-        if content_hash:
-            identity_key = build_content_identity_key(content_hash)
-            with transaction() as conn:
-                with conn.cursor() as cursor:
-                    # Keep the verified-content identity path compatible for now.
-                    # Revisit content-hash deduplication together with the identity
-                    # model and database constraints in a later stage.
-                    cursor.execute(
-                        """
-                        INSERT INTO resources(identity_key, content_hash, filename, size, mime_type)
-                        VALUES(%s,%s,%s,%s,%s)
-                        ON CONFLICT (content_hash) DO UPDATE
-                        SET filename=EXCLUDED.filename,
-                            size=EXCLUDED.size,
-                            mime_type=EXCLUDED.mime_type,
-                            updated_at=EXTRACT(EPOCH FROM NOW())::BIGINT
-                        RETURNING id
-                        """,
-                        (identity_key, content_hash.lower(), filename, size, mime_type),
-                    )
-                    return cursor.fetchone()["id"]
-
-        # Previous metadata-based deduplication (disabled for this stage):
-        # identity_key = build_index_identity_key(filename, size, mime_type)
-        # INSERT ... ON CONFLICT (identity_key) DO UPDATE ...
-        #
-        # The identity-key builder remains public for compatibility, but each
-        # newly indexed Resource gets a distinct key so the existing unique
-        # constraint can remain unchanged without merging same-metadata items.
-        identity_key = f"{build_index_identity_key(filename, size, mime_type)}|resource:{uuid4().hex}"
+        identity_key = build_index_identity_key(filename, size, mime_type)
+        digest = content_hash.lower() if content_hash else None
         with transaction() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     """
-                    INSERT INTO resources(identity_key, filename, size, mime_type)
-                    VALUES(%s,%s,%s,%s)
+                    INSERT INTO resources(identity_key, content_hash, filename, size, mime_type)
+                    VALUES(%s,%s,%s,%s,%s)
+                    ON CONFLICT (identity_key) DO UPDATE
+                    SET filename=EXCLUDED.filename,
+                        size=EXCLUDED.size,
+                        mime_type=EXCLUDED.mime_type,
+                        updated_at=EXTRACT(EPOCH FROM NOW())::BIGINT
                     RETURNING id
                     """,
-                    (identity_key, filename, size, mime_type),
+                    (identity_key, digest, filename, size, mime_type),
                 )
                 return cursor.fetchone()["id"]
 
@@ -94,7 +69,7 @@ class ResourceRepository:
                 return cursor.fetchone()
 
     def verify_file(self, file_id, content_hash):
-        identity_key = build_content_identity_key(content_hash)
+        """Record a source's digest without changing metadata-based resource identity."""
         digest = content_hash.lower()
         with transaction() as conn:
             with conn.cursor() as cursor:
@@ -107,55 +82,37 @@ class ResourceRepository:
                 resource_id = file_row["resource_id"]
 
                 cursor.execute(
-                    "SELECT id, content_hash FROM resources WHERE id=%s FOR UPDATE", (resource_id,)
+                    "SELECT content_hash FROM resources WHERE id=%s FOR UPDATE", (resource_id,)
                 )
                 current = cursor.fetchone()
                 if current is None:
                     raise ValueError("resource not found")
 
+                cursor.execute("UPDATE files SET content_hash=%s WHERE id=%s", (digest, file_id))
                 if current["content_hash"] == digest:
-                    cursor.execute("UPDATE files SET content_hash=%s WHERE id=%s", (digest, file_id))
                     return resource_id
 
-                cursor.execute("SELECT id FROM resources WHERE content_hash=%s FOR UPDATE", (digest,))
-                target = cursor.fetchone()
-                if target and target["id"] != resource_id:
-                    target_id = target["id"]
-                else:
+                # Metadata identity is authoritative. Multiple sources can share a
+                # Resource even if their digest observations differ; in that case
+                # the Resource-level digest is ambiguous and must not be asserted.
+                cursor.execute(
+                    "SELECT id FROM resources WHERE content_hash=%s AND id<>%s",
+                    (digest, resource_id),
+                )
+                digest_owner = cursor.fetchone()
+                if current["content_hash"] is not None and current["content_hash"] != digest:
                     cursor.execute(
-                        """
-                        INSERT INTO resources(identity_key, content_hash, filename, size, mime_type)
-                        SELECT %s, %s, filename, size, mime_type
-                        FROM resources WHERE id=%s
-                        RETURNING id
-                        """,
-                        (identity_key, digest, resource_id),
-                    )
-                    target_id = cursor.fetchone()["id"]
-
-                if target_id != resource_id:
-                    cursor.execute(
-                        """
-                        INSERT INTO resource_categories(resource_id, category_id)
-                        SELECT %s, category_id
-                        FROM resource_categories
-                        WHERE resource_id=%s
-                        ON CONFLICT DO NOTHING
-                        """,
-                        (target_id, resource_id),
-                    )
-                    cursor.execute(
-                        "UPDATE files SET resource_id=%s, content_hash=%s WHERE id=%s",
-                        (target_id, digest, file_id),
-                    )
-                    cursor.execute(
-                        "SELECT COUNT(*) AS count FROM files WHERE resource_id=%s",
+                        "UPDATE resources SET content_hash=NULL, updated_at=EXTRACT(EPOCH FROM NOW())::BIGINT WHERE id=%s",
                         (resource_id,),
                     )
-                    if cursor.fetchone()["count"] == 0:
-                        cursor.execute("DELETE FROM resource_categories WHERE resource_id=%s", (resource_id,))
-                        cursor.execute("DELETE FROM resources WHERE id=%s", (resource_id,))
-                    return target_id
-
-                cursor.execute("UPDATE files SET content_hash=%s WHERE id=%s", (digest, file_id))
+                elif digest_owner:
+                    cursor.execute(
+                        "UPDATE resources SET content_hash=NULL, updated_at=EXTRACT(EPOCH FROM NOW())::BIGINT WHERE id=%s",
+                        (resource_id,),
+                    )
+                else:
+                    cursor.execute(
+                        "UPDATE resources SET content_hash=%s, updated_at=EXTRACT(EPOCH FROM NOW())::BIGINT WHERE id=%s",
+                        (digest, resource_id),
+                    )
                 return resource_id
