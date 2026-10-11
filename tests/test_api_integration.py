@@ -275,7 +275,7 @@ def test_download_range_returns_only_requested_bytes(monkeypatch):
         def start(self, resource_id, created_by=None):
             return None
 
-        def stream(self, chunks, record_id, expected_bytes, verify=None, hash_content=False):
+        def stream(self, chunks, record_id, expected_bytes, on_digest=None, hash_content=False):
             return chunks
 
     monkeypatch.setattr("download.api.source_selector", FakeSelector())
