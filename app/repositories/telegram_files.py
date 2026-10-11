@@ -28,7 +28,7 @@ class TelegramFileRepository:
         with connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute("""
-                    SELECT f.id, f.resource_id, f.filename, f.size, f.mime_type,
+                    SELECT f.id, f.resource_id, f.filename, f.size, f.mime_type, f.content_hash,
                            f.telegram_chat_id, f.message_id, f.account_id,
                            f.is_available, f.status
                     FROM files f
