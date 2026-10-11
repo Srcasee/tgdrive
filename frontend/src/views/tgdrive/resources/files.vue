@@ -64,6 +64,16 @@
               >
                 <template #cell="{ record }">{{ formatCell(record._detailValues?.[item.key] ?? record[item.key]) }}</template>
               </a-table-column>
+              <a-table-column title="来源账号" :width="180">
+                <template #cell="{ record }">
+                  <a-space wrap>
+                    <a-tag v-for="account in sourceAccounts(record)" :key="account.id" size="small">
+                      {{ account.name }}
+                    </a-tag>
+                    <span v-if="!sourceAccounts(record).length">—</span>
+                  </a-space>
+                </template>
+              </a-table-column>
               <a-table-column title="分享操作" :width="180">
                 <template #cell="{ record }">
                   <a-space>
@@ -172,6 +182,16 @@ const toggleAllDetails = (visible: boolean) => detailRows.value.forEach(item => 
   fieldVisibility.value[item.key] = visible;
   item.visible = visible;
 });
+const sourceAccounts = (record: any) => {
+  const sources = Array.isArray(record.sources) ? record.sources : [];
+  const unique = new Map<number | string, { id: number | string; name: string }>();
+  for (const source of sources) {
+    const id = source.account_id ?? "unknown";
+    const name = source.account_name || (source.account_id != null ? `账号 ${source.account_id}` : "未知账号");
+    if (!unique.has(id)) unique.set(id, { id, name });
+  }
+  return [...unique.values()];
+};
 const formatCell = (value: unknown) => {
   if (value === null || value === undefined) return "—";
   if (typeof value === "object") return JSON.stringify(value, null, 2);
