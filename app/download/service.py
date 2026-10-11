@@ -31,7 +31,7 @@ class DownloadService:
         })
         return record_id
 
-    async def _limited_stream(self, chunks, record_id, expected_bytes, verify, hash_content):
+    async def _limited_stream(self, chunks, record_id, expected_bytes, on_digest, hash_content):
         wait_started = asyncio.get_running_loop().time()
         async with self._transfer_slots:
             acquired_at = asyncio.get_running_loop().time()
@@ -43,15 +43,15 @@ class DownloadService:
             try:
                 async for chunk in tracked_stream(
                     chunks, service=self, record_id=record_id,
-                    expected_bytes=expected_bytes, verify=verify,
+                    expected_bytes=expected_bytes, on_digest=on_digest,
                     hash_content=hash_content,
                 ):
                     yield chunk
             finally:
                 logger.debug("download_slot_released", extra={"download_id": record_id})
 
-    def stream(self, chunks, record_id, expected_bytes, verify=None, hash_content=False):
-        return self._limited_stream(chunks, record_id, expected_bytes, verify, hash_content)
+    def stream(self, chunks, record_id, expected_bytes, on_digest=None, hash_content=False):
+        return self._limited_stream(chunks, record_id, expected_bytes, on_digest, hash_content)
 
     def complete(self, record_id, bytes_transferred):
         self.repository.complete(record_id, bytes_transferred)
