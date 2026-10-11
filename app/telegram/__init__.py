@@ -1,16 +1,4 @@
-# ============================================================
-# Telegram 模块
-#
-# 负责：
-# - Telegram Client
-# - Telegram 账号与会话
-# - 文件下载
-#
-# 扫描与索引逻辑位于 ingestion 模块。
-# ============================================================
-
-
+# Telegram client and account/session API. Transfer implementations live in download.
 __all__ = [
     "client",
-    "downloader",
 ]
