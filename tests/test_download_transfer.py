@@ -51,7 +51,7 @@ def test_tracked_stream_fails_when_source_ends_early():
     assert service.events[0][0:3] == ("failed", 8, 3)
 
 
-def test_tracked_stream_verifies_hash_before_completing():
+def test_tracked_stream_records_digest_before_completing():
     service = FakeService()
     seen = []
 
@@ -64,28 +64,28 @@ def test_tracked_stream_verifies_hash_before_completing():
         record_id=9,
         expected_bytes=7,
         hash_content=True,
-        verify=seen.append,
+        on_digest=seen.append,
     )))
     assert result == [b"payload"]
     assert seen == [hashlib.sha256(b"payload").hexdigest()]
     assert service.events == [("completed", 9, 7)]
 
 
-def test_tracked_stream_marks_hash_verification_failure():
+def test_tracked_stream_marks_digest_callback_failure():
     service = FakeService()
 
     async def chunks():
         yield b"payload"
 
     async def run():
-        with pytest.raises(ValueError, match="hash mismatch"):
+        with pytest.raises(ValueError, match="digest callback failed"):
             await collect(tracked_stream(
                 chunks(),
                 service=service,
                 record_id=10,
                 expected_bytes=7,
                 hash_content=True,
-                verify=lambda _: (_ for _ in ()).throw(ValueError("hash mismatch")),
+                on_digest=lambda _: (_ for _ in ()).throw(ValueError("digest callback failed")),
             ))
 
     asyncio.run(run())
