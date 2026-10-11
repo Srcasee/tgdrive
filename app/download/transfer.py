@@ -15,7 +15,12 @@ async def tracked_stream(
     on_digest=None,
     hash_content=False,
 ):
-    """Track a streaming response independently of the HTTP routing layer."""
+    """Track bytes and optionally record a SHA-256 digest for a complete body.
+
+    The digest callback records/promotes the observed digest; it does not compare
+    against a previously trusted expected digest. Since this is streaming, the
+    callback runs after the body bytes have already been yielded to the client.
+    """
     transferred = 0
     started_at = time.monotonic()
     digest = hashlib.sha256() if hash_content else None
@@ -41,7 +46,7 @@ async def tracked_stream(
             on_digest(digest.hexdigest())
         if record_id is not None:
             service.complete(record_id, transferred)
-        logger.info("download_stream_verified", extra={"download_id": record_id, "bytes_transferred": transferred, "duration_seconds": time.monotonic() - started_at, "sha256_recorded": digest is not None and on_digest is not None})
+        logger.info("download_stream_completed", extra={"download_id": record_id, "bytes_transferred": transferred, "duration_seconds": time.monotonic() - started_at, "sha256_recorded": digest is not None and on_digest is not None})
     except asyncio.CancelledError:
         logger.info("download_stream_cancelled", extra={"download_id": record_id, "bytes_transferred": transferred, "duration_seconds": time.monotonic() - started_at})
         if record_id is not None:
