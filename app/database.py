@@ -139,8 +139,12 @@ def init_database():
                                PARTITION BY lower(trim(filename)), size, COALESCE(mime_type, '')
                                ORDER BY id
                            ) AS canonical_id,
-                           COUNT(DISTINCT content_hash) OVER (
-                               PARTITION BY lower(trim(filename)), size, COALESCE(mime_type, '')
+                           (
+                               SELECT COUNT(DISTINCT other.content_hash)
+                               FROM resources other
+                               WHERE lower(trim(other.filename))=lower(trim(resources.filename))
+                                 AND other.size=resources.size
+                                 AND COALESCE(other.mime_type, '')=COALESCE(resources.mime_type, '')
                            ) AS digest_count
                     FROM resources;
 
