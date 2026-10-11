@@ -1,6 +1,10 @@
+import logging
+
 from repositories.accounts import AccountRepository
 from telegram.client import get_client
 from download.downloader import TelegramDownloader
+
+logger = logging.getLogger(__name__)
 
 
 class TelegramSourceSelector:
@@ -42,7 +46,7 @@ class TelegramSourceSelector:
                 return row, downloader, info
             except Exception as exc:
                 last_error = exc
-                print("[DELIVERY] source unavailable", row["id"], repr(exc), flush=True)
+                logger.warning("telegram_source_unavailable", extra={"resource_id": resource_id, "source_id": row.get("id"), "error": repr(exc)})
         raise RuntimeError("no available Telegram source") from last_error
 
     @staticmethod
@@ -73,8 +77,8 @@ class TelegramSourceSelector:
             except Exception as exc:
                 # Fallback is safe only before the response has emitted any bytes.
                 if emitted:
-                    print("[DELIVERY] source failed after bytes were emitted", row["id"], repr(exc), flush=True)
+                    logger.exception("telegram_source_failed_after_output", extra={"resource_id": resource_id, "source_id": row.get("id"), "bytes_started": True})
                     raise
                 last_error = exc
-                print("[DELIVERY] source failed before bytes were emitted", row["id"], repr(exc), flush=True)
+                logger.warning("telegram_source_failed_before_output", extra={"resource_id": resource_id, "source_id": row.get("id"), "error": repr(exc)})
         raise RuntimeError("all Telegram sources failed") from last_error

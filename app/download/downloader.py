@@ -1,9 +1,11 @@
 import asyncio
+import logging
 from dataclasses import dataclass
 
 
 # Telegram file download requests are capped at 512 KiB by Telethon/MTProto.
 TELEGRAM_REQUEST_SIZE = 512 * 1024
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -71,13 +73,7 @@ class TelegramDownloader:
             async for chunk in iterator:
                 yield chunk
         except asyncio.CancelledError:
-            print(
-                "[TELEGRAM STREAM] cancelled",
-                "message=",
-                file_info.message_id,
-                "offset=",
-                offset,
-            )
+            logger.info("telegram_stream_cancelled", extra={"chat_id": file_info.chat_id, "message_id": file_info.message_id, "offset": offset})
             raise
         finally:
             close = getattr(iterator, "aclose", None)
@@ -87,4 +83,4 @@ class TelegramDownloader:
                     if hasattr(result, "__await__"):
                         await result
                 except Exception as exc:
-                    print("[TELEGRAM STREAM] close error", repr(exc))
+                    logger.warning("telegram_stream_close_failed", extra={"chat_id": file_info.chat_id, "message_id": file_info.message_id, "error": repr(exc)})

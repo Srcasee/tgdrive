@@ -90,3 +90,40 @@ def test_tracked_stream_marks_hash_verification_failure():
 
     asyncio.run(run())
     assert service.events[0][0:3] == ("failed", 10, 7)
+
+
+def test_download_service_limits_concurrent_transfers():
+    from download.service import DownloadService
+
+    class Repository:
+        def complete(self, record_id, count):
+            pass
+
+        def fail(self, record_id, count, error):
+            pass
+
+    async def run():
+        service = DownloadService(repository=Repository(), resource_repository=object(), max_concurrent=1)
+        active = 0
+        peak = 0
+        both_started = asyncio.Event()
+
+        async def source():
+            nonlocal active, peak
+            active += 1
+            peak = max(peak, active)
+            if active == 1:
+                await asyncio.sleep(0.02)
+            else:
+                both_started.set()
+            yield b"x"
+            active -= 1
+
+        async def consume(record_id):
+            await collect(service.stream(source(), record_id, 1))
+
+        await asyncio.gather(consume(1), consume(2))
+        assert peak == 1
+        assert not both_started.is_set()
+
+    asyncio.run(run())

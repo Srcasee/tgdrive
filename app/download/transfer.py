@@ -1,5 +1,9 @@
 import asyncio
 import hashlib
+import logging
+import time
+
+logger = logging.getLogger(__name__)
 
 
 async def tracked_stream(
@@ -13,7 +17,9 @@ async def tracked_stream(
 ):
     """Track a streaming response independently of the HTTP routing layer."""
     transferred = 0
+    started_at = time.monotonic()
     digest = hashlib.sha256() if hash_content else None
+    logger.debug("download_stream_opened", extra={"download_id": record_id, "expected_bytes": expected_bytes, "hash_content": hash_content})
     try:
         async for chunk in chunks:
             remaining = expected_bytes - transferred
@@ -35,15 +41,19 @@ async def tracked_stream(
             verify(digest.hexdigest())
         if record_id is not None:
             service.complete(record_id, transferred)
+        logger.info("download_stream_verified", extra={"download_id": record_id, "bytes_transferred": transferred, "duration_seconds": time.monotonic() - started_at, "sha256_checked": digest is not None and verify is not None})
     except asyncio.CancelledError:
+        logger.info("download_stream_cancelled", extra={"download_id": record_id, "bytes_transferred": transferred, "duration_seconds": time.monotonic() - started_at})
         if record_id is not None:
             service.fail(record_id, transferred, "download cancelled by client")
         raise
     except GeneratorExit:
+        logger.info("download_stream_closed_early", extra={"download_id": record_id, "bytes_transferred": transferred})
         if record_id is not None:
             service.fail(record_id, transferred, "download stream closed before completion")
         raise
     except Exception as exc:
+        logger.exception("download_stream_failed", extra={"download_id": record_id, "bytes_transferred": transferred, "duration_seconds": time.monotonic() - started_at})
         if record_id is not None:
             service.fail(record_id, transferred, str(exc))
         raise
@@ -55,4 +65,4 @@ async def tracked_stream(
                 if hasattr(result, "__await__"):
                     await result
             except Exception as exc:
-                print("[DOWNLOAD] stream close error", repr(exc), flush=True)
+                logger.warning("download_upstream_close_failed", extra={"download_id": record_id, "error": repr(exc)})
