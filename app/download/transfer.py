@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 
 
 async def tracked_stream(
@@ -12,7 +13,6 @@ async def tracked_stream(
 ):
     """Track a streaming response independently of the HTTP routing layer."""
     transferred = 0
-    import hashlib
     digest = hashlib.sha256() if hash_content else None
     try:
         async for chunk in chunks:
