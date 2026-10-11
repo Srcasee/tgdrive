@@ -129,5 +129,61 @@ def init_database():
                 cursor.execute("ALTER TABLE files ADD COLUMN IF NOT EXISTS topic_name TEXT")
                 cursor.execute("INSERT INTO schema_migrations(version) VALUES (11)")
 
+            if 12 not in applied:
+                cursor.execute("""
+                    -- Temporarily free identity keys so canonical rows can be renamed safely.
+                    UPDATE resources SET identity_key='dedupe-migration:' || id::TEXT;
+                    CREATE TEMP TABLE resource_identity_map ON COMMIT DROP AS
+                    SELECT id,
+                           FIRST_VALUE(id) OVER (
+                               PARTITION BY lower(trim(filename)), size, COALESCE(mime_type, '')
+                               ORDER BY id
+                           ) AS canonical_id,
+                           COUNT(DISTINCT content_hash) OVER (
+                               PARTITION BY lower(trim(filename)), size, COALESCE(mime_type, '')
+                           ) AS digest_count
+                    FROM resources;
+
+                    UPDATE resources canonical
+                    SET content_hash=NULL
+                    WHERE canonical.id IN (
+                        SELECT canonical_id FROM resource_identity_map GROUP BY canonical_id
+                        HAVING MAX(digest_count) > 1
+                    );
+
+                    INSERT INTO resource_categories(resource_id, category_id)
+                    SELECT DISTINCT m.canonical_id, rc.category_id
+                    FROM resource_identity_map m
+                    JOIN resource_categories rc ON rc.resource_id=m.id
+                    WHERE m.id<>m.canonical_id
+                    ON CONFLICT DO NOTHING;
+
+                    UPDATE shares s SET resource_id=m.canonical_id
+                    FROM resource_identity_map m
+                    WHERE s.resource_id=m.id AND m.id<>m.canonical_id;
+
+                    UPDATE download_records d SET resource_id=m.canonical_id
+                    FROM resource_identity_map m
+                    WHERE d.resource_id=m.id AND m.id<>m.canonical_id;
+
+                    UPDATE files f SET resource_id=m.canonical_id
+                    FROM resource_identity_map m
+                    WHERE f.resource_id=m.id AND m.id<>m.canonical_id;
+
+                    DELETE FROM resource_categories rc
+                    USING resource_identity_map m
+                    WHERE rc.resource_id=m.id AND m.id<>m.canonical_id;
+
+                    DELETE FROM resources r
+                    USING resource_identity_map m
+                    WHERE r.id=m.id AND m.id<>m.canonical_id;
+
+                    UPDATE resources
+                    SET identity_key='index:' || lower(trim(filename)) || '|' || size::TEXT || '|' || COALESCE(mime_type, ''),
+                        updated_at=EXTRACT(EPOCH FROM NOW())::BIGINT
+                    WHERE id IN (SELECT DISTINCT canonical_id FROM resource_identity_map);
+                """)
+                cursor.execute("INSERT INTO schema_migrations(version) VALUES (12)")
+
             conn.commit()
             print("[DB] PostgreSQL database initialized", flush=True)
