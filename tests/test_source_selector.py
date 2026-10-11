@@ -159,7 +159,7 @@ def test_selector_does_not_resume_across_sources_with_different_digests():
 
     async def run():
         received = []
-        with pytest.raises(RuntimeError, match="connection lost"):
+        with pytest.raises(RuntimeError, match="all Telegram sources failed"):
             async for chunk in selector.stream_resource(55, expected_bytes=7):
                 received.append(chunk)
         assert received == [b"part"]
