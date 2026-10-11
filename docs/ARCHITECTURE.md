@@ -149,7 +149,7 @@ The optional Video plugin is not part of the Core runtime or normal Compose serv
 | Catalog | `app/catalog/*` | Implemented; listing/search operate on logical Resources. |
 | Classification | `resource_categories` + `app/admin/api.py` + `CatalogRepository.set_categories()` | Implemented at Resource level; `files.category_id` is removed. Batch Resource classification is planned. |
 | Delivery | `app/download/api.py`, `app/download/service.py`, `app/download/transfer.py` | Implemented; Resource IDs are the public delivery key. |
-| Source selection/failover | `app/download/source_selector.py` | Implemented for failures before response bytes are emitted. |
+| Source selection/failover | `app/download/source_selector.py` | Tries enabled account paths for the same Telegram chat/message; after a stream error it can continue at the current byte offset, with a default 15-second wait before the next source. A silent stall without an exception is not covered by that delay. |
 | Content verification | `app/ingestion/verification.py`, `ResourceRepository.verify_file()` | Implemented for complete non-range delivery; real-device verification of canonical promotion remains pending. |
 | Proxy | `plugins/proxy/`, `app/plugins/runtime.py` | Optional and deployment-controlled; explicit `/api/telegram/reconnect` rebuilds clients after proxy changes. |
 | Web UI | `app/web/index.html` | Resource-first, responsive, no dependency on Video. |
@@ -201,9 +201,9 @@ GET/HEAD /resources/{resource_id}/stream
 POST     /resources/{resource_id}/share
 ```
 
-Delivery resolves a Resource to available Telegram-backed locations and chooses a usable source. If a source fails before bytes are emitted, another location can be tried. Once bytes have been emitted, transparent restart from the original offset is not attempted because it would duplicate bytes in the HTTP response.
+Delivery resolves a Resource to available Telegram-backed locations and chooses a usable source. If a source fails during streaming, the source selector can continue from the current byte offset using another enabled account path to the same Telegram chat/message. It must not restart from byte zero after emitting bytes, because that would duplicate data in the HTTP response. The current default failover wait is 15 seconds after an error/early end; a silent stall that never yields or raises does not trigger that wait.
 
-Both download and stream use the same direct Telegram source path. Core delivery has no chunk-cache or Video dependency. Complete, non-range transfers hash the emitted bytes and promote the physical source to its canonical SHA-256 Resource identity after the response body is consumed.
+Both download and stream use the same direct Telegram source path. Core delivery has no chunk-cache or Video dependency. Normal delivery does not calculate or persist SHA-256. A previously recorded hash may be used in an ETag; otherwise delivery uses a stable Resource-ID-and-size validator.
 
 ## Web UI contract
 
