@@ -45,10 +45,11 @@
             @page-size-change="onPageSizeChange"
           >
             <template #columns>
-              <a-table-column title="详情" :width="120">
+              <a-table-column title="操作" :width="180">
                 <template #cell="{ record }">
                   <a-space>
                     <a-button size="small" @click="detail(record)">查看</a-button>
+                    <a-button size="small" type="primary" @click="downloadResource(record)">下载</a-button>
                     <!-- Manual category assignment is disabled; original control retained as a comment.
                     <a-button size="small" @click="setCategories(record)">分类</a-button>
                     -->
@@ -302,6 +303,15 @@ const resetTreeSelection = () => {
   pagination.value.current = 1;
   load();
 };
+const downloadResource = (record: any) => {
+  const link = document.createElement("a");
+  link.href = `/resources/${encodeURIComponent(String(record.id))}/download`;
+  link.download = record.filename || "";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+};
+
 const share = async (record: any) => {
   await createShareAPI(record.id);
   await load();
