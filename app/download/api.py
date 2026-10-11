@@ -87,15 +87,15 @@ def _stream_response(resource_id, range_header, disposition, created_by=None):
         else source_selector.stream_resource(
             resource_id,
             offset=start,
-            on_source=on_source if verify_full_content else None,
+            on_source=on_source if hash_full_content else None,
         )
     )
     body = download_service.stream(
         chunks,
         record_id,
         content_length,
-        on_digest=record_digest if verify_full_content else None,
-        hash_content=verify_full_content,
+        on_digest=record_digest if hash_full_content else None,
+        hash_content=hash_full_content,
     )
 
     headers = {
