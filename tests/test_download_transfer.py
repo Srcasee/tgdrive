@@ -127,3 +127,41 @@ def test_download_service_limits_concurrent_transfers():
         assert not both_started.is_set()
 
     asyncio.run(run())
+
+
+def test_download_concurrency_limit_can_be_configured(monkeypatch):
+    from download.service import DownloadService
+
+    monkeypatch.setenv("TGDRIVE_MAX_CONCURRENT_DOWNLOADS", "3")
+    service = DownloadService(repository=object(), resource_repository=object())
+    assert service.max_concurrent == 3
+
+    monkeypatch.setenv("TGDRIVE_MAX_CONCURRENT_DOWNLOADS", "invalid")
+    with pytest.raises(ValueError, match="must be an integer"):
+        DownloadService(repository=object(), resource_repository=object())
+
+
+def test_download_queue_metrics_return_to_zero_after_transfers():
+    from download.service import DownloadService
+
+    class Repository:
+        def complete(self, record_id, count):
+            pass
+
+        def fail(self, record_id, count, error):
+            pass
+
+    async def run():
+        service = DownloadService(repository=Repository(), resource_repository=object(), max_concurrent=1)
+
+        async def source():
+            yield b"x"
+
+        await asyncio.gather(
+            collect(service.stream(source(), 1, 1)),
+            collect(service.stream(source(), 2, 1)),
+        )
+        assert service._active_transfers == 0
+        assert service._queued_transfers == 0
+
+    asyncio.run(run())
