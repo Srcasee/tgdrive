@@ -121,9 +121,24 @@ def test_schema_and_repositories_are_transactional():
     second_file_id = second_file["id"]
 
     verified_id = resources.verify_file(second_file_id, "b" * 64)
-    assert verified_id != provisional_id
-    assert resources.get(provisional_id) is None
-    assert resources.get(verified_id)["content_hash"] == "b" * 64
+    assert verified_id == provisional_id
+    assert resources.get(provisional_id)["content_hash"] == "b" * 64
+
+    # Identical metadata from another account becomes another source of the same Resource.
+    second_account_id = accounts.upsert_session("integration-session-2", "Integration 2")
+    sources.add(second_account_id, 10001, "Shared dialog")
+    duplicate_resource_id = resources.get_or_create(
+        filename="same-metadata.bin",
+        size=10,
+        mime_type="application/octet-stream",
+    )
+    assert duplicate_resource_id == provisional_id
+    telegram_files.upsert_indexed_message(
+        filename="same-metadata.bin", size=10, mime_type="application/octet-stream",
+        chat_id=10001, message_id=8, upload_time=1700000004,
+        account_id=second_account_id, resource_id=duplicate_resource_id, content_hash=None,
+    )
+    assert catalog.get_resource(provisional_id)["source_count"] == 2
 
     with psycopg.connect(DATABASE_URL) as conn:
         with conn.cursor() as cur:
