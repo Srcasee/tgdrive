@@ -76,7 +76,7 @@ def _stream_response(resource_id, range_header, disposition, created_by=None):
     def on_source(row):
         source_holder["id"] = row["id"]
 
-    def verify_digest(digest):
+    def record_digest(digest):
         file_id = source_holder.get("id")
         if file_id is not None:
             resource_repository.verify_file(file_id, digest)
@@ -94,7 +94,7 @@ def _stream_response(resource_id, range_header, disposition, created_by=None):
         chunks,
         record_id,
         content_length,
-        verify=verify_digest if verify_full_content else None,
+        on_digest=record_digest if verify_full_content else None,
         hash_content=verify_full_content,
     )
 
