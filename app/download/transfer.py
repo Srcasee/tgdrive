@@ -12,7 +12,7 @@ async def tracked_stream(
     service,
     record_id,
     expected_bytes,
-    verify=None,
+    on_digest=None,
     hash_content=False,
 ):
     """Track a streaming response independently of the HTTP routing layer."""
@@ -37,11 +37,11 @@ async def tracked_stream(
             raise RuntimeError(
                 f"Telegram source ended early: expected {expected_bytes} bytes, got {transferred}"
             )
-        if digest is not None and verify is not None:
-            verify(digest.hexdigest())
+        if digest is not None and on_digest is not None:
+            on_digest(digest.hexdigest())
         if record_id is not None:
             service.complete(record_id, transferred)
-        logger.info("download_stream_verified", extra={"download_id": record_id, "bytes_transferred": transferred, "duration_seconds": time.monotonic() - started_at, "sha256_checked": digest is not None and verify is not None})
+        logger.info("download_stream_verified", extra={"download_id": record_id, "bytes_transferred": transferred, "duration_seconds": time.monotonic() - started_at, "sha256_recorded": digest is not None and on_digest is not None})
     except asyncio.CancelledError:
         logger.info("download_stream_cancelled", extra={"download_id": record_id, "bytes_transferred": transferred, "duration_seconds": time.monotonic() - started_at})
         if record_id is not None:
