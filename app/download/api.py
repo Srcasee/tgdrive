@@ -188,6 +188,7 @@ share_router = APIRouter(prefix="/share", tags=["delivery"])
 async def shared_download(
     token: str,
     range_header: str | None = Header(None, alias="Range"),
+    if_range: str | None = Header(None, alias="If-Range"),
 ):
     resource_id = share_repository.get_resource_id(token)
     if resource_id is None:
@@ -196,5 +197,5 @@ async def shared_download(
     if not resource:
         return api_error("not_found", "resource not found", 404)
     return _stream_response(
-        resource_id, range_header, _content_disposition(resource["filename"])
+        resource_id, range_header, _content_disposition(resource["filename"]), if_range=if_range
     )
