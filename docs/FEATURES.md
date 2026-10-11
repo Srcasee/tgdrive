@@ -11,7 +11,7 @@
 | Resource catalog | Implemented | Resource-centric list/detail/search |
 | Filename search | Implemented | Basic filename `ILIKE` search with optional category filter |
 | Resource classification | Implemented | `resource_categories` + admin Resource assignment |
-| Download | Implemented | Streaming from available Telegram backing locations |
+| Download | Implemented | Resource-by-Resource streaming from available Telegram backing locations; Chat-level archive download is not implemented |
 | HTTP Range | Implemented | Download and stream endpoints |
 | Multi-account Telegram paths | Implemented | Accounts are access/redundancy paths |
 | Pre-transfer source failover | Implemented | Does not restart after response bytes have been emitted |
@@ -20,7 +20,7 @@
 | Web authentication | Implemented | Cross-cutting user/admin access control |
 | Content verification utility | Implemented | SHA-256 streaming verification; canonical promotion remains issue #24 |
 
-## Current real-device testing scope
+## Deferred capability: Chat-level download\n\nA Chat-level bulk download is feasible by resolving the active Resources associated with a selected Telegram Chat, deduplicating logical Resource IDs, and packaging each Resource through the existing download path into a ZIP. It is not implemented today. Large Chats likely need a background archive job, progress/cancellation, collision-safe filenames, bounded concurrency, and temporary storage.\n\n## Current real-device testing scope
 
 The core test path is:
 
