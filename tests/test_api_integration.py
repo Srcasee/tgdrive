@@ -266,7 +266,7 @@ def test_download_range_returns_only_requested_bytes(monkeypatch):
     client, resources, _ = make_client(monkeypatch)
 
     class FakeSelector:
-        async def stream_resource(self, resource_id, offset=0, on_source=None):
+        async def stream_resource(self, resource_id, offset=0, on_source=None, expected_hash=None, expected_bytes=None):
             if on_source:
                 on_source({"id": 1})
             yield bytes((i % 256 for i in range(offset, min(offset + 10, 100))))
