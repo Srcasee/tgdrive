@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 
-from delivery.source_selector import TelegramSourceSelector
+from download.source_selector import TelegramSourceSelector
 
 
 class FakeAccounts:

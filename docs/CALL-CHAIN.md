@@ -161,19 +161,25 @@ Resource metadata and state management
 User download request
         |
         v
-Delivery layer
+download/api.py
         |
         v
-telegram/downloader.py
+download/source_selector.py
         |
         v
-Telegram file download API
+download/downloader.py
         |
         v
-Downloaded file
+Telethon iter_download / Telegram file download API
         |
         v
-Delivery response
+Streaming byte chunks
+        |
+        v
+download/transfer.py (byte count, hash and lifecycle)
+        |
+        v
+HTTP StreamingResponse
 ```
 
 ## 8. Deferred Issues

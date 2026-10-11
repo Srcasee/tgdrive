@@ -9,7 +9,7 @@ from admin.api import router as admin_router
 from auth.api import router as auth_router
 from catalog.api import router as catalog_router
 from core.lifecycle import ApplicationLifecycle
-from delivery.api import router as delivery_router, share_router
+from download.api import router as delivery_router, share_router
 from telegram.api import router as telegram_router
 
 APP_DIR = Path(__file__).resolve().parents[1]

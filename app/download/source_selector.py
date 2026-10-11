@@ -1,6 +1,6 @@
 from repositories.accounts import AccountRepository
 from telegram.client import get_client
-from telegram.downloader import TelegramDownloader
+from download.downloader import TelegramDownloader
 
 
 class TelegramSourceSelector:

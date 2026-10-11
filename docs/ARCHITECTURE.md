@@ -71,7 +71,7 @@ Resource
    ↓
 available Telegram locations
    ↓
-source selection / failover
+download source selection / failover
    ↓
 Telegram bytes
    ↓
@@ -94,7 +94,6 @@ app/
 │   ├── client.py
 │   ├── login.py
 │   ├── scanner.py
-│   ├── downloader.py
 │   └── api.py
 ├── ingestion/                    # recognition / normalization / identity
 │   ├── recognizer.py
@@ -106,10 +105,16 @@ app/
 │   ├── api.py
 │   ├── repository.py
 │   └── service.py
-├── delivery/                     # Resource retrieval
+├── delivery/                     # Legacy delivery package boundary
+│   └── __init__.py
+├── download/                     # HTTP delivery + Telegram byte retrieval
 │   ├── api.py
 │   ├── source_selector.py
-│   └── range.py
+│   ├── downloader.py
+│   ├── range.py
+│   ├── service.py
+│   ├── transfer.py
+│   └── repository.py
 ├── repositories/                 # PostgreSQL persistence adapters
 │   ├── resources.py
 │   ├── telegram_files.py
@@ -143,8 +148,8 @@ The optional Video plugin is not part of the Core runtime or normal Compose serv
 | Telegram Topic metadata | `files.topic_id` + Telegram message observation | Partially implemented at persistence level; automatic Topic recognition/mapping to Categories is planned. |
 | Catalog | `app/catalog/*` | Implemented; listing/search operate on logical Resources. |
 | Classification | `resource_categories` + `app/admin/api.py` + `CatalogRepository.set_categories()` | Implemented at Resource level; `files.category_id` is removed. Batch Resource classification is planned. |
-| Delivery | `app/delivery/*` | Implemented; Resource IDs are the public delivery key. |
-| Source selection/failover | `app/delivery/source_selector.py` | Implemented for failures before response bytes are emitted. |
+| Delivery | `app/download/api.py`, `app/download/service.py`, `app/download/transfer.py` | Implemented; Resource IDs are the public delivery key. |
+| Source selection/failover | `app/download/source_selector.py` | Implemented for failures before response bytes are emitted. |
 | Content verification | `app/ingestion/verification.py`, `ResourceRepository.verify_file()` | Implemented for complete non-range delivery; real-device verification of canonical promotion remains pending. |
 | Proxy | `plugins/proxy/`, `app/plugins/runtime.py` | Optional and deployment-controlled; explicit `/api/telegram/reconnect` rebuilds clients after proxy changes. |
 | Web UI | `app/web/index.html` | Resource-first, responsive, no dependency on Video. |

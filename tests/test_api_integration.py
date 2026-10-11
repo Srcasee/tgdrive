@@ -154,8 +154,8 @@ def make_client(monkeypatch):
     monkeypatch.setattr("admin.api.category_repository", categories)
     monkeypatch.setattr("admin.api.share_repository", shares)
     monkeypatch.setattr("catalog.api.service", CatalogService(resources))
-    monkeypatch.setattr("delivery.api.resource_repository", resources)
-    monkeypatch.setattr("delivery.api.share_repository", shares)
+    monkeypatch.setattr("download.api.resource_repository", resources)
+    monkeypatch.setattr("download.api.share_repository", shares)
 
     app = create_app()
     lifecycle = ApplicationLifecycle()
@@ -260,3 +260,42 @@ def test_share_link_creation_and_admin_revoke(monkeypatch):
     assert client.delete("/api/admin/shares/1").status_code == 200
     assert client.delete("/api/admin/shares/1").status_code == 404
     assert shares.get_resource_id(token) is None
+
+
+def test_download_range_returns_only_requested_bytes(monkeypatch):
+    client, resources, _ = make_client(monkeypatch)
+
+    class FakeSelector:
+        async def stream_resource(self, resource_id, offset=0, on_source=None):
+            if on_source:
+                on_source({"id": 1})
+            yield bytes((i % 256 for i in range(offset, 100)))
+
+    class FakeDownloadService:
+        def start(self, resource_id, created_by=None):
+            return None
+
+        def stream(self, chunks, record_id, expected_bytes, verify=None, hash_content=False):
+            return chunks
+
+    monkeypatch.setattr("download.api.source_selector", FakeSelector())
+    monkeypatch.setattr("download.api.download_service", FakeDownloadService())
+    monkeypatch.setattr("download.api.resource_repository", resources)
+
+    client.post("/auth/login", json={"username": "user", "password": "user-pass"})
+    response = client.get("/resources/1/download", headers={"Range": "bytes=10-19"})
+
+    assert response.status_code == 206
+    assert response.headers["content-range"] == "bytes 10-19/100"
+    assert response.headers["content-length"] == "10"
+    assert response.content == bytes(range(10, 20))
+
+
+def test_download_unsatisfiable_range_returns_416(monkeypatch):
+    client, _, _ = make_client(monkeypatch)
+    client.post("/auth/login", json={"username": "user", "password": "user-pass"})
+
+    response = client.get("/resources/1/download", headers={"Range": "bytes=100-110"})
+
+    assert response.status_code == 416
+    assert response.headers["content-range"] == "bytes */100"
