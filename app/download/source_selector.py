@@ -86,18 +86,18 @@ class TelegramSourceSelector:
             # responses; never emit bytes from a source that contradicts it.
             rows = [row for row in rows if self._digest(row) == expected_hash]
         elif offset > 0:
-                # If resource-level identity is ambiguous, resume only from a
-                # source with a recorded digest, if available; otherwise pin to
-                # the first source and never splice another source into the body.
-                first_digest = next(
-                    (self._digest(row) for row in rows if self._digest(row)),
-                    None,
-                )
-                if first_digest:
-                    rows = [row for row in rows if self._digest(row) == first_digest]
-                    expected_hash = first_digest
-                else:
-                    rows = rows[:1]
+            # If resource-level identity is ambiguous, resume only from a source
+            # with a recorded digest, if available; otherwise pin to the first
+            # source and never splice another source into the body.
+            first_digest = next(
+                (self._digest(row) for row in rows if self._digest(row)),
+                None,
+            )
+            if first_digest:
+                rows = [row for row in rows if self._digest(row) == first_digest]
+                expected_hash = first_digest
+            else:
+                rows = rows[:1]
 
         last_error = None
         position = offset
