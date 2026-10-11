@@ -13,6 +13,11 @@ class FakeRepo:
         ]
 
 
+class FakeAccounts:
+    def get_session(self, account_id):
+        return str(account_id)
+
+
 class FakeDownloader:
     def __init__(self, client):
         self.client = client
@@ -39,17 +44,26 @@ class PartialFailureDownloader(FakeDownloader):
         yield b"backup"
 
 
+def make_selector(clients, downloader_factory=FakeDownloader):
+    return TelegramSourceSelector(
+        FakeRepo(),
+        clients.__getitem__,
+        downloader_factory,
+        account_repository=FakeAccounts(),
+    )
+
+
 def test_get_file_info_fails_over():
-    clients = {1: "bad", 2: "good"}
-    selector = TelegramSourceSelector(FakeRepo(), clients.__getitem__, FakeDownloader)
+    clients = {"1": "bad", "2": "good"}
+    selector = make_selector(clients)
     row, _, info = asyncio.run(selector.get_file_info(1))
     assert row["account_id"] == 2
     assert info == (20, 200)
 
 
 def test_stream_fails_over_before_bytes_are_emitted():
-    clients = {1: "bad", 2: "good"}
-    selector = TelegramSourceSelector(FakeRepo(), clients.__getitem__, FakeDownloader)
+    clients = {"1": "bad", "2": "good"}
+    selector = make_selector(clients)
 
     async def collect():
         return [chunk async for chunk in selector.stream_resource(1)]
@@ -58,8 +72,8 @@ def test_stream_fails_over_before_bytes_are_emitted():
 
 
 def test_stream_does_not_retry_after_partial_response():
-    clients = {1: "bad", 2: "good"}
-    selector = TelegramSourceSelector(FakeRepo(), clients.__getitem__, PartialFailureDownloader)
+    clients = {"1": "bad", "2": "good"}
+    selector = make_selector(clients, PartialFailureDownloader)
 
     async def collect():
         return [chunk async for chunk in selector.stream_resource(1)]
