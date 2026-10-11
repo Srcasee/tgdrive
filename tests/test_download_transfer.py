@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 
 import pytest
 
@@ -51,9 +52,8 @@ def test_tracked_stream_fails_when_source_ends_early():
 
 
 def test_tracked_stream_verifies_hash_before_completing():
-    import hashlib
-
     service = FakeService()
+    seen = []
 
     async def chunks():
         yield b"payload"
@@ -64,8 +64,29 @@ def test_tracked_stream_verifies_hash_before_completing():
         record_id=9,
         expected_bytes=7,
         hash_content=True,
-        verify=lambda digest: (_ for _ in ()).throw(ValueError("hash mismatch"))
-        if digest != hashlib.sha256(b"other").hexdigest() else None,
+        verify=seen.append,
     )))
     assert result == [b"payload"]
-    assert service.events[0][0] == "completed"
+    assert seen == [hashlib.sha256(b"payload").hexdigest()]
+    assert service.events == [("completed", 9, 7)]
+
+
+def test_tracked_stream_marks_hash_verification_failure():
+    service = FakeService()
+
+    async def chunks():
+        yield b"payload"
+
+    async def run():
+        with pytest.raises(ValueError, match="hash mismatch"):
+            await collect(tracked_stream(
+                chunks(),
+                service=service,
+                record_id=10,
+                expected_bytes=7,
+                hash_content=True,
+                verify=lambda _: (_ for _ in ()).throw(ValueError("hash mismatch")),
+            ))
+
+    asyncio.run(run())
+    assert service.events[0][0:3] == ("failed", 10, 7)
