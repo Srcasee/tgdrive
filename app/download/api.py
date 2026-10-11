@@ -38,15 +38,26 @@ def _resource(resource_id):
 
 
 def _resource_etag(resource):
-    """Return a strong ETag only when a valid SHA-256 digest is known."""
+    """Return a stable validator without hashing every delivered file.
+
+    A recorded SHA-256 is preferred when present. Under TGDrive's immutable
+    Resource-to-Telegram-message model, the Resource ID and size also identify
+    the same representation across authorized accounts.
+    """
     digest = resource.get("content_hash")
-    if not isinstance(digest, str) or len(digest) != 64:
-        return None
-    try:
-        int(digest, 16)
-    except ValueError:
-        return None
-    return f'"sha256:{digest.lower()}"'
+    if isinstance(digest, str) and len(digest) == 64:
+        try:
+            int(digest, 16)
+        except ValueError:
+            pass
+        else:
+            return f'"sha256:{digest.lower()}"'
+
+    resource_id = resource.get("id")
+    size = resource.get("size")
+    if resource_id is not None and size is not None:
+        return f'"resource:{resource_id}:{int(size)}"'
+    return None
 
 
 def _content_disposition(filename, disposition="attachment"):
@@ -70,9 +81,8 @@ def _stream_response(resource_id, range_header, disposition, created_by=None, if
     size = int(resource["size"])
     etag = _resource_etag(resource)
 
-    # If-Range allows a partial response only when the strong validator matches.
-    # If no digest validator exists, restart with a full response rather than
-    # appending bytes whose representation cannot be verified.
+    # If-Range allows a partial response only when the stable Resource
+    # validator matches. Resource identity is immutable in this business model.
     if range_header is not None and if_range is not None and if_range != etag:
         range_header = None
 
