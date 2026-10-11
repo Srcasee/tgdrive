@@ -81,10 +81,11 @@ class TelegramSourceSelector:
         """
         rows = self.candidates(resource_id)
         expected_hash = self._digest({"content_hash": expected_hash})
-        if offset > 0:
-            if expected_hash:
-                rows = [row for row in rows if self._digest(row) == expected_hash]
-            else:
+        if expected_hash:
+            # A resource digest is a strong validator for both full and ranged
+            # responses; never emit bytes from a source that contradicts it.
+            rows = [row for row in rows if self._digest(row) == expected_hash]
+        elif offset > 0:
                 # If resource-level identity is ambiguous, resume only from a
                 # source with a recorded digest, if available; otherwise pin to
                 # the first source and never splice another source into the body.
