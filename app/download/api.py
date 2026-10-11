@@ -69,7 +69,7 @@ def _stream_response(resource_id, range_header, disposition, created_by=None):
         start, end, partial = parsed
         content_length = end - start + 1
 
-    verify_full_content = not partial and start == 0 and content_length == size
+    hash_full_content = not partial and start == 0 and content_length == size
     source_holder = {}
     record_id = download_service.start(resource_id, created_by=created_by)
 
