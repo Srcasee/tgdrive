@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 
-from delivery.source_selector import TelegramSourceSelector
+from transfer.source_selector import TelegramSourceSelector
 
 
 class FakeRepo:
