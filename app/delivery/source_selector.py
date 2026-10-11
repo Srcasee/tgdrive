@@ -9,9 +9,9 @@ class TelegramSourceSelector:
     def __init__(
         self,
         file_repository,
-        account_repository=None,
         client_factory=get_client,
         downloader_factory=TelegramDownloader,
+        account_repository=None,
     ):
         self.file_repository = file_repository
         self.account_repository = account_repository or AccountRepository()
@@ -19,8 +19,8 @@ class TelegramSourceSelector:
         self.downloader_factory = downloader_factory
 
     def candidates(self, resource_id):
-        # This is the same Resource -> indexed files -> enabled account/source chain
-        # used by the catalog, not a second Telegram discovery mechanism.
+        # Reuse the same Resource -> indexed files -> enabled account/source chain
+        # that the catalog exposes; do not discover resources again in Telegram.
         return self.file_repository.list_resource_sources(resource_id)
 
     def _downloader_for(self, row):
@@ -48,7 +48,7 @@ class TelegramSourceSelector:
     @staticmethod
     def _validate_source_size(row, info):
         expected = row.get("size")
-        actual = info.size
+        actual = getattr(info, "size", None)
         if expected is not None and actual is not None and int(expected) != int(actual):
             raise RuntimeError(
                 f"Telegram source size mismatch for file {row['id']}: "
