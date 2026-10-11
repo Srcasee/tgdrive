@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 from repositories.accounts import AccountRepository
@@ -16,11 +17,13 @@ class TelegramSourceSelector:
         client_factory=get_client,
         downloader_factory=TelegramDownloader,
         account_repository=None,
+        failover_delay=15.0,
     ):
         self.file_repository = file_repository
         self.account_repository = account_repository or AccountRepository()
         self.client_factory = client_factory
         self.downloader_factory = downloader_factory
+        self.failover_delay = max(0.0, float(failover_delay))
 
     def candidates(self, resource_id):
         # The business model stores one Telegram message, readable by multiple
@@ -96,7 +99,7 @@ class TelegramSourceSelector:
         position = offset
         attempted = set()
 
-        for row in rows:
+        for row_index, row in enumerate(rows):
             source_id = row.get("id")
             if source_id in attempted:
                 continue
@@ -144,8 +147,21 @@ class TelegramSourceSelector:
                         "error": repr(exc),
                     },
                 )
-                # If a chunk was emitted, position already points immediately
-                # after it. The next account resumes that same message there.
+                # Give a transient network interruption 15 seconds to settle
+                # before switching accounts. The failed stream is not assumed
+                # recoverable; after the grace period, the next account resumes
+                # the same Telegram message at the exact current byte offset.
+                if row_index < len(rows) - 1 and self.failover_delay:
+                    logger.info(
+                        "telegram_failover_wait",
+                        extra={
+                            "resource_id": resource_id,
+                            "source_id": source_id,
+                            "delay_seconds": self.failover_delay,
+                            "resume_offset": position,
+                        },
+                    )
+                    await asyncio.sleep(self.failover_delay)
                 continue
 
         raise RuntimeError("all Telegram sources failed or no available source matches the message") from last_error
