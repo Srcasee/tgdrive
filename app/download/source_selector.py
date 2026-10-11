@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 
 class TelegramSourceSelector:
-    """Select a physical Telegram file from the catalog's indexed Resource sources."""
+    """Select and safely fail over between physical Telegram file locations."""
 
     def __init__(
         self,
@@ -59,26 +59,122 @@ class TelegramSourceSelector:
                 f"indexed={expected}, telegram={actual}"
             )
 
-    async def stream_resource(self, resource_id, offset=0, on_source=None):
+    @staticmethod
+    def _digest(row):
+        value = row.get("content_hash")
+        if not isinstance(value, str) or len(value) != 64:
+            return None
+        try:
+            int(value, 16)
+        except ValueError:
+            return None
+        return value.lower()
+
+    async def stream_resource(
+        self, resource_id, offset=0, on_source=None, expected_hash=None, expected_bytes=None
+    ):
+        """Stream and resume only across sources with matching recorded SHA-256.
+
+        A nonzero offset without a known digest is pinned to one source because
+        filename/size/MIME equality does not prove byte equality. During a live
+        stream, failover after output requires a recorded digest on both sources.
+        """
+        rows = self.candidates(resource_id)
+        expected_hash = self._digest({"content_hash": expected_hash})
+        if offset > 0:
+            if expected_hash:
+                rows = [row for row in rows if self._digest(row) == expected_hash]
+            else:
+                # If resource-level identity is ambiguous, resume only from a
+                # source with a recorded digest, if available; otherwise pin to
+                # the first source and never splice another source into the body.
+                first_digest = next(
+                    (self._digest(row) for row in rows if self._digest(row)),
+                    None,
+                )
+                if first_digest:
+                    rows = [row for row in rows if self._digest(row) == first_digest]
+                    expected_hash = first_digest
+                else:
+                    rows = rows[:1]
+
         last_error = None
-        for row in self.candidates(resource_id):
-            emitted = False
+        position = offset
+        required_digest = expected_hash
+        attempted = set()
+
+        for row in rows:
+            source_id = row.get("id")
+            if source_id in attempted:
+                continue
+            attempted.add(source_id)
+
+            row_digest = self._digest(row)
+            if position > offset and (
+                required_digest is None or row_digest != required_digest
+            ):
+                continue
+            if offset > 0 and expected_hash and row_digest != expected_hash:
+                continue
+
+            emitted = 0
             try:
                 downloader = self._downloader_for(row)
                 info = await downloader.get_file_info(row["telegram_chat_id"], row["message_id"])
                 self._validate_source_size(row, info)
                 if on_source:
                     on_source(row)
-                async for chunk in downloader.stream(info, offset=offset):
-                    if chunk:
-                        emitted = True
-                        yield chunk
+
+                async for chunk in downloader.stream(info, offset=position):
+                    if not chunk:
+                        continue
+                    if expected_bytes is not None:
+                        remaining = expected_bytes - (position - offset)
+                        if remaining <= 0:
+                            return
+                        chunk = chunk[:remaining]
+                    if not chunk:
+                        continue
+                    emitted += len(chunk)
+                    position += len(chunk)
+                    yield chunk
+                    if expected_bytes is not None and position - offset >= expected_bytes:
+                        return
+
+                if expected_bytes is not None and position - offset < expected_bytes:
+                    raise RuntimeError(
+                        f"Telegram source ended early at offset {position}; "
+                        f"expected {expected_bytes} bytes from offset {offset}"
+                    )
                 return
             except Exception as exc:
-                # Fallback is safe only before the response has emitted any bytes.
-                if emitted:
-                    logger.exception("telegram_source_failed_after_output", extra={"resource_id": resource_id, "source_id": row.get("id"), "bytes_started": True})
-                    raise
                 last_error = exc
-                logger.warning("telegram_source_failed_before_output", extra={"resource_id": resource_id, "source_id": row.get("id"), "error": repr(exc)})
-        raise RuntimeError("all Telegram sources failed") from last_error
+                if emitted:
+                    # Do not stitch unrelated files together. A recorded digest
+                    # is required before attempting another source at this offset.
+                    if row_digest is None:
+                        logger.exception("telegram_source_failed_after_output_no_digest", extra={
+                            "resource_id": resource_id, "source_id": source_id,
+                            "bytes_emitted": emitted, "resume_offset": position,
+                        })
+                        raise
+                    if required_digest is not None and required_digest != row_digest:
+                        logger.exception("telegram_source_failed_after_output_digest_mismatch", extra={
+                            "resource_id": resource_id, "source_id": source_id,
+                            "bytes_emitted": emitted, "resume_offset": position,
+                        })
+                        raise
+                    required_digest = row_digest
+                    logger.warning("telegram_source_resume_attempt", extra={
+                        "resource_id": resource_id, "source_id": source_id,
+                        "bytes_emitted": emitted, "resume_offset": position,
+                        "content_hash": row_digest,
+                    })
+                    continue
+
+                logger.warning("telegram_source_failed_before_output", extra={
+                    "resource_id": resource_id, "source_id": source_id,
+                    "resume_offset": position, "error": repr(exc),
+                })
+
+        raise RuntimeError("all Telegram sources failed or no verified resume source exists") from last_error
