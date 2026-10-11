@@ -269,7 +269,7 @@ def test_download_range_returns_only_requested_bytes(monkeypatch):
         async def stream_resource(self, resource_id, offset=0, on_source=None):
             if on_source:
                 on_source({"id": 1})
-            yield bytes((i % 256 for i in range(offset, 100)))
+            yield bytes((i % 256 for i in range(offset, min(offset + 10, 100))))
 
     class FakeDownloadService:
         def start(self, resource_id, created_by=None):
