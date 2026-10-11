@@ -44,8 +44,14 @@ class TelegramSourceSelector:
         return self.downloader_factory(self.client_factory(session_name))
 
     async def get_file_info(self, resource_id):
+        rows = self.candidates(resource_id)
+        if not rows:
+            raise RuntimeError("no available Telegram source")
+        canonical = rows[0]
+        rows = [row for row in rows if self._same_message(row, canonical)]
+
         last_error = None
-        for row in self.candidates(resource_id):
+        for row in rows:
             try:
                 downloader = self._downloader_for(row)
                 info = await downloader.get_file_info(row["telegram_chat_id"], row["message_id"])
