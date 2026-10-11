@@ -1,41 +1,37 @@
-# Phase 2 — Download Transport
+# Deferred Download Optimization Directions
 
 ## Status
 
-**Deferred by design.** The current priority is real-device validation of the Resource-first Core path, not speculative transport optimization or Video simulation.
+**Not scheduled; no optimization work is being implemented now.** First keep the existing Resource download path correct and investigate download resume/completion state consistency.
 
-## Validated Core boundary
+This document replaces the previous detailed transport-optimization plan. The items below are only a future outline; they are not commitments, target values, or instructions to start implementation.
 
-The active delivery path is:
+## Future investigation outline
 
-```text
-Resource
-   ↓
-available Telegram locations
-   ↓
-source selection / pre-transfer failover
-   ↓
-Telegram bytes
-   ↓
-HTTP download / Range response
-```
+1. **Measure before changing transport**
+   - Capture time-to-first-byte, upstream Telegram throughput, downstream HTTP throughput, queue wait, transfer duration, retries, CPU/memory and proxy/direct mode.
+   - Use the measurements to identify the constrained segment rather than assuming concurrency is the answer.
 
-Core streaming uses a bounded application chunk size and is independent of the optional Video plugin.
+2. **Automatic fast-source selection**
+   - Candidate sources must refer to the same Telegram `chat_id + message_id`.
+   - Consider ranking sources using recent observed throughput and health from real transfers.
+   - Avoid unconditional pre-download probes unless measurements show they are worth their added traffic and startup delay.
+   - Preserve offset-based failover; SHA-256 is not a prerequisite for choosing another account path to the same message.
 
-## When resumed
+3. **Single-file parallel range retrieval**
+   - Consider bounded parallel retrieval only if measurements show a single Telegram or HTTP connection is the limiting factor.
+   - Preserve exact byte ranges, HTTP Range behavior, cancellation, bounded memory and safe retry semantics.
+   - Account for extra Telegram requests, connection pressure, resource use and rate-limit risk.
 
-1. Build a repeatable benchmark matrix for source, offset, range size and proxy/direct mode.
-2. Measure TTFB, sustained throughput, CPU, memory, retries and Telegram request behavior.
-3. Determine whether source selection, Telegram transport or deployment connectivity is the actual bottleneck.
-4. Only then consider bounded parallel retrieval or other transport changes.
-5. Preserve Resource identity, HTTP Range semantics and pre-transfer failover behavior.
+4. **Validation before adoption**
+   - Compare against the current sequential implementation on real devices.
+   - Record throughput, startup latency, request count, memory/CPU, failures and rate-limit symptoms.
+   - Do not claim that concurrency bypasses Telegram service-side limits.
 
-## Video
+## Explicitly deferred
 
-Video playback/cache simulation is not part of this phase. It remains an optional capability outside Core and outside the current real-device test plan.
-
-## Non-goals
-
-- No claim of bypassing Telegram service-side limits.
-- No arbitrary high concurrency.
-- No Video-specific download implementation in Core.
+- No automatic source-speed scoring implementation now.
+- No active probing of every source before each download.
+- No single-file parallel range implementation now.
+- No arbitrary increase in concurrency.
+- No Video-specific transport or cache implementation in Core.
