@@ -36,7 +36,7 @@ class FakeDownloader:
 
     async def stream(self, info, offset=0):
         if self.client.get("fail_after_chunk") and offset == 0:
-            yield b"part"
+            yield self.client.get("first_chunk", b"part")
             raise RuntimeError("connection lost")
         yield self.client.get("bytes", b"payload")[offset:]
 
@@ -112,7 +112,7 @@ def test_selector_resumes_from_matching_digest_source_after_partial_output():
         row(file_id=2, account_id=13, content_hash=digest),
     ]
     clients = {
-        "session-12": {"size": 7, "fail_after_chunk": True},
+        "session-12": {"size": 7, "fail_after_chunk": True, "first_chunk": b"payl"},
         "session-13": {"size": 7, "bytes": b"payload"},
     }
 
