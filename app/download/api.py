@@ -37,6 +37,18 @@ def _resource(resource_id):
     return resource
 
 
+def _resource_etag(resource):
+    """Return a strong ETag only when a valid SHA-256 digest is known."""
+    digest = resource.get("content_hash")
+    if not isinstance(digest, str) or len(digest) != 64:
+        return None
+    try:
+        int(digest, 16)
+    except ValueError:
+        return None
+    return f'"sha256:{digest.lower()}"'
+
+
 def _content_disposition(filename, disposition="attachment"):
     safe_ascii = "".join(
         ch if 32 <= ord(ch) < 127 and ch not in '\\\"' else "_"
@@ -50,12 +62,20 @@ async def _empty_stream():
         yield b""
 
 
-def _stream_response(resource_id, range_header, disposition, created_by=None):
+def _stream_response(resource_id, range_header, disposition, created_by=None, if_range=None):
     resource = _resource(resource_id)
     if not resource:
         return api_error("not_found", "resource not found", 404)
 
     size = int(resource["size"])
+    etag = _resource_etag(resource)
+
+    # If-Range allows a partial response only when the strong validator matches.
+    # If no digest validator exists, restart with a full response rather than
+    # appending bytes whose representation cannot be verified.
+    if range_header is not None and if_range is not None and if_range != etag:
+        range_header = None
+
     if size == 0 and range_header is None:
         start, end, partial = 0, -1, False
         content_length = 0
@@ -105,6 +125,8 @@ def _stream_response(resource_id, range_header, disposition, created_by=None):
         "Content-Length": str(content_length),
         "Content-Disposition": disposition,
     }
+    if etag is not None:
+        headers["ETag"] = etag
     if partial:
         headers["Content-Range"] = f"bytes {start}-{end}/{size}"
     return StreamingResponse(
@@ -130,6 +152,7 @@ async def create_share(resource_id: int, _: Principal = Depends(require_user)):
 async def download_resource(
     resource_id: int,
     range_header: str | None = Header(default=None, alias="Range"),
+    if_range: str | None = Header(default=None, alias="If-Range"),
     principal: Principal = Depends(require_user),
 ):
     resource = _resource(resource_id)
@@ -140,6 +163,7 @@ async def download_resource(
         range_header,
         _content_disposition(resource["filename"]),
         created_by=principal.subject,
+        if_range=if_range,
     )
 
 
@@ -148,25 +172,34 @@ async def download_head(resource_id: int, _: Principal = Depends(require_user)):
     resource = _resource(resource_id)
     if not resource:
         return Response(status_code=404)
-    return Response(headers={
+    headers = {
         "Accept-Ranges": "bytes",
         "Content-Length": str(resource["size"]),
         "Content-Disposition": _content_disposition(resource["filename"]),
         "Content-Type": resource["mime_type"] or "application/octet-stream",
-    })
+    }
+    etag = _resource_etag(resource)
+    if etag is not None:
+        headers["ETag"] = etag
+    return Response(headers=headers)
 
 
 @router.get("/{resource_id}/stream")
 async def stream_resource(
     resource_id: int,
     range_header: str | None = Header(None, alias="Range"),
+    if_range: str | None = Header(None, alias="If-Range"),
     principal: Principal = Depends(require_user),
 ):
     resource = _resource(resource_id)
     if not resource:
         return api_error("not_found", "resource not found", 404)
     return _stream_response(
-        resource_id, range_header, "inline", created_by=principal.subject
+        resource_id,
+        range_header,
+        "inline",
+        created_by=principal.subject,
+        if_range=if_range,
     )
 
 
@@ -175,12 +208,16 @@ async def stream_head(resource_id: int, _: Principal = Depends(require_user)):
     resource = _resource(resource_id)
     if not resource:
         return Response(status_code=404)
-    return Response(headers={
+    headers = {
         "Accept-Ranges": "bytes",
         "Content-Length": str(resource["size"]),
         "Content-Disposition": "inline",
         "Content-Type": resource["mime_type"] or "application/octet-stream",
-    })
+    }
+    etag = _resource_etag(resource)
+    if etag is not None:
+        headers["ETag"] = etag
+    return Response(headers=headers)
 
 
 share_router = APIRouter(prefix="/share", tags=["delivery"])
@@ -199,5 +236,8 @@ async def shared_download(
     if not resource:
         return api_error("not_found", "resource not found", 404)
     return _stream_response(
-        resource_id, range_header, _content_disposition(resource["filename"]), if_range=if_range
+        resource_id,
+        range_header,
+        _content_disposition(resource["filename"]),
+        if_range=if_range,
     )
