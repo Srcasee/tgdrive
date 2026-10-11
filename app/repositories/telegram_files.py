@@ -24,15 +24,23 @@ class TelegramFileRepository:
                 return cursor.fetchone()
 
     def list_resource_sources(self, resource_id):
+        """Return only sources the catalog would expose as currently available."""
         with connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute("""
-                    SELECT id, resource_id, filename, size, mime_type, telegram_chat_id,
-                           message_id, account_id, is_available, status
-                    FROM files
-                    WHERE resource_id=%s AND is_available=TRUE AND status='active'
-                      AND account_id IS NOT NULL
-                    ORDER BY id ASC
+                    SELECT f.id, f.resource_id, f.filename, f.size, f.mime_type,
+                           f.telegram_chat_id, f.message_id, f.account_id,
+                           f.is_available, f.status
+                    FROM files f
+                    JOIN accounts a ON a.id=f.account_id AND a.enabled=TRUE
+                    JOIN telegram_sources ts
+                      ON ts.account_id=f.account_id
+                     AND ts.telegram_chat_id=f.telegram_chat_id
+                     AND ts.enabled=TRUE
+                    WHERE f.resource_id=%s
+                      AND f.is_available=TRUE
+                      AND f.status='active'
+                    ORDER BY f.id ASC
                 """, (resource_id,))
                 return cursor.fetchall()
 
