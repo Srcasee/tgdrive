@@ -1,6 +1,6 @@
 import pytest
 
-from telegram.downloader import TELEGRAM_REQUEST_SIZE, TelegramDownloader
+from download.downloader import TELEGRAM_REQUEST_SIZE, TelegramDownloader
 
 
 def test_default_request_size_matches_telegram_limit():
