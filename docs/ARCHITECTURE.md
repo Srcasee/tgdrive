@@ -254,9 +254,9 @@ Core does not perform country/region detection or implement concrete proxy proto
 
 Per-source scheduling and richer health/latency scoring can be improved after real-device measurements.
 
-### P2 — transport optimization
+### Deferred — download performance
 
-Real-device testing has now shown unacceptable download throughput on the current deployment. The next step is a repeatable Telegram → VPS → FastAPI → browser benchmark before changing concurrency, request sizing or caching. Issue #21 tracks this work.
+Automatic fast-source selection and bounded single-file parallel range retrieval are deferred. No transport optimization should start until download-state consistency is reliable and measurements identify the actual bottleneck. The future-direction outline is in `docs/PHASE-2-DOWNLOAD.md`.
 
 ### P2 — Telegram Topic classification
 
