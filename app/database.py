@@ -134,19 +134,25 @@ def init_database():
                     -- Temporarily free identity keys so canonical rows can be renamed safely.
                     UPDATE resources SET identity_key='dedupe-migration:' || id::TEXT;
                     CREATE TEMP TABLE resource_identity_map ON COMMIT DROP AS
-                    SELECT id,
-                           FIRST_VALUE(id) OVER (
-                               PARTITION BY lower(trim(filename)), size, COALESCE(mime_type, '')
-                               ORDER BY id
+                    WITH resource_digest_counts AS (
+                        SELECT lower(trim(filename)) AS normalized_filename,
+                               size,
+                               COALESCE(mime_type, '') AS normalized_mime_type,
+                               COUNT(DISTINCT content_hash) AS digest_count
+                        FROM resources
+                        GROUP BY lower(trim(filename)), size, COALESCE(mime_type, '')
+                    )
+                    SELECT r.id,
+                           FIRST_VALUE(r.id) OVER (
+                               PARTITION BY lower(trim(r.filename)), r.size, COALESCE(r.mime_type, '')
+                               ORDER BY r.id
                            ) AS canonical_id,
-                           (
-                               SELECT COUNT(DISTINCT other.content_hash)
-                               FROM resources other
-                               WHERE lower(trim(other.filename))=lower(trim(resources.filename))
-                                 AND other.size=resources.size
-                                 AND COALESCE(other.mime_type, '')=COALESCE(resources.mime_type, '')
-                           ) AS digest_count
-                    FROM resources;
+                           COALESCE(dc.digest_count, 0) AS digest_count
+                    FROM resources r
+                    LEFT JOIN resource_digest_counts dc
+                      ON dc.normalized_filename=lower(trim(r.filename))
+                     AND dc.size=r.size
+                     AND dc.normalized_mime_type=COALESCE(r.mime_type, '');
 
                     UPDATE resources canonical
                     SET content_hash=NULL
