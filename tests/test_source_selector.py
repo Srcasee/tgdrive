@@ -35,19 +35,20 @@ class FakeDownloader:
         })()
 
     async def stream(self, info, offset=0):
-        if self.client.get("fail_after_chunk"):
+        if self.client.get("fail_after_chunk") and offset == 0:
             yield b"part"
             raise RuntimeError("connection lost")
-        yield self.client.get("bytes", b"payload")
+        yield self.client.get("bytes", b"payload")[offset:]
 
 
-def row(file_id=1, account_id=12, size=7):
+def row(file_id=1, account_id=12, size=7, content_hash=None):
     return {
         "id": file_id,
         "account_id": account_id,
         "telegram_chat_id": 100,
         "message_id": file_id + 10,
         "size": size,
+        "content_hash": content_hash,
     }
 
 
@@ -97,6 +98,69 @@ def test_selector_does_not_fallback_after_emitting_bytes():
         received = []
         with pytest.raises(RuntimeError, match="connection lost"):
             async for chunk in selector.stream_resource(55):
+                received.append(chunk)
+        assert received == [b"part"]
+
+    asyncio.run(run())
+
+
+
+def test_selector_resumes_from_matching_digest_source_after_partial_output():
+    digest = "a" * 64
+    rows = [
+        row(file_id=1, account_id=12, content_hash=digest),
+        row(file_id=2, account_id=13, content_hash=digest),
+    ]
+    clients = {
+        "session-12": {"size": 7, "fail_after_chunk": True},
+        "session-13": {"size": 7, "bytes": b"payload"},
+    }
+
+    class Accounts:
+        def get_session(self, account_id):
+            return f"session-{account_id}"
+
+    selector = TelegramSourceSelector(
+        FakeFileRepository(rows),
+        account_repository=Accounts(),
+        client_factory=lambda session: clients[session],
+        downloader_factory=FakeDownloader,
+    )
+
+    async def run():
+        received = []
+        async for chunk in selector.stream_resource(55, expected_bytes=7):
+            received.append(chunk)
+        assert b"".join(received) == b"payload"
+
+    asyncio.run(run())
+
+
+def test_selector_does_not_resume_across_sources_with_different_digests():
+    rows = [
+        row(file_id=1, account_id=12, content_hash="a" * 64),
+        row(file_id=2, account_id=13, content_hash="b" * 64),
+    ]
+    clients = {
+        "session-12": {"size": 7, "fail_after_chunk": True},
+        "session-13": {"size": 7, "bytes": b"payload"},
+    }
+
+    class Accounts:
+        def get_session(self, account_id):
+            return f"session-{account_id}"
+
+    selector = TelegramSourceSelector(
+        FakeFileRepository(rows),
+        account_repository=Accounts(),
+        client_factory=lambda session: clients[session],
+        downloader_factory=FakeDownloader,
+    )
+
+    async def run():
+        received = []
+        with pytest.raises(RuntimeError, match="connection lost"):
+            async for chunk in selector.stream_resource(55, expected_bytes=7):
                 received.append(chunk)
         assert received == [b"part"]
 
