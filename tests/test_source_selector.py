@@ -41,12 +41,12 @@ class FakeDownloader:
         yield self.client.get("bytes", b"payload")[offset:]
 
 
-def row(file_id=1, account_id=12, size=7, content_hash=None):
+def row(file_id=1, account_id=12, size=7, content_hash=None, message_id=11, chat_id=100):
     return {
         "id": file_id,
         "account_id": account_id,
-        "telegram_chat_id": 100,
-        "message_id": file_id + 10,
+        "telegram_chat_id": chat_id,
+        "message_id": message_id,
         "size": size,
         "content_hash": content_hash,
     }
@@ -88,7 +88,7 @@ def test_selector_skips_source_with_mismatched_indexed_size():
     assert selected["id"] == 2
 
 
-def test_selector_does_not_fallback_after_emitting_bytes():
+def test_selector_does_not_fallback_after_emitting_bytes_without_alternate_account():
     clients = {
         "acct-session": {"size": 7, "fail_after_chunk": True, "bytes": b"payload"}
     }
@@ -96,7 +96,7 @@ def test_selector_does_not_fallback_after_emitting_bytes():
 
     async def run():
         received = []
-        with pytest.raises(RuntimeError, match="connection lost"):
+        with pytest.raises(RuntimeError, match="all Telegram sources failed"):
             async for chunk in selector.stream_resource(55):
                 received.append(chunk)
         assert received == [b"part"]
@@ -104,12 +104,10 @@ def test_selector_does_not_fallback_after_emitting_bytes():
     asyncio.run(run())
 
 
-
-def test_selector_resumes_from_matching_digest_source_after_partial_output():
-    digest = "a" * 64
+def test_selector_resumes_same_message_across_accounts_without_hashes():
     rows = [
-        row(file_id=1, account_id=12, content_hash=digest),
-        row(file_id=2, account_id=13, content_hash=digest),
+        row(file_id=1, account_id=12, message_id=11),
+        row(file_id=2, account_id=13, message_id=11),
     ]
     clients = {
         "session-12": {"size": 7, "fail_after_chunk": True, "first_chunk": b"payl"},
@@ -136,13 +134,43 @@ def test_selector_resumes_from_matching_digest_source_after_partial_output():
     asyncio.run(run())
 
 
-def test_selector_does_not_resume_across_sources_with_different_digests():
+def test_selector_does_not_require_matching_hashes_for_same_message():
     rows = [
-        row(file_id=1, account_id=12, content_hash="a" * 64),
-        row(file_id=2, account_id=13, content_hash="b" * 64),
+        row(file_id=1, account_id=12, content_hash="a" * 64, message_id=11),
+        row(file_id=2, account_id=13, content_hash="b" * 64, message_id=11),
     ]
     clients = {
-        "session-12": {"size": 7, "fail_after_chunk": True},
+        "session-12": {"size": 7, "fail_after_chunk": True, "first_chunk": b"payl"},
+        "session-13": {"size": 7, "bytes": b"payload"},
+    }
+
+    class Accounts:
+        def get_session(self, account_id):
+            return f"session-{account_id}"
+
+    selector = TelegramSourceSelector(
+        FakeFileRepository(rows),
+        account_repository=Accounts(),
+        client_factory=lambda session: clients[session],
+        downloader_factory=FakeDownloader,
+    )
+
+    async def run():
+        received = []
+        async for chunk in selector.stream_resource(55, expected_bytes=7):
+            received.append(chunk)
+        assert b"".join(received) == b"payload"
+
+    asyncio.run(run())
+
+
+def test_selector_never_splices_a_different_telegram_message():
+    rows = [
+        row(file_id=1, account_id=12, message_id=11),
+        row(file_id=2, account_id=13, message_id=12),
+    ]
+    clients = {
+        "session-12": {"size": 7, "fail_after_chunk": True, "first_chunk": b"payl"},
         "session-13": {"size": 7, "bytes": b"payload"},
     }
 
@@ -162,6 +190,6 @@ def test_selector_does_not_resume_across_sources_with_different_digests():
         with pytest.raises(RuntimeError, match="all Telegram sources failed"):
             async for chunk in selector.stream_resource(55, expected_bytes=7):
                 received.append(chunk)
-        assert received == [b"part"]
+        assert received == [b"payl"]
 
     asyncio.run(run())
