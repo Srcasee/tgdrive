@@ -577,6 +577,18 @@ Promise.all([
   padding: 12px 0 4px;
   background: var(--color-bg-1, var(--color-bg-2));
 }
+.batch-toolbar {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 0 0 12px;
+}
+.batch-status {
+  color: var(--color-text-2);
+  font-size: 12px;
+}
 .detail-row {
   display: grid;
   grid-template-columns: minmax(140px, 220px) minmax(0, 1fr);
