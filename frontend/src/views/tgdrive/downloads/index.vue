@@ -1,17 +1,60 @@
 <template>
   <div class="snow-page">
-    <a-card title="下载管理">
-      <a-tabs v-model:active-key="tab">
-        <a-tab-pane key="active" title="活动下载"><DownloadTable :rows="active" :active="true" @remove="remove" /></a-tab-pane>
-        <a-tab-pane key="history" title="历史记录"><DownloadTable :rows="history" :active="false" @remove="remove" /></a-tab-pane>
+    <a-card title="下载记录">
+      <a-tabs v-model:active-key="status" @change="onStatusChange">
+        <a-tab-pane key="active" title="进行中" />
+        <a-tab-pane key="completed" title="已完成" />
+        <a-tab-pane key="failed" title="下载失败" />
       </a-tabs>
+      <DownloadTable
+        :rows="rows"
+        :status="status"
+        :page="page"
+        :size="size"
+        :total="total"
+        @page-change="changePage"
+        @bulk-delete="bulkDelete"
+      />
     </a-card>
   </div>
 </template>
+
 <script setup lang="ts">
-import { ref } from "vue";
+import { onMounted, ref } from "vue";
+import { Message } from "@arco-design/web-vue";
 import DownloadTable from "./table.vue";
-import { getActiveDownloadsAPI, getDownloadHistoryAPI, deleteDownloadAPI } from "@/api/modules/tgdrive";
-const tab=ref("active"),active=ref<any[]>([]),history=ref<any[]>([]);
-const load=async()=>{active.value=(await getActiveDownloadsAPI()).data||[];history.value=(await getDownloadHistoryAPI()).data||[]}; const remove=async(id:number)=>{await deleteDownloadAPI(id);await load()};load();
+import { getDownloadRecordsAPI, bulkDeleteDownloadsAPI, type DownloadStatus } from "@/api/modules/tgdrive";
+
+const status = ref<DownloadStatus>("active");
+const rows = ref<any[]>([]);
+const page = ref(1);
+const size = 50;
+const total = ref(0);
+
+const load = async () => {
+  const response = await getDownloadRecordsAPI({ status: status.value, page: page.value, size });
+  const payload = response.data || {};
+  rows.value = payload.items || [];
+  total.value = payload.total || 0;
+};
+const onStatusChange = () => {
+  page.value = 1;
+  load();
+};
+const changePage = (nextPage: number) => {
+  page.value = nextPage;
+  load();
+};
+const bulkDelete = async (ids: number[]) => {
+  await bulkDeleteDownloadsAPI(ids);
+  Message.success("已删除选中的下载记录");
+  await load();
+};
+onMounted(load);
 </script>
+
+<style scoped>
+.snow-page :deep(.arco-card-body) {
+  min-height: calc(100vh - 180px);
+}
+</style>
