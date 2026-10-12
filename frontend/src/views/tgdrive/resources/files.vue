@@ -107,7 +107,7 @@
         <a-divider margin="0" />
         <div v-for="item in detailRows" :key="item.key" class="detail-row">
           <a-checkbox :model-value="isDetailVisible(item.key)" @change="setDetailVisibility(item.key, $event)">列表显示：{{ item.label }}</a-checkbox>
-          <div class="detail-value">{{ item.value }}</div>
+          <div class="detail-value">{{ formatDetailCell(item, item.value) }}</div>
         </div>
         <a-divider margin="0" />
         <div class="share-details">
@@ -143,6 +143,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref } from "vue";
+import { Message } from "@arco-design/web-vue";
 import {
   getResourcesAPI, getResourceAPI, searchResourcesAPI, getResourceTreeAPI,
   createShareAPI, deleteShareAPI
@@ -449,9 +450,9 @@ const copyShareUrl = async (url: string) => {
       textarea.remove();
       if (!copied) throw new Error("copy failed");
     }
-    window.alert("完整分享链接已复制");
+    Message.success("完整分享链接已复制");
   } catch {
-    window.alert("自动复制失败，请在输入框中手动复制完整链接");
+    Message.error("复制失败，请检查浏览器剪贴板权限");
   }
 };
 const share = async (record: any) => {
