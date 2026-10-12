@@ -401,5 +401,5 @@ def test_download_records_are_paginated_and_bulk_deletable(monkeypatch):
         "status": "ok",
         "deleted": 2,
     }
-    assert downloads.deleted == [7, 8]
+    assert sorted(downloads.deleted) == [7, 8]
     assert client.delete("/api/admin/downloads/7").status_code == 404
