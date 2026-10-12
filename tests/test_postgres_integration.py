@@ -32,7 +32,7 @@ def postgres_pool():
 
 def _reset_schema(conn):
     with conn.cursor() as cur:
-        cur.execute("DROP TABLE IF EXISTS resource_categories, files, resources, telegram_sources, categories, accounts, schema_migrations CASCADE")
+        cur.execute("DROP TABLE IF EXISTS resource_categories, shares, download_records, files, resources, telegram_sources, categories, accounts, schema_migrations CASCADE")
     conn.commit()
 
 
