@@ -5,7 +5,7 @@ services:
     environment:
       POSTGRES_DB: tgdrive
       POSTGRES_USER: tgdrive
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tgdrive}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     volumes:
       - ./data/postgres:/var/lib/postgresql/data
     healthcheck:
@@ -29,7 +29,7 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql://tgdrive:tgdrive@postgres:5432/tgdrive}
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env}
     depends_on:
       postgres:
         condition: service_healthy
@@ -52,7 +52,7 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql://tgdrive:tgdrive@postgres:5432/tgdrive}
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env}
     cpus: ${TG_LOGIN_CPUS:-1.0}
     mem_limit: ${TG_LOGIN_MEMORY:-512m}
     networks:
