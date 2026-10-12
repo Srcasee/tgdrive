@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from admin.api import router as admin_router
@@ -14,7 +14,6 @@ from share.api import router as share_router
 from telegram.api import router as telegram_router
 
 APP_DIR = Path(__file__).resolve().parents[1]
-WEB_INDEX = APP_DIR / "web" / "index.html"
 ADMIN_DIST = APP_DIR / "frontend" / "dist"
 
 
@@ -29,11 +28,6 @@ async def lifespan(app: FastAPI):
         await lifecycle.shutdown()
 
 
-def web_index_response():
-    html = WEB_INDEX.read_text(encoding="utf-8")
-    return HTMLResponse(html, headers={"Cache-Control": "no-store"})
-
-
 def create_app():
     app = FastAPI(title="tgdrive", lifespan=lifespan)
     app.include_router(auth_router)
@@ -45,11 +39,12 @@ def create_app():
 
     @app.get("/", include_in_schema=False)
     async def home():
-        return web_index_response()
+        return RedirectResponse(url="/admin/", status_code=307)
 
+    # Keep the former URL working while moving its UI to the frontend SPA.
     @app.get("/web", include_in_schema=False)
     async def web():
-        return web_index_response()
+        return RedirectResponse(url="/admin/", status_code=307)
 
     @app.get("/admin", include_in_schema=False)
     @app.get("/admin/", include_in_schema=False)
