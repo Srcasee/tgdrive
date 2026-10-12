@@ -215,7 +215,7 @@ HTTP client
 - `app/repositories/telegram_files.py — TelegramFileRepository.list_resource_sources()`: returns enabled accounts and enabled/available physical Telegram locations for a Resource.
 - `app/repositories/accounts.py — AccountRepository.get_session()`: resolves the Telegram session name for a source account.
 - `app/download/range.py — parse_single_range()`: parses a single HTTP byte range; invalid ranges become HTTP 416.
-- `app/download/repository.py — DownloadRepository.create()/complete()/fail()`: persists transfer history/state through `DownloadService`.
+- `app/repositories/downloads.py — DownloadRepository.create()/complete()/fail()`: persists transfer history/state through `DownloadService`.
 - `app/repositories/resources.py — ResourceRepository.get()`: resolves the logical Resource metadata used by the HTTP response.
 - `app/download/api.py — download_head()/stream_head()`: return metadata without streaming the file body.
 - `app/download/api.py — create_share()` and `app/download/api.py — shared_download()`: create and serve a Resource share link.
