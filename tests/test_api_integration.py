@@ -254,6 +254,7 @@ def test_share_link_creation_and_admin_revoke(monkeypatch):
     assert payload["id"] == 1
     assert payload["url"] == "http://testserver/share/test-share-token-1"
     assert payload["resource_id"] == 1
+    assert payload["expires_at"] is None
 
     token = "test-share-token-1"
     assert client.get("/share/unknown-token").status_code == 404
@@ -275,6 +276,33 @@ def test_share_link_creation_and_admin_revoke(monkeypatch):
     assert client.delete("/api/admin/shares/1").status_code == 200
     assert client.delete("/api/admin/shares/1").status_code == 404
     assert shares.get_resource_id(token) is None
+
+
+def test_share_expiration_validation_and_public_expiry(monkeypatch):
+    client, _, shares = make_client(monkeypatch)
+    client.post("/auth/login", json={"username": "user", "password": "user-pass"})
+
+    assert client.post(
+        "/resources/1/share",
+        json={"expires_at": "2000-01-01T00:00:00Z"},
+    ).status_code == 400
+    assert client.post(
+        "/resources/1/share",
+        json={"expires_at": "2099-01-01T00:00:00"},
+    ).status_code == 400
+
+    response = client.post(
+        "/resources/1/share",
+        json={"expires_at": "2099-01-01T00:00:00Z"},
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["expires_at"] is not None
+    token = payload["url"].rsplit("/", 1)[-1]
+    assert shares.get_resource_id(token) == 1
+
+    shares.tokens[token]["expires_at"] = 100
+    assert client.get(f"/share/{token}").status_code == 404
 
 
 def test_download_range_returns_only_requested_bytes(monkeypatch):
