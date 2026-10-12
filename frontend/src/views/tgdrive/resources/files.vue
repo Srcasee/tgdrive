@@ -355,18 +355,25 @@ const loadTree = async () => {
 
 const onPageChange = (page: number) => {
   pagination.value.current = page;
+  persistPageState();
   if (!keyword.value.trim()) load();
 };
 const onPageSizeChange = (pageSize: number) => {
   pagination.value.pageSize = pageSize;
   pagination.value.current = 1;
+  persistPageState();
   load();
 };
 const onSearch = () => {
   pagination.value.current = 1;
+  persistPageState();
   load();
 };
-const onTreeExpand = (keys: string[]) => {\n  expandedTreeKeys.value = keys;\n  persistPageState();\n};\nconst onTreeSelect = (keys: string[]) => {
+const onTreeExpand = (keys: string[]) => {
+  expandedTreeKeys.value = keys;
+  persistPageState();
+};
+const onTreeSelect = (keys: string[]) => {
   const key = keys?.[0];
   if (!key) return;
   clearSelection();
@@ -378,6 +385,7 @@ const onTreeExpand = (keys: string[]) => {\n  expandedTreeKeys.value = keys;\n  
   chatId.value = selected?.chat_id;
   topicId.value = selected?.topic_id;
   pagination.value.current = 1;
+  persistPageState();
   load();
 };
 const resetTreeSelection = () => {
@@ -389,6 +397,7 @@ const resetTreeSelection = () => {
   chatId.value = undefined;
   topicId.value = undefined;
   pagination.value.current = 1;
+  persistPageState();
   load();
 };
 const toggleResourceSelection = (record: any, checked: boolean) => {
@@ -573,10 +582,30 @@ const detail = async (record: any) => {
 //   await load();
 // };
 
-Promise.all([
-  load(),
-  loadTree()
-]);
+onBeforeMount(async () => {
+  keyword.value = typeof savedPageState.keyword === "string" ? savedPageState.keyword : "";
+  pagination.value.current = Number.isInteger(savedPageState.currentPage) && savedPageState.currentPage > 0 ? savedPageState.currentPage : 1;
+  pagination.value.pageSize = [15, 30, 50, 100].includes(savedPageState.pageSize) ? savedPageState.pageSize : 15;
+  await loadTree();
+  const savedKey = typeof savedPageState.selectedTreeKey === "string" ? savedPageState.selectedTreeKey : "";
+  const path = savedKey ? findPath(treeData.value, savedKey) : undefined;
+  if (path?.length) {
+    selectedTreeKeys.value = [savedKey];
+    breadcrumb.value = path;
+    const selected = path[path.length - 1];
+    accountId.value = selected.account_id;
+    chatId.value = selected.chat_id;
+    topicId.value = selected.topic_id;
+  } else {
+    selectedTreeKeys.value = [];
+    breadcrumb.value = [];
+    accountId.value = undefined;
+    chatId.value = undefined;
+    topicId.value = undefined;
+  }
+  persistPageState();
+  await load();
+});
 </script>
 
 <style scoped>
