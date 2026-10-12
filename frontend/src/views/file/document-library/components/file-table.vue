@@ -274,16 +274,6 @@ const createOrRotateShare = async (resource: ResourceRecord) => {
     busyId.value = null;
   }
 };
-const copyShare = async (resource: ResourceRecord) => {
-  const share = activeShare(resource);
-  if (!share) return;
-  try {
-    await navigator.clipboard.writeText(shareUrl(share));
-    Message.success("链接已复制");
-  } catch {
-    Message.error("复制失败，请手动复制链接");
-  }
-};
 const revokeShare = async (resource: ResourceRecord) => {
   const share = activeShare(resource);
   if (!share || !window.confirm("确定撤销此分享链接吗？撤销后链接将立即失效。")) return;
