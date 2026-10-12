@@ -6,7 +6,7 @@
       </a-col>
       <a-col>
         <a-space>
-          <a-input v-model="expiresAt" type="datetime-local" aria-label="分享链接到期时间" />
+          <input v-model="expiresAt" class="expiration-input" type="datetime-local" aria-label="分享链接到期时间" />
           <a-button type="primary" @click="search">搜索</a-button>
           <a-button @click="getList()">刷新</a-button>
         </a-space>
@@ -37,7 +37,7 @@
             <div v-if="activeShare(record)" class="share-record">
               <a-link :href="shareUrl(activeShare(record))" target="_blank">{{ shareUrl(activeShare(record)) }}</a-link>
               <a-tag v-if="isExpired(activeShare(record))" color="red">已过期</a-tag>
-              <a-tag v-else-if="activeShare(record).expires_at" color="arcoblue">有效至 {{ formatDate(activeShare(record).expires_at) }}</a-tag>
+              <a-tag v-else-if="activeShare(record)?.expires_at" color="arcoblue">有效至 {{ formatDate(activeShare(record).expires_at) }}</a-tag>
               <a-tag v-else color="green">永久有效</a-tag>
             </div>
             <span v-else class="muted">尚未创建分享链接</span>
@@ -97,8 +97,8 @@ const isAdmin = computed(() => {
 
 const activeShare = (resource: ResourceRecord) => resource.shares?.[0];
 const shareUrl = (share?: ShareRecord) => share ? new URL(share.url, window.location.origin).toString() : "";
-const isExpired = (share: ShareRecord) => share.expires_at !== null && share.expires_at * 1000 <= Date.now();
-const formatDate = (seconds: number) => new Date(seconds * 1000).toLocaleString();
+const isExpired = (share?: ShareRecord) => Boolean(share && share.expires_at !== null && share.expires_at * 1000 <= Date.now());
+const formatDate = (seconds?: number | null) => seconds ? new Date(seconds * 1000).toLocaleString() : "";
 const formatSize = (size: number) => {
   if (!Number.isFinite(size) || size < 0) return "-";
   if (size < 1024) return `${size} B`;
@@ -212,6 +212,7 @@ getList();
 <style lang="scss" scoped>
 .container-page { box-sizing: border-box; height: 100%; padding: $padding; overflow: auto; }
 .bottom-gap { margin-bottom: $padding; }
+.expiration-input { min-height: 30px; max-width: 220px; padding: 0 8px; border: 1px solid var(--color-border-2); border-radius: 4px; color: var(--color-text-1); background: var(--color-bg-2); }
 .share-hint { margin: -4px 0 12px; color: var(--color-text-3); font-size: 12px; }
 .filename { overflow-wrap: anywhere; font-weight: 500; }
 .share-record { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
