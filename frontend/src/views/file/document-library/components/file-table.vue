@@ -47,7 +47,7 @@
           <template #cell="{ record }">
             <a-space wrap>
               <a-button size="mini" type="primary" :loading="busyId === record.id" @click="createOrRotateShare(record)">
-                {{ activeShare(record) ? "刷新链接" : "创建链接" }}
+                {{ activeShare(record) ? "刷新分享" : "分享" }}
               </a-button>
               <a-button v-if="activeShare(record)" size="mini" @click="copyShare(record)">复制</a-button>
               <a-button v-if="isAdmin && activeShare(record)" size="mini" status="danger" @click="revokeShare(record)">管理员撤销</a-button>
