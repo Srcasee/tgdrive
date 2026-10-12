@@ -16,7 +16,7 @@ const cards = ref([
   { title: "Telegram 账号", value: 0 },
   { title: "启用来源", value: 0 },
   { title: "资源分类", value: 0 },
-  { title: "活动下载", value: 0 }
+  { title: "进行中", value: 0 }
 ]);
 const load = async () => {
   const [accounts, dialogs, categories, downloads] = await Promise.all([
