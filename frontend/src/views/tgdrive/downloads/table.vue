@@ -75,10 +75,8 @@ const formatTime = (value: number | string | null | undefined) => {
   if (value === null || value === undefined || value === "") return "—";
   const date = new Date(Number(value) * 1000);
   if (Number.isNaN(date.getTime())) return "—";
-  return new Intl.DateTimeFormat(undefined, {
-    year: "numeric", month: "2-digit", day: "2-digit",
-    hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false
-  }).format(date);
+  const pad = (part: number) => String(part).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 };
 const statusText = (status: string) => ({ active: "进行中", completed: "已完成", failed: "下载失败" }[status] || status);
 const statusColor = (status: string) => ({ active: "arcoblue", completed: "green", failed: "red" }[status] || "gray");
@@ -96,12 +94,15 @@ const statusColor = (status: string) => ({ active: "arcoblue", completed: "green
   padding-bottom: 12px;
 }
 .pagination-bar {
-  position: sticky;
-  bottom: 0;
-  z-index: 5;
+  position: fixed;
+  right: 32px;
+  bottom: 16px;
+  z-index: 100;
   display: flex;
   justify-content: flex-end;
-  padding: 12px 0 4px;
+  padding: 12px;
+  border-radius: 6px;
   background: var(--color-bg-2, #fff);
+  box-shadow: 0 0 8px rgb(0 0 0 / 8%);
 }
 </style>
