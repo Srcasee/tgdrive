@@ -58,17 +58,6 @@
                   <a-checkbox :model-value="selectedResources.has(String(record.id))" :disabled="batchRunning" @change="(checked: boolean) => toggleResourceSelection(record, checked)" />
                 </template>
               </a-table-column>
-              <a-table-column title="操作" :width="180">
-                <template #cell="{ record }">
-                  <a-space>
-                    <a-button size="small" @click="detail(record)">查看</a-button>
-                    <a-button size="small" type="primary" @click="downloadResource(record)">下载</a-button>
-                    <!-- Manual category assignment is disabled; original control retained as a comment.
-                    <a-button size="small" @click="setCategories(record)">分类</a-button>
-                    -->
-                  </a-space>
-                </template>
-              </a-table-column>
               <a-table-column
                 v-for="item in visibleDetailColumns"
                 :key="item.key"
@@ -76,7 +65,7 @@
                 :data-index="item.key"
                 :width="columnWidth(item.key)"
               >
-                <template #cell="{ record }">{{ formatCell(record._detailValues?.[item.key] ?? record[item.key]) }}</template>
+                <template #cell="{ record }">{{ formatDetailCell(item, record._detailValues?.[item.key] ?? record[item.key]) }}</template>
               </a-table-column>
               <a-table-column title="来源账号" :width="180">
                 <template #cell="{ record }">
@@ -88,11 +77,16 @@
                   </a-space>
                 </template>
               </a-table-column>
-              <a-table-column title="分享操作" :width="140">
+              <a-table-column title="分享操作" :width="130">
+                <template #cell="{ record }">
+                  <a-button size="small" type="primary" @click="share(record)">{{ activeShare(record) ? "复制" : "创建分享" }}</a-button>
+                </template>
+              </a-table-column>
+              <a-table-column title="操作" :width="130" fixed="right">
                 <template #cell="{ record }">
                   <a-space>
-                    <a-button size="small" type="primary" @click="share(record)">创建分享</a-button>
-                    <a-button v-if="(record.shares || []).length" size="small" @click="detail(record)">资源详情</a-button>
+                    <a-button size="small" @click="detail(record)">查看</a-button>
+                    <a-button size="small" @click="downloadResource(record)">下载</a-button>
                   </a-space>
                 </template>
               </a-table-column>
@@ -121,16 +115,6 @@
             </a-space>
           </div>
         </div>
-      </a-space>
-    </a-modal>
-    <a-modal v-model:visible="createdShareOpen" title="分享链接已创建" :footer="false">
-      <a-space direction="vertical" fill size="medium">
-        <div>完整分享链接（已尝试自动复制）：</div>
-        <a-input :model-value="createdShareUrl" readonly />
-        <a-space wrap>
-          <a-button type="primary" @click="copyShareUrl(createdShareUrl)">复制完整链接</a-button>
-          <a-button @click="createdShareOpen = false">关闭</a-button>
-        </a-space>
       </a-space>
     </a-modal>
     <!-- Manual category assignment is disabled; original dialog retained as a comment.
@@ -199,8 +183,6 @@ const selectedTreeKeys = ref<string[]>([]);
 const breadcrumb = ref<TreeNode[]>([]);
 const detailOpen = ref(false);
 const selectedResource = ref<any | null>(null);
-const createdShareOpen = ref(false);
-const createdShareUrl = ref("");
 const selectedResources = ref(new Map<string, any>());
 const batchSelectionEnabled = computed(() => accountId.value != null && chatId.value != null);
 const currentPageAllSelected = computed(() => rows.value.length > 0 && rows.value.every((record: any) => selectedResources.value.has(String(record.id))));
@@ -217,7 +199,14 @@ type DetailItem = { key: string; label: string; value: string; visible: boolean 
 const detailRows = ref<DetailItem[]>([]);
 const fieldVisibility = ref<Record<string, boolean>>({});
 const defaultVisibleDetailKeys = new Set(["filename", "size", "mime_type"]);
-const isDetailVisible = (key: string) => fieldVisibility.value[key] ?? defaultVisibleDetailKeys.has(key);
+const defaultHiddenDetailKeys = new Set(["source", "sources", "resource_sources", "shares", "share_records", "share_history"]);
+const isDetailVisible = (key: string) => {
+  if (fieldVisibility.value[key] !== undefined) return fieldVisibility.value[key];
+  const item = detailRows.value.find(row => row.key === key);
+  const label = String(item?.label || "").replace(/\s/g, "");
+  if (defaultHiddenDetailKeys.has(key) || /资源来源|分享记录/.test(label)) return false;
+  return defaultVisibleDetailKeys.has(key);
+};
 const visibleDetailColumns = computed(() => detailRows.value.filter(item => isDetailVisible(item.key)));
 const allDetailsVisible = computed(() => detailRows.value.length > 0 && detailRows.value.every(item => isDetailVisible(item.key)));
 const someDetailsVisible = computed(() => detailRows.value.some(item => isDetailVisible(item.key)) && !allDetailsVisible.value);
@@ -245,7 +234,21 @@ const formatCell = (value: unknown) => {
   if (typeof value === "object") return JSON.stringify(value, null, 2);
   return String(value);
 };
-const columnWidth = (key: string) => ["id", "size", "source_count", "status"].includes(key) ? 110 : undefined;
+const formatDetailCell = (item: DetailItem, value: unknown) => {
+  if (item.key === "size" || /文件大小|资源大小/.test(item.label)) {
+    const bytes = Number(value);
+    return Number.isFinite(bytes) && bytes >= 0 ? (bytes / (1024 * 1024)).toFixed(2) + " MB" : "—";
+  }
+  return formatCell(value);
+};
+const activeShare = (record: any) => Array.isArray(record.shares) ? record.shares.find((item: any) => item && item.url) : undefined;
+const columnWidth = (key: string) => {
+  if (["id", "resource_id"].includes(key)) return 76;
+  if (["size", "source_count", "status", "mime_type", "created_at", "updated_at"].includes(key)) return 100;
+  if (["filename", "file_name", "name"].includes(key)) return 240;
+  if (["source", "sources", "resource_sources", "shares", "share_records", "share_history"].includes(key)) return 140;
+  return 120;
+};
 const pagination = ref({
   current: 1,
   pageSize: 15,
@@ -456,18 +459,19 @@ const copyShareUrl = async (url: string) => {
   }
 };
 const share = async (record: any) => {
+  const existing = activeShare(record);
+  if (existing?.url) {
+    await copyShareUrl(fullShareUrl(existing.url));
+    return;
+  }
   try {
-    const response = await createShareAPI(record.id);
-    const payload = response.data?.data ?? response.data;
-    if (!payload?.url) throw new Error("服务器未返回分享链接");
-    createdShareUrl.value = fullShareUrl(payload.url);
-    createdShareOpen.value = true;
-    await copyShareUrl(createdShareUrl.value);
+    await createShareAPI(record.id);
     await load();
-    const updated = rows.value.find((item: any) => Number(item.id) === Number(record.id));
-    if (updated) selectedResource.value = updated;
+    const refreshed = rows.value.find((item: any) => Number(item.id) === Number(record.id));
+    if (refreshed) selectedResource.value = refreshed;
+    Message.success("分享链接已创建");
   } catch (error: any) {
-    window.alert(error?.message || "创建分享链接失败");
+    Message.error(error?.message || "创建分享链接失败");
   }
 };
 const removeShare = async (item: any) => {
