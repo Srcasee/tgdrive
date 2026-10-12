@@ -99,7 +99,7 @@ class CatalogRepository:
                 cursor.execute(f"""
                     SELECT r.id, r.content_hash, r.filename, r.size, r.mime_type, r.status,
                            {source_count_sql} AS source_count,
-                           {resource_sources_sql},
+                           {resource_sources_sql}
                     FROM resources r
                     LEFT JOIN files f ON f.resource_id=r.id AND f.is_available=TRUE AND f.status='active'
                     {where}
@@ -134,7 +134,7 @@ class CatalogRepository:
                 cursor.execute(f"""
                     SELECT r.id, r.content_hash, r.filename, r.size, r.mime_type, r.status,
                            {source_count_sql} AS source_count,
-                           {resource_sources_sql},
+                           {resource_sources_sql}
                     FROM resources r
                     LEFT JOIN files f ON f.resource_id=r.id AND f.is_available=TRUE AND f.status='active'
                     WHERE {where}
