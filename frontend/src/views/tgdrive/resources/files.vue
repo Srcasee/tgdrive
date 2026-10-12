@@ -35,7 +35,7 @@
         <a-divider margin="0" />
         <div class="resource-content">
           <div v-if="batchSelectionEnabled" class="batch-toolbar">
-            <a-checkbox :model-value="currentPageAllSelected" :indeterminate="currentPageSomeSelected" @change="toggleCurrentPageSelection">选择当前页</a-checkbox>
+            <a-checkbox :model-value="currentPageAllSelected" :indeterminate="currentPageSomeSelected" :disabled="batchRunning" @change="toggleCurrentPageSelection">选择当前页</a-checkbox>
             <span>已选 {{ selectedResources.size }} 项 · {{ formatSize(selectedTotalSize) }}</span>
             <a-button size="small" :disabled="selectedResources.size === 0 || batchRunning" @click="clearSelection">清空选择</a-button>
             <a-button size="small" type="primary" :disabled="selectedResources.size === 0 || batchRunning" @click="startBatchDownload">批量下载（并发 8）</a-button>
@@ -365,6 +365,7 @@ const startBatchDownload = async () => {
   batchRunning.value = true;
   batchStopRequested.value = false;
   let started = 0;
+  let failed = 0;
   let nextIndex = 0;
   batchStatus.value = "准备发起 " + queue.length + " 项下载";
   const worker = async () => {
@@ -376,18 +377,20 @@ const startBatchDownload = async () => {
         triggerDownload(record);
         started += 1;
       } catch {
-        batchStatus.value = "发起下载时遇到错误（已发起 " + started + "/" + queue.length + " 项）";
+        failed += 1;
       }
-      batchStatus.value = "已发起 " + started + "/" + queue.length + " 项" + (batchStopRequested.value ? "，正在停止" : "");
+      batchStatus.value = "已发起 " + started + "/" + queue.length + " 项" + (failed ? "，发起失败 " + failed + " 项" : "") + (batchStopRequested.value ? "，正在停止" : "");
       // Keep at most eight queue workers active and pace browser download prompts.
       await new Promise(resolve => window.setTimeout(resolve, 250));
     }
   };
   try {
     await Promise.all(Array.from({ length: Math.min(8, queue.length) }, () => worker()));
-    batchStatus.value = batchStopRequested.value
+    batchStatus.value = (batchStopRequested.value
       ? "已停止后续任务，已发起 " + started + "/" + queue.length + " 项"
-      : "已发起全部 " + started + " 项下载；实际完成状态由浏览器下载管理器确认";
+      : "已发起全部任务，已发起 " + started + "/" + queue.length + " 项")
+      + (failed ? "，发起失败 " + failed + " 项" : "")
+      + "；实际完成状态由浏览器下载管理器确认";
   } finally {
     batchRunning.value = false;
     batchStopRequested.value = false;
