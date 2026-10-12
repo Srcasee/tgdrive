@@ -202,7 +202,7 @@ const fieldVisibility = ref<Record<string, boolean>>({});
 const revealedDetailValues = ref<Set<string>>(new Set());
 const displayDetailLabel = (item: DetailItem) => item.label.replace(/[（(]\s*字节\s*[）)]/g, "").trim();
 const isDetailValueHidden = (item: DetailItem) => {
-  const label = String(item.label || "").replace(/\\s/g, "");
+  const label = String(item.label || "").replace(/\s/g, "");
   const hiddenByDefault = defaultHiddenDetailKeys.has(item.key) || /资源来源|分享记录/.test(label);
   return hiddenByDefault && !revealedDetailValues.value.has(item.key);
 };
