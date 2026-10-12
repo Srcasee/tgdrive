@@ -60,6 +60,9 @@ export const searchResourcesAPI = (params: { q: string; account_id?: number; cha
   http.get("/catalog/search", { params });
 export const createShareAPI = (id: number, expires_at: string | null = null) =>
   http.post(`/resources/${id}/share`, { expires_at });
+export const createTopicShareAPI = (data: { account_id: number; chat_id: number; topic_id: number }) =>
+  http.post("/topics/share", data);
+export const deleteTopicShareAPI = (id: number) => http.delete(`/api/admin/topic-shares/${id}`);
 
 export const getActiveDownloadsAPI = () => http.get("/api/admin/downloads/active");
 export const getDownloadHistoryAPI = () => http.get("/api/admin/downloads/history");
