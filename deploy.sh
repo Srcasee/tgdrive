@@ -102,7 +102,7 @@ if docker buildx version >/dev/null 2>&1; then
     BUILDX_NO_DEFAULT_ATTESTATIONS=1 docker buildx build \
         --load \
         --provenance=false \
-        -t tgdrive-core:local \
+        -t tgdrive:laster \
         -f Dockerfile .
 else
     echo "[DEPLOY] Buildx unavailable; using Compose build without a CPU quota"
