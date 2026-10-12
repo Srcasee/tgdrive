@@ -37,7 +37,7 @@
             <div v-if="activeShare(record)" class="share-record">
               <a-link :href="shareUrl(activeShare(record))" target="_blank">{{ shareUrl(activeShare(record)) }}</a-link>
               <a-tag v-if="isExpired(activeShare(record))" color="red">已过期</a-tag>
-              <a-tag v-else-if="activeShare(record)?.expires_at" color="arcoblue">有效至 {{ formatDate(activeShare(record).expires_at) }}</a-tag>
+              <a-tag v-else-if="activeShare(record)?.expires_at" color="arcoblue">有效至 {{ formatDate(activeShare(record)?.expires_at) }}</a-tag>
               <a-tag v-else color="green">永久有效</a-tag>
             </div>
             <span v-else class="muted">尚未创建分享链接</span>
