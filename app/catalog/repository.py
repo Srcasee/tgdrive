@@ -62,15 +62,6 @@ class CatalogRepository:
     def __init__(self):
         self.share_repository = ShareRepository()
 
-    def _attach_shares(self, resources):
-        if not resources:
-            return
-        shares_by_resource = self.share_repository.list_for_resources(
-            [resource["id"] for resource in resources]
-        )
-        for resource in resources:
-            resource["shares"] = shares_by_resource.get(resource["id"], [])
-
     def list_resources(self, limit, offset, sort="id", order="desc", account_id=None, chat_id=None, topic_id=None):
         with connection() as conn:
             with conn.cursor() as cursor:
@@ -107,7 +98,7 @@ class CatalogRepository:
                     ORDER BY {sort_sql} {direction}, r.id DESC LIMIT %s OFFSET %s
                 """, params + [limit, offset])
                 rows = cursor.fetchall()
-        self._attach_shares(rows)
+        self.share_repository.attach_to_resources(rows)
         return total, rows
 
     def search_resources(self, query, limit=100, account_id=None, chat_id=None, topic_id=None):
@@ -142,7 +133,7 @@ class CatalogRepository:
                     ORDER BY r.id DESC LIMIT %s
                 """, params + [limit])
                 rows = cursor.fetchall()
-        self._attach_shares(rows)
+        self.share_repository.attach_to_resources(rows)
         return rows
 
     def get_resource_tree(self):
@@ -199,7 +190,7 @@ class CatalogRepository:
                 """, (resource_id,))
                 row = cursor.fetchone()
         if row:
-            self._attach_shares([row])
+            self.share_repository.attach_to_resources([row])
         return row
 
     def deactivate_telegram_chats(self, account_id, chat_ids):
