@@ -88,11 +88,11 @@
                   </a-space>
                 </template>
               </a-table-column>
-              <a-table-column title="分享操作" :width="180">
+              <a-table-column title="分享操作" :width="140">
                 <template #cell="{ record }">
                   <a-space>
-                    <a-button size="small" @click="share(record)">创建</a-button>
-                    <a-button v-for="shareItem in (record.shares || [])" :key="shareItem.id" size="small" status="danger" @click="removeShare(shareItem)">删除 {{ shareItem.id }}</a-button>
+                    <a-button size="small" type="primary" @click="share(record)">创建分享</a-button>
+                    <a-button v-if="(record.shares || []).length" size="small" @click="detail(record)">资源详情</a-button>
                   </a-space>
                 </template>
               </a-table-column>
@@ -109,6 +109,28 @@
           <a-checkbox :model-value="isDetailVisible(item.key)" @change="setDetailVisibility(item.key, $event)">列表显示：{{ item.label }}</a-checkbox>
           <div class="detail-value">{{ item.value }}</div>
         </div>
+        <a-divider margin="0" />
+        <div class="share-details">
+          <strong>分享链接</strong>
+          <div v-if="!(selectedResource?.shares || []).length" class="detail-value">尚未创建分享链接</div>
+          <div v-for="shareItem in (selectedResource?.shares || [])" :key="shareItem.id" class="share-detail-item">
+            <a-input :model-value="fullShareUrl(shareItem.url)" readonly />
+            <a-space wrap>
+              <a-button size="small" @click="copyShareUrl(fullShareUrl(shareItem.url))">复制完整链接</a-button>
+              <a-button size="small" status="danger" @click="removeShare(shareItem)">删除</a-button>
+            </a-space>
+          </div>
+        </div>
+      </a-space>
+    </a-modal>
+    <a-modal v-model:visible="createdShareOpen" title="分享链接已创建" :footer="false">
+      <a-space direction="vertical" fill size="medium">
+        <div>完整分享链接（已尝试自动复制）：</div>
+        <a-input :model-value="createdShareUrl" readonly />
+        <a-space wrap>
+          <a-button type="primary" @click="copyShareUrl(createdShareUrl)">复制完整链接</a-button>
+          <a-button @click="createdShareOpen = false">关闭</a-button>
+        </a-space>
       </a-space>
     </a-modal>
     <!-- Manual category assignment is disabled; original dialog retained as a comment.
@@ -175,6 +197,9 @@ const treeData = ref<TreeNode[]>([]);
 const selectedTreeKeys = ref<string[]>([]);
 const breadcrumb = ref<TreeNode[]>([]);
 const detailOpen = ref(false);
+const selectedResource = ref<any | null>(null);
+const createdShareOpen = ref(false);
+const createdShareUrl = ref("");
 const selectedResources = ref(new Map<string, any>());
 const batchSelectionEnabled = computed(() => accountId.value != null && chatId.value != null);
 const currentPageAllSelected = computed(() => rows.value.length > 0 && rows.value.every((record: any) => selectedResources.value.has(String(record.id))));
@@ -402,13 +427,62 @@ const stopBatchDownload = () => {
 };
 const downloadResource = (record: any) => triggerDownload(record);
 
+const fullShareUrl = (value: string) => {
+  if (!value) return "";
+  const parsed = new URL(value, window.location.origin);
+  return new URL(parsed.pathname + parsed.search, window.location.origin).href;
+};
+const copyShareUrl = async (url: string) => {
+  if (!url) return;
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(url);
+    } else {
+      const textarea = document.createElement("textarea");
+      textarea.value = url;
+      textarea.setAttribute("readonly", "");
+      textarea.style.position = "fixed";
+      textarea.style.left = "-9999px";
+      document.body.appendChild(textarea);
+      textarea.select();
+      const copied = document.execCommand("copy");
+      textarea.remove();
+      if (!copied) throw new Error("copy failed");
+    }
+    window.alert("完整分享链接已复制");
+  } catch {
+    window.alert("自动复制失败，请在输入框中手动复制完整链接");
+  }
+};
 const share = async (record: any) => {
-  await createShareAPI(record.id);
-  await load();
+  try {
+    const response = await createShareAPI(record.id);
+    const payload = response.data?.data ?? response.data;
+    if (!payload?.url) throw new Error("服务器未返回分享链接");
+    createdShareUrl.value = fullShareUrl(payload.url);
+    createdShareOpen.value = true;
+    await copyShareUrl(createdShareUrl.value);
+    await load();
+    const updated = rows.value.find((item: any) => Number(item.id) === Number(record.id));
+    if (updated) selectedResource.value = updated;
+  } catch (error: any) {
+    window.alert(error?.message || "创建分享链接失败");
+  }
 };
 const removeShare = async (item: any) => {
-  await deleteShareAPI(item.id);
-  await load();
+  if (!window.confirm("确定删除这个分享链接吗？删除后该链接立即失效。")) return;
+  try {
+    await deleteShareAPI(item.id);
+    if (selectedResource.value) {
+      selectedResource.value.shares = (selectedResource.value.shares || []).filter((shareItem: any) => Number(shareItem.id) !== Number(item.id));
+    }
+    await load();
+    const updated = rows.value.find((record: any) => Number(record.id) === Number(selectedResource.value?.id));
+    if (updated) selectedResource.value = updated;
+    window.alert("分享链接已删除");
+  } catch {
+    window.alert("删除分享链接失败，请确认当前账号具有管理员权限");
+  }
 };
 const applyDetailData = (data: any[]) => data.map((item: any) => ({
   ...item,
@@ -432,6 +506,7 @@ const hydrateRowDetails = async () => {
   }
 };
 const detail = async (record: any) => {
+  selectedResource.value = record;
   const response = await getResourceAPI(record.id);
   detailRows.value = Array.isArray(response.data?.data) ? applyDetailData(response.data.data) : [];
   detailOpen.value = true;
@@ -602,6 +677,17 @@ Promise.all([
   min-width: 0;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
+}
+.share-details {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.share-detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
 }
 @media (max-width: 768px) {
   .snow-page {
