@@ -4,7 +4,7 @@ import os
 
 from repositories.resources import ResourceRepository
 
-from download.repository import DownloadRepository
+from repositories.downloads import DownloadRepository
 from download.transfer import tracked_stream
 
 logger = logging.getLogger(__name__)
