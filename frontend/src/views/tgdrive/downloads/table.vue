@@ -8,7 +8,8 @@
     <a-table
       :data="rows"
       row-key="id"
-      :row-selection="{ type: 'checkbox', showCheckedAll: true, selectedRowKeys: selectedKeys, onChange: onSelectionChange }"
+      :row-selection="{ type: 'checkbox', showCheckedAll: true, selectedRowKeys: selectedKeys }"
+      @selection-change="onSelectionChange"
       :pagination="false"
       :scroll="{ y: 'calc(100vh - 350px)' }"
     >
@@ -86,7 +87,7 @@ const statusColor = (status: string) => ({ active: "arcoblue", completed: "green
 .download-table {
   display: flex;
   flex-direction: column;
-  min-height: 0;
+  min-height: calc(100vh - 300px);
 }
 .table-actions {
   display: flex;
@@ -94,15 +95,14 @@ const statusColor = (status: string) => ({ active: "arcoblue", completed: "green
   padding-bottom: 12px;
 }
 .pagination-bar {
-  position: fixed;
-  right: 32px;
-  bottom: 16px;
-  z-index: 100;
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
   display: flex;
   justify-content: flex-end;
-  padding: 12px;
-  border-radius: 6px;
+  margin-top: auto;
+  padding: 12px 0 0;
   background: var(--color-bg-2, #fff);
-  box-shadow: 0 0 8px rgb(0 0 0 / 8%);
+  border-top: 1px solid var(--color-border, #e5e6eb);
 }
 </style>
