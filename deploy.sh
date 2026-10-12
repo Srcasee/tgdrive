@@ -106,11 +106,11 @@ if docker buildx version >/dev/null 2>&1; then
         -f Dockerfile .
 else
     echo "[DEPLOY] Buildx unavailable; using Compose build without a CPU quota"
-    docker compose build telegram-drive
+    docker compose build tgdrive
 fi
 
 echo "[DEPLOY] step 6/7: starting Core + PostgreSQL"
-docker compose up -d postgres telegram-drive
+docker compose up -d postgres tgdrive
 sleep 5
 docker compose ps
 
@@ -120,4 +120,4 @@ echo "[DEPLOY]   edit .env: TG_PROXY_ENABLED=true and configure TG_PROXY_* value
 echo "[DEPLOY]   then run: docker compose --profile proxy up -d --build"
 echo "[DEPLOY] NEXT 2/3: Telegram login: ./login-account.sh <account_name> <phone>"
 echo "[DEPLOY] NEXT 3/3: configure Telegram Source in Web admin (enable an account to discover dialogs, then select the exact chat ID)"
-echo "[DEPLOY] Verify: docker compose ps && docker compose logs --tail=100 telegram-drive"
+echo "[DEPLOY] Verify: docker compose ps && docker compose logs --tail=100 tgdrive"
