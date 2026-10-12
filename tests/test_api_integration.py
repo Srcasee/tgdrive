@@ -111,10 +111,14 @@ class FakeShares:
         self.tokens = {}
         self.next_id = 1
 
-    def create(self, resource_id):
-        share = {"id": self.next_id, "token": f"test-share-token-{self.next_id}"}
+    def create(self, resource_id, expires_at=None):
+        existing = next((item for item in self.tokens.values() if item["resource_id"] == resource_id), None)
+        for token, item in list(self.tokens.items()):
+            if item["resource_id"] == resource_id:
+                del self.tokens[token]
+        share = {"id": existing["id"] if existing else self.next_id, "token": f"test-share-token-{self.next_id}", "created_at": 100, "expires_at": expires_at}
         self.next_id += 1
-        self.tokens[share["token"]] = {"id": share["id"], "resource_id": resource_id}
+        self.tokens[share["token"]] = {"id": share["id"], "resource_id": resource_id, "expires_at": expires_at}
         return share
 
     def list_for_resource(self, resource_id):
@@ -133,7 +137,11 @@ class FakeShares:
 
     def get_resource_id(self, token):
         item = self.tokens.get(token)
-        return item["resource_id"] if item else None
+        if not item:
+            return None
+        if item.get("expires_at") is not None and item["expires_at"] <= 200:
+            return None
+        return item["resource_id"]
 
 
 async def _noop_startup():
@@ -155,7 +163,7 @@ def make_client(monkeypatch):
     monkeypatch.setattr("admin.api.share_repository", shares)
     monkeypatch.setattr("catalog.api.service", CatalogService(resources))
     monkeypatch.setattr("download.api.resource_repository", resources)
-    monkeypatch.setattr("download.api.share_repository", shares)
+    monkeypatch.setattr("share.api.share_repository", shares)
 
     app = create_app()
     lifecycle = ApplicationLifecycle()
@@ -244,11 +252,18 @@ def test_share_link_creation_and_admin_revoke(monkeypatch):
     assert response.status_code == 200
     payload = response.json()
     assert payload["id"] == 1
-    assert payload["url"] == "/share/test-share-token-1"
+    assert payload["url"] == "http://testserver/share/test-share-token-1"
     assert payload["resource_id"] == 1
 
     token = "test-share-token-1"
     assert client.get("/share/unknown-token").status_code == 404
+    assert shares.get_resource_id(token) == 1
+    second = client.post("/resources/1/share")
+    assert second.status_code == 200
+    assert second.json()["id"] == payload["id"]
+    assert second.json()["url"] != payload["url"]
+    assert shares.get_resource_id(token) is None
+    token = second.json()["url"].rsplit("/", 1)[-1]
     assert shares.get_resource_id(token) == 1
 
     catalog = client.get("/catalog").json()
