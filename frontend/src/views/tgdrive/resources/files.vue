@@ -9,7 +9,7 @@
             <template #prefix><icon-search /></template>
           </a-input>
           <a-spin :loading="treeLoading" class="tree-spin">
-            <a-tree :data="visibleTree" :default-expand-all="true" :show-line="true" :selected-keys="selectedTreeKeys" @select="onTreeSelect">
+            <a-tree :data="visibleTree" :default-expand-all="true" :expanded-keys="expandedTreeKeys" :show-line="true" :selected-keys="selectedTreeKeys" @expand="onTreeExpand" @select="onTreeSelect">
               <template #title="{ title }"><span class="tree-node-title">{{ title }}</span></template>
               <template #icon="{ isLeaf, expanded }">
                 <s-svg-icon v-if="!isLeaf && !expanded" name="folder-close" :size="16" />
@@ -127,7 +127,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from "vue";
+import { computed, onBeforeMount, onBeforeUnmount, ref } from "vue";
 import { Message } from "@arco-design/web-vue";
 import {
   getResourcesAPI, getResourceAPI, searchResourcesAPI, getResourceTreeAPI,
@@ -181,6 +181,27 @@ const chatId = ref<number>();
 const topicId = ref<number>();
 const treeData = ref<TreeNode[]>([]);
 const selectedTreeKeys = ref<string[]>([]);
+const expandedTreeKeys = ref<string[] | undefined>();
+const pageStateStorageKey = "tgdrive-resource-files-page-state";
+const readPageState = () => {
+  try {
+    const raw = sessionStorage.getItem(pageStateStorageKey);
+    return raw ? JSON.parse(raw) : {};
+  } catch { return {}; }
+};
+const savedPageState = readPageState();
+expandedTreeKeys.value = Array.isArray(savedPageState.expandedTreeKeys) ? savedPageState.expandedTreeKeys : undefined;
+const persistPageState = () => {
+  try {
+    sessionStorage.setItem(pageStateStorageKey, JSON.stringify({
+      selectedTreeKey: selectedTreeKeys.value[0] || null,
+      expandedTreeKeys: expandedTreeKeys.value,
+      keyword: keyword.value,
+      currentPage: pagination.value.current,
+      pageSize: pagination.value.pageSize
+    }));
+  } catch { /* Ignore unavailable session storage. */ }
+};
 const breadcrumb = ref<TreeNode[]>([]);
 const detailOpen = ref(false);
 const selectedResource = ref<any | null>(null);
@@ -345,7 +366,7 @@ const onSearch = () => {
   pagination.value.current = 1;
   load();
 };
-const onTreeSelect = (keys: string[]) => {
+const onTreeExpand = (keys: string[]) => {\n  expandedTreeKeys.value = keys;\n  persistPageState();\n};\nconst onTreeSelect = (keys: string[]) => {
   const key = keys?.[0];
   if (!key) return;
   clearSelection();
