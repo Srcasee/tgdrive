@@ -64,6 +64,8 @@ export const createTopicShareAPI = (data: { account_id: number; chat_id: number;
   http.post("/topics/share", data);
 export const deleteTopicShareAPI = (id: number) => http.delete(`/api/admin/topic-shares/${id}`);
 
-export const getActiveDownloadsAPI = () => http.get("/api/admin/downloads/active");
-export const getDownloadHistoryAPI = () => http.get("/api/admin/downloads/history");
-export const deleteDownloadAPI = (id: number) => http.delete(`/api/admin/downloads/${id}`);
+export type DownloadStatus = "active" | "completed" | "failed";
+export const getDownloadRecordsAPI = (params: { status: DownloadStatus; page?: number; size?: number }) =>
+  http.get("/api/admin/downloads", { params });
+export const bulkDeleteDownloadsAPI = (ids: number[]) =>
+  http.post("/api/admin/downloads/bulk-delete", { ids });
