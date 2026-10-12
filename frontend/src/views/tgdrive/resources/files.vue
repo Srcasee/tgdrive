@@ -61,7 +61,7 @@
               <a-table-column
                 v-for="item in visibleDetailColumns"
                 :key="item.key"
-                :title="item.label"
+                :title="displayDetailLabel(item)"
                 :data-index="item.key"
                 :width="columnWidth(item.key)"
               >
@@ -77,7 +77,7 @@
                   </a-space>
                 </template>
               </a-table-column>
-              <a-table-column title="分享操作" :width="130">
+              <a-table-column title="分享操作" :width="100">
                 <template #cell="{ record }">
                   <a-button size="small" type="primary" @click="share(record)">{{ activeShare(record) ? "复制" : "创建分享" }}</a-button>
                 </template>
@@ -100,8 +100,9 @@
         <a-checkbox :model-value="allDetailsVisible" :indeterminate="someDetailsVisible" @change="toggleAllDetails">列表全部显示</a-checkbox>
         <a-divider margin="0" />
         <div v-for="item in detailRows" :key="item.key" class="detail-row">
-          <a-checkbox :model-value="isDetailVisible(item.key)" @change="setDetailVisibility(item.key, $event)">列表显示：{{ item.label }}</a-checkbox>
-          <div class="detail-value">{{ formatDetailCell(item, item.value) }}</div>
+          <a-checkbox :model-value="isDetailVisible(item.key)" @change="setDetailVisibility(item.key, $event)">列表显示：{{ displayDetailLabel(item) }}</a-checkbox>
+          <div class="detail-value" v-if="!isDetailValueHidden(item)">{{ formatDetailCell(item, item.value) }}</div>
+          <div v-else class="detail-value"><a-button size="mini" type="text" @click="toggleDetailValue(item.key)">显示参数</a-button></div>
         </div>
         <a-divider margin="0" />
         <div class="share-details">
@@ -198,6 +199,18 @@ const batchStatus = ref("");
 type DetailItem = { key: string; label: string; value: string; visible: boolean };
 const detailRows = ref<DetailItem[]>([]);
 const fieldVisibility = ref<Record<string, boolean>>({});
+const revealedDetailValues = ref<Set<string>>(new Set());
+const displayDetailLabel = (item: DetailItem) => item.label.replace(/[（(]\s*字节\s*[）)]/g, "").trim();
+const isDetailValueHidden = (item: DetailItem) => {
+  const label = String(item.label || "").replace(/\\s/g, "");
+  const hiddenByDefault = defaultHiddenDetailKeys.has(item.key) || /资源来源|分享记录/.test(label);
+  return hiddenByDefault && !revealedDetailValues.value.has(item.key);
+};
+const toggleDetailValue = (key: string) => {
+  const next = new Set(revealedDetailValues.value);
+  if (next.has(key)) next.delete(key); else next.add(key);
+  revealedDetailValues.value = next;
+};
 const defaultVisibleDetailKeys = new Set(["filename", "size", "mime_type"]);
 const defaultHiddenDetailKeys = new Set(["source", "sources", "resource_sources", "shares", "share_records", "share_history"]);
 const isDetailVisible = (key: string) => {
@@ -245,7 +258,7 @@ const activeShare = (record: any) => Array.isArray(record.shares) ? record.share
 const columnWidth = (key: string) => {
   if (["id", "resource_id"].includes(key)) return 76;
   if (["size", "source_count", "status", "mime_type", "created_at", "updated_at"].includes(key)) return 100;
-  if (["filename", "file_name", "name"].includes(key)) return 240;
+  if (["filename", "file_name", "name"].includes(key)) return 300;
   if (["source", "sources", "resource_sources", "shares", "share_records", "share_history"].includes(key)) return 140;
   return 120;
 };
@@ -519,6 +532,7 @@ const hydrateRowDetails = async () => {
   }
 };
 const detail = async (record: any) => {
+  revealedDetailValues.value = new Set();
   selectedResource.value = record;
   const response = await getResourceAPI(record.id);
   detailRows.value = Array.isArray(response.data?.data) ? applyDetailData(response.data.data) : [];
