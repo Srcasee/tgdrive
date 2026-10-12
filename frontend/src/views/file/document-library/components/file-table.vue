@@ -176,7 +176,13 @@ const createOrRotateShare = async (resource: ResourceRecord) => {
     Message.success("分享链接已创建");
     await getList();
     const url = response.data?.url || response.data?.data?.url;
-    if (url) await navigator.clipboard?.writeText(new URL(url, window.location.origin).toString());
+    if (url && navigator.clipboard) {
+      try {
+        await navigator.clipboard.writeText(new URL(url, window.location.origin).toString());
+      } catch {
+        Message.info("链接已创建；浏览器未允许自动复制，请使用“复制”按钮");
+      }
+    }
   } catch (error: any) {
     Message.error(error?.message || "创建分享链接失败");
   } finally {
