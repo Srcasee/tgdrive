@@ -15,10 +15,8 @@ class Settings:
     TG_SESSION_DIR = os.getenv("TG_SESSION_DIR", "/data/accounts")
     TG_CONNECT_TIMEOUT = int(os.getenv("TG_CONNECT_TIMEOUT", "60"))
     DOWNLOAD_CHUNK_SIZE = int(os.getenv("DOWNLOAD_CHUNK_SIZE", "1048576"))
-    DATABASE_URL = os.getenv(
-        "DATABASE_URL",
-        "postgresql://tgdrive:tgdrive@postgres:5432/tgdrive",
-    )
+    # Injected by Docker Compose from the deployment environment; no embedded credentials.
+    DATABASE_URL = os.getenv("DATABASE_URL", "")
     DB_POOL_MIN_SIZE = int(os.getenv("DB_POOL_MIN_SIZE", "2"))
     DB_POOL_MAX_SIZE = int(os.getenv("DB_POOL_MAX_SIZE", "10"))
     DB_POOL_TIMEOUT = float(os.getenv("DB_POOL_TIMEOUT", "30"))
