@@ -9,7 +9,7 @@
             <template #prefix><icon-search /></template>
           </a-input>
           <a-spin :loading="treeLoading" class="tree-spin">
-            <a-tree :data="visibleTree" :default-expand-all="true" :expanded-keys="expandedTreeKeys" :show-line="true" :selected-keys="selectedTreeKeys" @expand="onTreeExpand" @select="onTreeSelect">
+            <a-tree :data="visibleTree" :default-expand-all="expandedTreeKeys === undefined" :expanded-keys="expandedTreeKeys" :show-line="true" :selected-keys="selectedTreeKeys" @expand="onTreeExpand" @select="onTreeSelect">
               <template #title="{ title }"><span class="tree-node-title">{{ title }}</span></template>
               <template #icon="{ isLeaf, expanded }">
                 <s-svg-icon v-if="!isLeaf && !expanded" name="folder-close" :size="16" />
@@ -272,6 +272,11 @@ const formatDetailCell = (item: DetailItem, value: unknown) => {
   if (item.key === "size" || /文件大小|资源大小/.test(item.label)) {
     const bytes = Number(value);
     return Number.isFinite(bytes) && bytes >= 0 ? (bytes / (1024 * 1024)).toFixed(2) + " MB" : "—";
+  }
+  if (item.key === "mime_type" || /文件类型|MIME 类型/i.test(item.label)) {
+    const mimeType = String(value ?? "").trim();
+    if (!mimeType) return "—";
+    return mimeType.includes("/") ? mimeType.slice(mimeType.lastIndexOf("/") + 1) : mimeType;
   }
   return formatCell(value);
 };
