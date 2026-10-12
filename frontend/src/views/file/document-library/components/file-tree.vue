@@ -81,9 +81,9 @@ const sourceTree = ref<SourceTree[]>([]);
 const getDocumentLibraryTree = async () => {
   try {
     loading.value = true;
-    let { data } = await getDocumentLibraryTreeAPI();
+    const response = await getResourceTreeAPI();
     loading.value = false;
-    sourceTree.value = data;
+    sourceTree.value = response.data?.data || [];
     nextTick(() => {
       aTreeRef.value.expandAll(true);
     });
