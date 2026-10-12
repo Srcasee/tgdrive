@@ -90,11 +90,11 @@ class DownloadService:
             "error": error,
         })
 
-    def delete(self, record_id):
-        return self.repository.delete(record_id)
+    def list_by_status(self, status, page=1, size=50):
+        return self.repository.list_by_status(status, page=page, size=size)
 
-    def active(self, limit=100):
-        return self.repository.list_active(limit)
+    def bulk_delete(self, record_ids):
+        return self.repository.bulk_delete(record_ids)
 
-    def history(self, limit=100):
-        return self.repository.list_history(limit)
+    def cleanup_older_than(self, days=30):
+        return self.repository.cleanup_older_than(days=days)
