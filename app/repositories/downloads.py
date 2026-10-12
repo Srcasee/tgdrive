@@ -35,24 +35,48 @@ class DownloadRepository:
                 cursor.execute("UPDATE download_records SET status='failed', completed_at=%s, bytes_transferred=%s, error=%s WHERE id=%s AND status='active'", (now, bytes_transferred, error[:2000], record_id))
             conn.commit()
 
-    def delete(self, record_id):
+    def list_by_status(self, status, page=1, size=50):
+        if status not in {"active", "completed", "failed"}:
+            raise ValueError("unsupported download status")
+        offset = (page - 1) * size
         with get_connection() as conn:
             with conn.cursor() as cursor:
-                cursor.execute("DELETE FROM download_records WHERE id=%s RETURNING id", (record_id,))
-                row = cursor.fetchone()
+                cursor.execute("SELECT COUNT(*) AS total FROM download_records WHERE status=%s", (status,))
+                total = cursor.fetchone()["total"]
+                cursor.execute(
+                    """
+                    SELECT id, filename, status, started_at, completed_at
+                    FROM download_records
+                    WHERE status=%s
+                    ORDER BY started_at DESC, id DESC
+                    LIMIT %s OFFSET %s
+                    """,
+                    (status, size, offset),
+                )
+                items = cursor.fetchall()
+        return {"items": items, "total": total, "page": page, "size": size}
+
+    def bulk_delete(self, record_ids):
+        if not record_ids:
+            return 0
+        with get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "DELETE FROM download_records WHERE id = ANY(%s) RETURNING id",
+                    (record_ids,),
+                )
+                deleted = len(cursor.fetchall())
             conn.commit()
-        return row is not None
+        return deleted
 
-    def list_active(self, limit=100): return self._list("WHERE status = 'active'", limit)
-    def list_history(self, limit=100): return self._list("WHERE status IN ('completed', 'failed')", limit)
-
-    def _list(self, where, limit):
+    def cleanup_older_than(self, days=30):
+        cutoff = int(time.time()) - days * 24 * 60 * 60
         with get_connection() as conn:
             with conn.cursor() as cursor:
-                cursor.execute(f"""
-                    SELECT id, resource_id, filename, size, status, started_at,
-                           completed_at, bytes_transferred, error, created_by
-                    FROM download_records {where}
-                    ORDER BY started_at DESC, id DESC LIMIT %s
-                """, (limit,))
-                return cursor.fetchall()
+                cursor.execute(
+                    "DELETE FROM download_records WHERE COALESCE(completed_at, started_at) < %s",
+                    (cutoff,),
+                )
+                deleted = cursor.rowcount
+            conn.commit()
+        return deleted
