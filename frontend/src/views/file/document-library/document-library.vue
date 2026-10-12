@@ -29,7 +29,7 @@ const FileTableRef = ref();
 const breadcrumb = ref<any>([]);
 const onNode = (list: any) => {
   breadcrumb.value = list;
-  FileTableRef.value && FileTableRef.value.getList();
+  FileTableRef.value && FileTableRef.value.getList(list);
 };
 </script>
 
