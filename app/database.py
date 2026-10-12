@@ -208,5 +208,21 @@ def init_database():
                 """)
                 cursor.execute("INSERT INTO schema_migrations(version) VALUES (13)")
 
+            if 14 not in applied:
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS topic_shares (
+                        id BIGSERIAL PRIMARY KEY,
+                        account_id BIGINT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+                        chat_id BIGINT NOT NULL,
+                        topic_id BIGINT NOT NULL,
+                        token TEXT UNIQUE NOT NULL,
+                        created_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW())::BIGINT,
+                        UNIQUE(account_id, chat_id, topic_id)
+                    );
+                    CREATE INDEX IF NOT EXISTS idx_topic_shares_scope
+                        ON topic_shares(account_id, chat_id, topic_id);
+                """)
+                cursor.execute("INSERT INTO schema_migrations(version) VALUES (14)")
+
             conn.commit()
             print("[DB] PostgreSQL database initialized", flush=True)
