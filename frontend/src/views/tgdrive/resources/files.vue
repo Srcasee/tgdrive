@@ -465,10 +465,18 @@ const share = async (record: any) => {
     return;
   }
   try {
-    await createShareAPI(record.id);
+    const response = await createShareAPI(record.id);
+    const payload = response.data?.data ?? response.data;
     await load();
     const refreshed = rows.value.find((item: any) => Number(item.id) === Number(record.id));
-    if (refreshed) selectedResource.value = refreshed;
+    if (refreshed) {
+      if (!activeShare(refreshed) && payload?.url) {
+        refreshed.shares = [{ ...payload, url: payload.url }];
+      }
+      selectedResource.value = refreshed;
+    } else if (payload?.url) {
+      record.shares = [{ ...payload, url: payload.url }];
+    }
     Message.success("分享链接已创建");
   } catch (error: any) {
     Message.error(error?.message || "创建分享链接失败");
