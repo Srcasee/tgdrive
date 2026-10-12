@@ -83,7 +83,7 @@ export const systemMenu = [
       link: "",
       iframe: false,
       isFull: false,
-      roles: ["admin"],
+      roles: ["admin", "common"],
       svgIcon: "folder-menu",
       sort: 2,
       type: 1
@@ -105,7 +105,7 @@ export const systemMenu = [
       isFull: false,
       link: "",
       iframe: false,
-      roles: ["admin"],
+      roles: ["admin", "common"],
       icon: "icon-menu",
       sort: 1,
       type: 2
