@@ -174,6 +174,15 @@ def make_client(monkeypatch):
     return TestClient(app), resources, shares
 
 
+def test_legacy_web_entry_points_redirect_to_admin_frontend(monkeypatch):
+    client, _, _ = make_client(monkeypatch)
+
+    for path in ("/", "/web"):
+        response = client.get(path, follow_redirects=False)
+        assert response.status_code == 307
+        assert response.headers["location"] == "/admin/"
+
+
 def test_auth_and_authorization(monkeypatch):
     client, _, _ = make_client(monkeypatch)
     assert client.get("/auth/me").status_code == 401
