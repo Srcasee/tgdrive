@@ -95,5 +95,5 @@ def bulk_delete_download_records(
     data: BulkDeleteDownloadsInput,
     _: Principal = Depends(require_admin),
 ):
-    deleted = download_service.bulk_delete(list(set(data.ids)))
+    deleted = download_service.bulk_delete(sorted(set(data.ids)))
     return {"status": "ok", "deleted": deleted}
