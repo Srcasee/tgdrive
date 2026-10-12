@@ -39,6 +39,7 @@
             <span>已选 {{ selectedResources.size }} 项 · {{ formatSize(selectedTotalSize) }}</span>
             <a-button size="small" :disabled="selectedResources.size === 0 || batchRunning" @click="clearSelection">清空选择</a-button>
             <a-button size="small" type="primary" :disabled="selectedResources.size === 0 || batchRunning" @click="startBatchDownload">批量下载（并发 8）</a-button>
+            <a-button v-if="topicId != null" size="small" :disabled="batchRunning" @click="createTopicShare">分享话题</a-button>
             <a-button v-if="batchRunning" size="small" status="warning" @click="stopBatchDownload">停止后续任务</a-button>
             <span v-if="batchStatus" class="batch-status">{{ batchStatus }}</span>
           </div>
@@ -118,6 +119,17 @@
         </div>
       </a-space>
     </a-modal>
+    <a-modal v-model:visible="topicShareOpen" title="话题分享" :width="480" :footer="false">
+      <a-space direction="vertical" fill size="medium">
+        <div>访客可通过此链接查看当前话题的资源列表，并多选下载。</div>
+        <a-input :model-value="topicShare?.url ? fullShareUrl(topicShare.url) : ''" readonly />
+        <a-space wrap>
+          <a-button type="primary" :disabled="!topicShare?.url" @click="copyShareUrl(fullShareUrl(topicShare.url))">复制链接</a-button>
+          <a-button status="danger" :disabled="!topicShare?.id" @click="removeTopicShare">删除分享</a-button>
+          <a-button @click="topicShareOpen=false">关闭</a-button>
+        </a-space>
+      </a-space>
+    </a-modal>
     <!-- Manual category assignment is disabled; original dialog retained as a comment.
     <a-modal v-model:visible="categoryOpen" title="设置分类" @ok="saveCategories">
       <a-input v-model="categoryText" placeholder="分类 ID，逗号分隔" />
@@ -131,7 +143,7 @@ import { computed, onBeforeMount, onBeforeUnmount, ref } from "vue";
 import { Message } from "@arco-design/web-vue";
 import {
   getResourcesAPI, getResourceAPI, searchResourcesAPI, getResourceTreeAPI,
-  createShareAPI, deleteShareAPI
+  createShareAPI, deleteShareAPI, createTopicShareAPI, deleteTopicShareAPI
 } from "@/api/modules/tgdrive";
 
 type TreeNode = {
@@ -204,6 +216,8 @@ const persistPageState = () => {
 };
 const breadcrumb = ref<TreeNode[]>([]);
 const detailOpen = ref(false);
+const topicShareOpen = ref(false);
+const topicShare = ref<any | null>(null);
 const selectedResource = ref<any | null>(null);
 const selectedResources = ref(new Map<string, any>());
 const batchSelectionEnabled = computed(() => accountId.value != null && chatId.value != null);
@@ -528,6 +542,35 @@ const share = async (record: any) => {
     Message.success("分享链接已创建");
   } catch (error: any) {
     Message.error(error?.message || "创建分享链接失败");
+  }
+};
+const createTopicShare = async () => {
+  if (accountId.value == null || chatId.value == null || topicId.value == null) {
+    Message.warning("请先选择一个具体话题");
+    return;
+  }
+  try {
+    const response = await createTopicShareAPI({
+      account_id: accountId.value,
+      chat_id: chatId.value,
+      topic_id: topicId.value
+    });
+    topicShare.value = response.data?.data ?? response.data;
+    topicShareOpen.value = true;
+  } catch (error: any) {
+    Message.error(error?.message || "创建话题分享失败");
+  }
+};
+const removeTopicShare = async () => {
+  if (!topicShare.value?.id) return;
+  if (!window.confirm("确定删除这个话题分享链接吗？删除后链接立即失效。")) return;
+  try {
+    await deleteTopicShareAPI(Number(topicShare.value.id));
+    topicShare.value = null;
+    topicShareOpen.value = false;
+    Message.success("话题分享链接已删除");
+  } catch (error: any) {
+    Message.error(error?.message || "删除话题分享链接失败，请确认当前账号具有管理员权限");
   }
 };
 const removeShare = async (item: any) => {
