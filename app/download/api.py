@@ -10,13 +10,11 @@ from download.range import InvalidRange, parse_single_range
 from download.source_selector import TelegramSourceSelector
 from download.service import DownloadService
 from repositories.resources import ResourceRepository
-from repositories.shares import ShareRepository
 from repositories.telegram_files import TelegramFileRepository
 
 router = APIRouter(prefix="/resources", tags=["delivery"])
 telegram_file_repository = TelegramFileRepository()
 resource_repository = ResourceRepository()
-share_repository = ShareRepository()
 source_selector = TelegramSourceSelector(telegram_file_repository)
 download_service = DownloadService(resource_repository=resource_repository)
 
@@ -146,17 +144,6 @@ def _stream_response(resource_id, range_header, disposition, created_by=None, if
     )
 
 
-@router.post("/{resource_id}/share")
-async def create_share(resource_id: int, _: Principal = Depends(require_user)):
-    resource = _resource(resource_id)
-    if not resource:
-        return api_error("not_found", "resource not found", 404)
-    share = share_repository.create(resource_id)
-    token = share["token"] if isinstance(share, dict) else share
-    share_id = share.get("id") if isinstance(share, dict) else None
-    return {"id": share_id, "url": f"/share/{token}", "resource_id": resource_id}
-
-
 @router.get("/{resource_id}/download")
 async def download_resource(
     resource_id: int,
@@ -227,26 +214,3 @@ async def stream_head(resource_id: int, _: Principal = Depends(require_user)):
     if etag is not None:
         headers["ETag"] = etag
     return Response(headers=headers)
-
-
-share_router = APIRouter(prefix="/share", tags=["delivery"])
-
-
-@share_router.get("/{token}")
-async def shared_download(
-    token: str,
-    range_header: str | None = Header(None, alias="Range"),
-    if_range: str | None = Header(None, alias="If-Range"),
-):
-    resource_id = share_repository.get_resource_id(token)
-    if resource_id is None:
-        return api_error("not_found", "share link not found", 404)
-    resource = _resource(resource_id)
-    if not resource:
-        return api_error("not_found", "resource not found", 404)
-    return _stream_response(
-        resource_id,
-        range_header,
-        _content_disposition(resource["filename"]),
-        if_range=if_range,
-    )

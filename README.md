@@ -18,6 +18,14 @@ Telegram backing locations
 
 Telegram is the only content backend. Multiple Telegram accounts are access/redundancy paths, not storage-provider backends.
 
+## Sharing links
+
+Sharing links are global to each resource. Any authenticated user can create or rotate the resource's single active link; rotating it invalidates the previous token. Administrators can revoke a link. Links are permanent by default, or may be created with an optional UTC expiration timestamp.
+
+- `POST /resources/{resource_id}/share` accepts an optional JSON body such as `{"expires_at":"2027-01-01T00:00:00Z"}`. Omit the body or use `null` for a permanent link.
+- `GET /share/{token}` downloads the resource anonymously while the link is valid.
+- `DELETE /api/admin/shares/{share_id}` revokes a link (administrator only).
+
 ## Quick start — fresh server
 
 For a completely new server, clone the repository and run the deployment script:

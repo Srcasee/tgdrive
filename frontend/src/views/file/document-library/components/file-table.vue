@@ -1,104 +1,56 @@
 <template>
   <div class="container-page">
-    <a-row :gutter="16" justify="space-between" class="bottom-gap">
-      <a-col :xs="24" :sm="24" :md="12" :lg="12" :xl="6" :xxl="6" style="margin-bottom: 16px">
-        <a-space>
-          <a-button type="primary">
-            <template #icon>
-              <icon-plus />
-            </template>
-            <template #default>新增</template>
-          </a-button>
-          <a-button type="primary" status="danger">
-            <template #icon>
-              <icon-delete />
-            </template>
-            <template #default>删除</template>
-          </a-button>
-          <a-button>
-            <template #icon>
-              <icon-download />
-            </template>
-            <template #default>导出</template>
-          </a-button>
-        </a-space>
+    <a-row :gutter="12" align="center" class="bottom-gap">
+      <a-col :flex="1">
+        <a-input v-model="keyword" allow-clear placeholder="搜索资源文件名" @press-enter="search" />
       </a-col>
-
-      <a-col :xs="24" :sm="24" :md="12" :lg="12" :xl="8" :xxl="6">
+      <a-col>
         <a-space>
-          <a-input v-model="form.name" placeholder="请输入搜索关键词" />
-          <a-button type="primary" status="success" @click="getList">
-            <template #icon>
-              <icon-search />
-            </template>
-            <template #default>搜索</template>
-          </a-button>
+          <input v-model="expiresAt" class="expiration-input" type="datetime-local" aria-label="分享链接到期时间" />
+          <a-button type="primary" @click="search">搜索</a-button>
+          <a-button @click="getList()">刷新</a-button>
         </a-space>
       </a-col>
     </a-row>
-
+    <div class="share-hint">分享有效期：留空为永久；填写未来时间后，新建或刷新分享链接时应用。刷新会立即使旧链接失效。</div>
     <a-table
-      row-key="key"
+      row-key="id"
       size="small"
-      :bordered="{
-        cell: true
-      }"
-      :scroll="{ x: '100%', y: '100%', minWidth: 1000 }"
+      :bordered="{ cell: true }"
       :loading="loading"
       :data="list"
-      :row-selection="rowSelection"
-      v-model:selectedKeys="selectedKeys"
-      :pagination="pagination"
-      @page-change="pageChange"
-      @page-size-change="pageSizeChange"
+      :pagination="{ current: page, pageSize: pageSize, total, showTotal: true, showPageSize: true }"
+      @page-change="onPageChange"
+      @page-size-change="onPageSizeChange"
     >
       <template #columns>
-        <a-table-column title="序号" :width="68">
-          <template #cell="cell">{{ cell.rowIndex + 1 }}</template>
+        <a-table-column title="资源 ID" data-index="id" :width="90" />
+        <a-table-column title="文件名" data-index="filename" :width="280">
+          <template #cell="{ record }"><span class="filename">{{ record.filename }}</span></template>
         </a-table-column>
-        <a-table-column title="渠道来源" data-index="source">
+        <a-table-column title="大小" data-index="size" :width="120">
+          <template #cell="{ record }">{{ formatSize(record.size) }}</template>
+        </a-table-column>
+        <a-table-column title="来源" data-index="source_count" :width="90" />
+        <a-table-column title="分享链接">
           <template #cell="{ record }">
-            <a-space>
-              <s-svg-icon :name="record.sourceSvg" />
-              <span>{{ record.source }}</span>
-            </a-space>
+            <div v-if="activeShare(record)" class="share-record">
+              <a-link :href="shareUrl(activeShare(record))" target="_blank">{{ shareUrl(activeShare(record)) }}</a-link>
+              <a-tag v-if="isExpired(activeShare(record))" color="red">已过期</a-tag>
+              <a-tag v-else-if="activeShare(record)?.expires_at" color="arcoblue">有效至 {{ formatDate(activeShare(record)?.expires_at) }}</a-tag>
+              <a-tag v-else color="green">永久有效</a-tag>
+            </div>
+            <span v-else class="muted">尚未创建分享链接</span>
           </template>
         </a-table-column>
-        <a-table-column title="源类型" data-index="sourceType"></a-table-column>
-        <a-table-column title="组流量共享" data-index="flow">
+        <a-table-column title="操作" :width="250" fixed="right">
           <template #cell="{ record }">
-            <a-badge status="processing" :text="record.flow" v-if="record.percent >= 60" />
-            <a-badge status="warning" :text="record.flow" v-else-if="record.percent < 60 && record.percent >= 50" />
-            <a-badge status="danger" :text="record.flow" v-else />
-          </template>
-        </a-table-column>
-        <a-table-column title="数据比例" data-index="percent" :width="200">
-          <template #cell="{ record }">
-            <a-progress v-if="record.percent >= 60" :percent="record.percent / 100" />
-            <a-progress
-              v-else-if="record.percent < 60 && record.percent >= 50"
-              status="warning"
-              :percent="record.percent / 100"
-            />
-            <a-progress v-else status="danger" :percent="record.percent / 100" />
-          </template>
-        </a-table-column>
-        <a-table-column title="状态" data-index="status" align="center">
-          <template #cell="{ record }">
-            <a-space>
-              <a-tag size="small" color="green" v-if="record.status == 1">在线</a-tag>
-              <a-tag size="small" color="red" v-else>离线</a-tag>
-            </a-space>
-          </template>
-        </a-table-column>
-        <a-table-column title="操作" :width="200" :fixed="tableFixed">
-          <template #cell="cell">
-            <a-space>
-              <a-button size="mini" type="primary">详情</a-button>
-              <a-button size="mini">修改</a-button>
-              <a-popconfirm content="确定删除这条数据吗?" type="warning">
-                <a-button size="mini" type="primary" status="danger" @click="onDelete(cell)">删除</a-button>
-              </a-popconfirm>
+            <a-space wrap>
+              <a-button size="mini" type="primary" :loading="busyId === record.id" @click="createOrRotateShare(record)">
+                {{ activeShare(record) ? "刷新链接" : "创建链接" }}
+              </a-button>
+              <a-button v-if="activeShare(record)" size="mini" @click="copyShare(record)">复制</a-button>
+              <a-button v-if="isAdmin && activeShare(record)" size="mini" status="danger" @click="revokeShare(record)">管理员撤销</a-button>
             </a-space>
           </template>
         </a-table-column>
@@ -108,74 +60,167 @@
 </template>
 
 <script setup lang="ts">
-import { getDocumentLibraryTableAPI } from "@/api/modules/file/index";
-import { SelectedKeys, Form, Pagination, List } from "./config";
-import { useLayoutModel } from "@/hooks/useLayoutModel";
+import { Message } from "@arco-design/web-vue";
+import { createShareAPI, deleteShareAPI, getResourcesAPI, searchResourcesAPI } from "@/api/modules/tgdrive";
 
-const { tableFixed } = useLayoutModel();
-const form = ref<Form>({ name: "" });
-const selectedKeys = ref<string[]>([]);
-const rowSelection = reactive<SelectedKeys>({
-  type: "checkbox",
-  showCheckedAll: true,
-  onlyCurrent: false
-});
-const pagination = ref<Pagination>({ showPageSize: true, showTotal: true, current: 1, pageSize: 10, total: 0 });
-const pageChange = (page: number) => {
-  pagination.value.current = page;
-};
-const pageSizeChange = (pageSize: number) => {
-  pagination.value.pageSize = pageSize;
-};
-const onDelete = (cell: any) => {
-  console.log("删除", cell);
-};
-
-const loading = ref<boolean>(false);
-const list = ref<List[]>([]);
-const getList = async () => {
+interface ShareRecord {
+  id: number;
+  token: string;
+  url: string;
+  created_at: number;
+  expires_at: number | null;
+}
+interface ResourceRecord {
+  id: number;
+  filename: string;
+  size: number;
+  source_count: number;
+  shares?: ShareRecord[];
+}
+const loading = ref(false);
+const busyId = ref<number | null>(null);
+const list = ref<ResourceRecord[]>([]);
+const keyword = ref("");
+const expiresAt = ref("");
+const page = ref(1);
+const pageSize = ref(10);
+const total = ref(0);
+const scope = ref<{ account_id?: number; chat_id?: number; topic_id?: number }>({});
+const isAdmin = computed(() => {
   try {
-    loading.value = true;
-    let { data } = await getDocumentLibraryTableAPI();
-    pagination.value.total = data.total;
-    list.value = shuffleArray(data.list);
-    loading.value = false;
+    const user = JSON.parse(localStorage.getItem("user-info") || "{}");
+    return user?.role === "admin" || user?.user?.role === "admin";
   } catch {
+    return false;
+  }
+});
+
+const activeShare = (resource: ResourceRecord) => resource.shares?.[0];
+const shareUrl = (share?: ShareRecord) => share ? new URL(share.url, window.location.origin).toString() : "";
+const isExpired = (share?: ShareRecord) => Boolean(share && share.expires_at !== null && share.expires_at * 1000 <= Date.now());
+const formatDate = (seconds?: number | null) => seconds ? new Date(seconds * 1000).toLocaleString() : "";
+const formatSize = (size: number) => {
+  if (!Number.isFinite(size) || size < 0) return "-";
+  if (size < 1024) return `${size} B`;
+  const units = ["KB", "MB", "GB", "TB"];
+  let value = size;
+  let unit = "B";
+  for (const next of units) {
+    value /= 1024;
+    unit = next;
+    if (value < 1024) break;
+  }
+  return `${value.toFixed(1)} ${unit}`;
+};
+
+const getList = async (treePath?: any[]) => {
+  if (treePath?.length) {
+    const node = treePath[treePath.length - 1];
+    scope.value = {
+      account_id: node.account_id,
+      chat_id: node.chat_id,
+      topic_id: node.topic_id
+    };
+    page.value = 1;
+  } else if (treePath && treePath.length === 0) {
+    scope.value = {};
+  }
+  loading.value = true;
+  try {
+    const response = keyword.value.trim()
+      ? await searchResourcesAPI({ q: keyword.value.trim(), limit: 200, ...scope.value })
+      : await getResourcesAPI({ page: page.value, size: pageSize.value, sort: "id", order: "desc", ...scope.value });
+    const payload = response.data?.data;
+    if (keyword.value.trim()) {
+      const rows = Array.isArray(payload) ? payload : [];
+      list.value = rows;
+      total.value = rows.length;
+    } else {
+      list.value = payload?.items || [];
+      total.value = payload?.total || 0;
+    }
+  } catch {
+    Message.error("加载资源列表失败，请检查登录状态或网络连接");
+  } finally {
     loading.value = false;
   }
 };
-getList();
-
-const shuffleArray = (arr: List[]) => {
-  // 循环遍历数组，从最后一个元素开始向前,
-  // 递减生成，确保数组的每个值都被照顾到
-  for (let i = arr.length - 1; i > 0; i--) {
-    // 生成一个随机索引 j，范围是从 0 到 i
-    // 生成的最大值就是arr数组的最大索引
-    const j = Math.floor(Math.random() * (i + 1));
-    // 交换 arr[i] 和 arr[j] 的值 (当前遍历的值和新生成的索引值)
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-    // 随机修改值
-    arr[i].flow = String(Math.floor(Math.random() * 5000));
-    arr[i].percent = String(Math.floor(Math.random() * 100));
+const search = () => {
+  page.value = 1;
+  getList();
+};
+const onPageChange = (nextPage: number) => {
+  page.value = nextPage;
+  getList();
+};
+const onPageSizeChange = (nextSize: number) => {
+  pageSize.value = nextSize;
+  page.value = 1;
+  getList();
+};
+const createOrRotateShare = async (resource: ResourceRecord) => {
+  if (activeShare(resource) && !window.confirm("刷新链接会立即使旧链接失效，确定继续吗？")) return;
+  let expiration: string | null = null;
+  if (expiresAt.value) {
+    const date = new Date(expiresAt.value);
+    if (Number.isNaN(date.getTime()) || date.getTime() <= Date.now()) {
+      Message.warning("到期时间必须是未来时间");
+      return;
+    }
+    expiration = date.toISOString();
   }
-  return arr;
+  busyId.value = resource.id;
+  try {
+    const response = await createShareAPI(resource.id, expiration);
+    if (response.data?.success === false) throw new Error(response.data.message || "创建分享失败");
+    Message.success("分享链接已创建");
+    await getList();
+    const url = response.data?.url || response.data?.data?.url;
+    if (url && navigator.clipboard) {
+      try {
+        await navigator.clipboard.writeText(new URL(url, window.location.origin).toString());
+      } catch {
+        Message.info("链接已创建；浏览器未允许自动复制，请使用“复制”按钮");
+      }
+    }
+  } catch (error: any) {
+    Message.error(error?.message || "创建分享链接失败");
+  } finally {
+    busyId.value = null;
+  }
+};
+const copyShare = async (resource: ResourceRecord) => {
+  const share = activeShare(resource);
+  if (!share) return;
+  try {
+    await navigator.clipboard.writeText(shareUrl(share));
+    Message.success("链接已复制");
+  } catch {
+    Message.error("复制失败，请手动复制链接");
+  }
+};
+const revokeShare = async (resource: ResourceRecord) => {
+  const share = activeShare(resource);
+  if (!share || !window.confirm("确定撤销此分享链接吗？撤销后链接将立即失效。")) return;
+  try {
+    await deleteShareAPI(share.id);
+    Message.success("分享链接已撤销");
+    await getList();
+  } catch {
+    Message.error("撤销失败，请确认当前账号具有管理员权限");
+  }
 };
 
-defineExpose({
-  getList
-});
+defineExpose({ getList });
+getList();
 </script>
 
 <style lang="scss" scoped>
-.container-page {
-  box-sizing: border-box;
-  padding: $padding;
-}
-.bottom-gap {
-  margin-bottom: $padding;
-}
-:deep(.arco-form-item) {
-  margin-bottom: 0;
-}
+.container-page { box-sizing: border-box; height: 100%; padding: $padding; overflow: auto; }
+.bottom-gap { margin-bottom: $padding; }
+.expiration-input { min-height: 30px; max-width: 220px; padding: 0 8px; border: 1px solid var(--color-border-2); border-radius: 4px; color: var(--color-text-1); background: var(--color-bg-2); }
+.share-hint { margin: -4px 0 12px; color: var(--color-text-3); font-size: 12px; }
+.filename { overflow-wrap: anywhere; font-weight: 500; }
+.share-record { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.muted { color: var(--color-text-3); }
 </style>

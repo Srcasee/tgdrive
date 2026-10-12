@@ -1,4 +1,5 @@
 from database_pool import connection, transaction
+from repositories.shares import ShareRepository
 
 
 _ACTIVE_SOURCE_EXISTS = """
@@ -48,24 +49,6 @@ COALESCE(
 ) AS sources
 """
 
-_SHARE_SQL = """
-COALESCE(
-    (
-        SELECT json_agg(
-            json_build_object(
-                'id', s.id,
-                'token', s.token,
-                'url', '/share/' || s.token,
-                'created_at', s.created_at
-            ) ORDER BY s.id DESC
-        )
-        FROM shares s
-        WHERE s.resource_id = r.id
-    ),
-    '[]'::json
-) AS shares
-"""
-
 _SORT_COLUMNS = {
     "id": "r.id",
     "filename": "LOWER(r.filename)",
@@ -76,6 +59,9 @@ _SORT_COLUMNS = {
 
 
 class CatalogRepository:
+    def __init__(self):
+        self.share_repository = ShareRepository()
+
     def list_resources(self, limit, offset, sort="id", order="desc", account_id=None, chat_id=None, topic_id=None):
         with connection() as conn:
             with conn.cursor() as cursor:
@@ -104,15 +90,16 @@ class CatalogRepository:
                 cursor.execute(f"""
                     SELECT r.id, r.content_hash, r.filename, r.size, r.mime_type, r.status,
                            {source_count_sql} AS source_count,
-                           {resource_sources_sql},
-                           {_SHARE_SQL}
+                           {resource_sources_sql}
                     FROM resources r
                     LEFT JOIN files f ON f.resource_id=r.id AND f.is_available=TRUE AND f.status='active'
                     {where}
                     GROUP BY r.id
                     ORDER BY {sort_sql} {direction}, r.id DESC LIMIT %s OFFSET %s
                 """, params + [limit, offset])
-                return total, cursor.fetchall()
+                rows = cursor.fetchall()
+        self.share_repository.attach_to_resources(rows)
+        return total, rows
 
     def search_resources(self, query, limit=100, account_id=None, chat_id=None, topic_id=None):
         with connection() as conn:
@@ -138,15 +125,16 @@ class CatalogRepository:
                 cursor.execute(f"""
                     SELECT r.id, r.content_hash, r.filename, r.size, r.mime_type, r.status,
                            {source_count_sql} AS source_count,
-                           {resource_sources_sql},
-                           {_SHARE_SQL}
+                           {resource_sources_sql}
                     FROM resources r
                     LEFT JOIN files f ON f.resource_id=r.id AND f.is_available=TRUE AND f.status='active'
                     WHERE {where}
                     GROUP BY r.id
                     ORDER BY r.id DESC LIMIT %s
                 """, params + [limit])
-                return cursor.fetchall()
+                rows = cursor.fetchall()
+        self.share_repository.attach_to_resources(rows)
+        return rows
 
     def get_resource_tree(self):
         """Build the account -> group -> topic tree from active Telegram file sources."""
@@ -194,14 +182,16 @@ class CatalogRepository:
                 cursor.execute(f"""
                     SELECT r.id, r.content_hash, r.filename, r.size, r.mime_type, r.status,
                            COUNT(DISTINCT f.id) FILTER (WHERE f.is_available=TRUE AND f.status='active') AS source_count,
-                           {_RESOURCE_SOURCES_SQL},
-                           {_SHARE_SQL}
+                           {_RESOURCE_SOURCES_SQL}
                     FROM resources r
                     LEFT JOIN files f ON f.resource_id=r.id
                     WHERE r.id=%s
                     GROUP BY r.id
                 """, (resource_id,))
-                return cursor.fetchone()
+                row = cursor.fetchone()
+        if row:
+            self.share_repository.attach_to_resources([row])
+        return row
 
     def deactivate_telegram_chats(self, account_id, chat_ids):
         """Make files/resources from removed Telegram chats unavailable."""

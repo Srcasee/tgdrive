@@ -18,7 +18,7 @@ _DETAIL_LABELS = {
     "file_id": "文件记录 ID", "account_id": "账号 ID", "account_name": "账号名称",
     "telegram_chat_id": "群组 ID", "chat_name": "群组名称", "message_id": "消息 ID",
     "topic_id": "话题 ID", "topic_name": "话题名称", "upload_time": "上传时间",
-    "token": "分享令牌", "url": "分享链接", "created_at": "创建时间",
+    "token": "分享令牌", "url": "分享链接", "created_at": "创建时间", "expires_at": "到期时间",
 }
 
 
