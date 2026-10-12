@@ -16,8 +16,8 @@ services:
     networks:
       - telegram-net
 
-  telegram-drive:
-    image: tgdrive-core:local
+  tgdrive:
+    image: tgdrive:laster
     build:
       context: .
       dockerfile: Dockerfile
@@ -44,7 +44,7 @@ services:
         max-file: "3"
 
   telegram-login:
-    image: tgdrive-core:local
+    image: tgdrive:laster
     working_dir: /app
     volumes:
       - ./data:/data
