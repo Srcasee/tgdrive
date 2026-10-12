@@ -27,7 +27,7 @@
 
 <script setup lang="ts">
 import { findPathOfParentNode } from "@/utils/tree-tools";
-import { getDocumentLibraryTreeAPI } from "@/api/modules/file/index";
+import { getResourceTreeAPI } from "@/api/modules/tgdrive";
 
 const emit = defineEmits(["onNode"]);
 
