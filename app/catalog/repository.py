@@ -191,7 +191,7 @@ class CatalogRepository:
                 cursor.execute(f"""
                     SELECT r.id, r.content_hash, r.filename, r.size, r.mime_type, r.status,
                            COUNT(DISTINCT f.id) FILTER (WHERE f.is_available=TRUE AND f.status='active') AS source_count,
-                           {_RESOURCE_SOURCES_SQL},
+                           {_RESOURCE_SOURCES_SQL}
                     FROM resources r
                     LEFT JOIN files f ON f.resource_id=r.id
                     WHERE r.id=%s
