@@ -72,15 +72,28 @@ def delete_share(share_id: int, _: Principal = Depends(require_admin)):
 #     return updated
 
 
-@router.get("/downloads/active")
-def list_active_downloads(_: Principal = Depends(require_admin)): return download_service.active()
+class BulkDeleteDownloadsInput(BaseModel):
+    ids: list[int] = Field(min_length=1, max_length=500)
 
 
-@router.get("/downloads/history")
-def list_download_history(_: Principal = Depends(require_admin)): return download_service.history()
+@router.get("/downloads")
+def list_download_records(
+    status: str = "active",
+    page: int = 1,
+    size: int = 50,
+    _: Principal = Depends(require_admin),
+):
+    if status not in {"active", "completed", "failed"}:
+        raise HTTPException(status_code=400, detail="invalid download status")
+    if page < 1 or size < 1 or size > 200:
+        raise HTTPException(status_code=400, detail="invalid pagination")
+    return download_service.list_by_status(status, page=page, size=size)
 
 
-@router.delete("/downloads/{record_id}")
-def delete_download_record(record_id: int, _: Principal = Depends(require_admin)):
-    if not download_service.delete(record_id): raise HTTPException(status_code=404, detail="download record not found")
-    return {"status":"ok", "id":record_id}
+@router.post("/downloads/bulk-delete")
+def bulk_delete_download_records(
+    data: BulkDeleteDownloadsInput,
+    _: Principal = Depends(require_admin),
+):
+    deleted = download_service.bulk_delete(list(set(data.ids)))
+    return {"status": "ok", "deleted": deleted}
