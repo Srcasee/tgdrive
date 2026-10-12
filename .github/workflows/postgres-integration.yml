@@ -48,7 +48,8 @@ jobs:
           sh -n login-account.sh
           cp .env.example .env.ci
           cp .env.ci .env
-          DATABASE_URL=postgresql://tgdrive:tgdrive@postgres:5432/tgdrive_test \
+          POSTGRES_PASSWORD=ci-test-password \
+          DATABASE_URL=postgresql://tgdrive:ci-test-password@postgres:5432/tgdrive_test \
             docker compose --env-file .env.ci config >/dev/null
           rm -f .env
       - name: Build Core image
