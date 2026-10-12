@@ -66,7 +66,7 @@ async def create_topic_share(
     if total <= 0:
         return api_error("not_found", "topic has no available resources", 404)
 
-    token = secrets.token_urlsafe(32)
+    token = "topic_" + secrets.token_urlsafe(32)
     with transaction() as conn:
         with conn.cursor() as cursor:
             cursor.execute(
@@ -134,6 +134,10 @@ async def shared_resource_page(token: str):
     """Public landing page for a valid share link; the file is downloaded separately."""
     resource_id = share_repository.get_resource_id(token)
     if resource_id is None:
+        # Topic links use a dedicated token prefix; avoid a database lookup for
+        # unknown legacy resource tokens (and keep invalid-link handling cheap).
+        if not token.startswith("topic_"):
+            return api_error("not_found", "share link not found", 404)
         topic_share = _topic_share_by_token(token)
         if topic_share is None:
             return api_error("not_found", "share link not found", 404)
