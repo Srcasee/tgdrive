@@ -331,7 +331,7 @@ const load = async () => {
       const payload = response.data?.data;
       rows.value = Array.isArray(payload?.items) ? payload.items : Array.isArray(payload) ? payload : [];
       pagination.value.total = rows.value.length;
-      await hydrateRowDetails();
+      void hydrateRowDetails().catch(() => {});
     } else {
       const response = await getResourcesAPI({
         page: pagination.value.current,
@@ -341,7 +341,7 @@ const load = async () => {
       const payload = response.data?.data;
       rows.value = Array.isArray(payload?.items) ? payload.items : Array.isArray(payload) ? payload : [];
       pagination.value.total = Number(payload?.total ?? rows.value.length);
-      await hydrateRowDetails();
+      void hydrateRowDetails().catch(() => {});
     }
   } finally {
     loading.value = false;
@@ -550,20 +550,19 @@ const applyDetailData = (data: any[]) => data.map((item: any) => ({
   visible: isDetailVisible(item.key)
 }));
 const hydrateRowDetails = async () => {
-  if (!rows.value.length) return;
   const currentRows = rows.value;
-  const detailedRows = await Promise.all(currentRows.map(async (record: any) => {
-    const response = await getResourceAPI(record.id);
-    const fields = Array.isArray(response.data?.data) ? response.data.data : [];
-    return {
-      ...record,
-      _detailValues: Object.fromEntries(fields.map((item: any) => [item.key, item.value]))
-    };
+  if (!currentRows.length) return;
+  const responses = await Promise.all(currentRows.map((record: any) => getResourceAPI(record.id)));
+  // Ignore results if the user has already loaded another page or filter.
+  if (rows.value !== currentRows) return;
+  const fieldsByRow = responses.map(response => Array.isArray(response.data?.data) ? response.data.data : []);
+  rows.value = currentRows.map((record: any, index: number) => ({
+    ...record,
+    _detailValues: Object.fromEntries(fieldsByRow[index].map((item: any) => [item.key, item.value]))
   }));
-  rows.value = detailedRows;
-  if (!detailRows.value.length && detailedRows.length) {
-    const first = await getResourceAPI(detailedRows[0].id);
-    detailRows.value = Array.isArray(first.data?.data) ? applyDetailData(first.data.data) : [];
+  // Reuse the first row's response instead of requesting its details a second time.
+  if (!detailRows.value.length && fieldsByRow.length) {
+    detailRows.value = applyDetailData(fieldsByRow[0]);
   }
 };
 const detail = async (record: any) => {
