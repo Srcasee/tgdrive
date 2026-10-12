@@ -15,15 +15,15 @@
     >
       <template #columns>
         <a-table-column title="文件名" data-index="filename" ellipsis tooltip />
-        <a-table-column title="状态">
+        <a-table-column title="状态" :width="90">
           <template #cell="{ record }">
             <a-tag :color="statusColor(record.status)">{{ statusText(record.status) }}</a-tag>
           </template>
         </a-table-column>
-        <a-table-column title="开始时间">
+        <a-table-column title="开始时间" :width="180">
           <template #cell="{ record }">{{ formatTime(record.started_at) }}</template>
         </a-table-column>
-        <a-table-column title="完成时间">
+        <a-table-column title="完成时间" :width="180">
           <template #cell="{ record }">{{ formatTime(record.completed_at) }}</template>
         </a-table-column>
       </template>
