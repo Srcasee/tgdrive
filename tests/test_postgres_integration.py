@@ -8,6 +8,7 @@ from database_pool import close_pool, open_pool
 from repositories.accounts import AccountRepository
 from repositories.dialogs import DialogRepository
 from repositories.resources import ResourceRepository
+from repositories.shares import ShareRepository
 from repositories.sources import SourceRepository
 from repositories.telegram_files import TelegramFileRepository
 from catalog.repository import CatalogRepository
@@ -73,6 +74,25 @@ def test_schema_and_repositories_are_transactional():
                 (resource_id, category_id),
             )
         conn.commit()
+
+    share_repository = ShareRepository()
+    first_share = share_repository.create(resource_id, expires_at=4102444800)
+    rotated_share = share_repository.create(resource_id)
+    assert rotated_share["id"] == first_share["id"]
+    assert rotated_share["token"] != first_share["token"]
+    assert share_repository.get_resource_id(first_share["token"]) is None
+    assert share_repository.get_resource_id(rotated_share["token"]) == resource_id
+
+    with psycopg.connect(DATABASE_URL) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT column_name FROM information_schema.columns WHERE table_name='shares' AND column_name='expires_at'"
+            )
+            assert cur.fetchone() is not None
+            cur.execute(
+                "SELECT indexdef FROM pg_indexes WHERE tablename='shares' AND indexname='idx_shares_resource_unique'"
+            )
+            assert "UNIQUE INDEX" in cur.fetchone()[0]
 
     telegram_files.upsert_indexed_message(
         filename="one.bin", size=123, mime_type="application/octet-stream",
