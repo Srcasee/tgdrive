@@ -195,5 +195,18 @@ def init_database():
                 """)
                 cursor.execute("INSERT INTO schema_migrations(version) VALUES (12)")
 
+            if 13 not in applied:
+                cursor.execute("""
+                    ALTER TABLE shares ADD COLUMN IF NOT EXISTS expires_at BIGINT;
+                    DELETE FROM shares older
+                    USING shares newer
+                    WHERE older.resource_id = newer.resource_id
+                      AND older.id < newer.id;
+                    DROP INDEX IF EXISTS idx_shares_resource;
+                    CREATE UNIQUE INDEX IF NOT EXISTS idx_shares_resource_unique
+                        ON shares(resource_id);
+                """)
+                cursor.execute("INSERT INTO schema_migrations(version) VALUES (13)")
+
             conn.commit()
             print("[DB] PostgreSQL database initialized", flush=True)
