@@ -53,6 +53,15 @@ class ShareRepository:
             )
         return result
 
+    def attach_to_resources(self, resources):
+        if not resources:
+            return
+        shares_by_resource = self.list_for_resources(
+            [resource["id"] for resource in resources]
+        )
+        for resource in resources:
+            resource["shares"] = shares_by_resource.get(resource["id"], [])
+
     def delete(self, share_id):
         with transaction() as conn:
             with conn.cursor() as cursor:
