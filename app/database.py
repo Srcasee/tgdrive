@@ -224,5 +224,26 @@ def init_database():
                 """)
                 cursor.execute("INSERT INTO schema_migrations(version) VALUES (14)")
 
+            if 15 not in applied:
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS download_records (
+                        id BIGSERIAL PRIMARY KEY,
+                        resource_id BIGINT NOT NULL,
+                        filename TEXT NOT NULL,
+                        size BIGINT NOT NULL DEFAULT 0,
+                        status TEXT NOT NULL CHECK (status IN ('active', 'completed', 'failed')),
+                        started_at BIGINT NOT NULL,
+                        completed_at BIGINT,
+                        bytes_transferred BIGINT NOT NULL DEFAULT 0,
+                        error TEXT,
+                        created_by TEXT
+                    );
+                    CREATE INDEX IF NOT EXISTS idx_download_records_status_started
+                        ON download_records(status, started_at DESC);
+                    CREATE INDEX IF NOT EXISTS idx_download_records_resource
+                        ON download_records(resource_id);
+                """)
+                cursor.execute("INSERT INTO schema_migrations(version) VALUES (15)")
+
             conn.commit()
             print("[DB] PostgreSQL database initialized", flush=True)
