@@ -7,6 +7,7 @@ from catalog.repository import CatalogRepository
 from download.service import DownloadService
 from repositories.categories import CategoryRepository
 from repositories.shares import ShareRepository
+from database_pool import transaction
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 category_repository = CategoryRepository()
@@ -43,6 +44,17 @@ def list_categories(_: Principal = Depends(require_admin)): return category_repo
 # def delete_category(category_id: int, _: Principal = Depends(require_admin)):
 #     if not category_repository.delete(category_id): raise HTTPException(status_code=404, detail="category not found")
 #     return {"status":"ok"}
+
+
+@router.delete("/topic-shares/{share_id}")
+def delete_topic_share(share_id: int, _: Principal = Depends(require_admin)):
+    with transaction() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute("DELETE FROM topic_shares WHERE id=%s RETURNING id", (share_id,))
+            deleted = cursor.fetchone()
+    if not deleted:
+        raise HTTPException(status_code=404, detail="topic share link not found")
+    return {"status": "ok"}
 
 
 @router.delete("/shares/{share_id}")
