@@ -358,3 +358,48 @@ def test_download_unsatisfiable_range_returns_416(monkeypatch):
 
     assert response.status_code == 416
     assert response.headers["content-range"] == "bytes */100"
+
+
+def test_download_records_are_paginated_and_bulk_deletable(monkeypatch):
+    client, _, _ = make_client(monkeypatch)
+
+    class FakeDownloads:
+        def __init__(self):
+            self.deleted = []
+
+        def list_by_status(self, status, page=1, size=50):
+            return {
+                "items": [{
+                    "id": 7,
+                    "filename": "video.mp4",
+                    "status": status,
+                    "started_at": 1700000000,
+                    "completed_at": 1700000010 if status != "active" else None,
+                }],
+                "total": 1,
+                "page": page,
+                "size": size,
+            }
+
+        def bulk_delete(self, ids):
+            self.deleted.extend(ids)
+            return len(ids)
+
+    downloads = FakeDownloads()
+    monkeypatch.setattr("admin.api.download_service", downloads)
+
+    assert client.get("/api/admin/downloads").status_code == 401
+    client.post("/auth/login", json={"username": "admin", "password": "admin-pass"})
+
+    response = client.get("/api/admin/downloads?status=failed&page=2&size=50")
+    assert response.status_code == 200
+    assert response.json()["items"][0]["status"] == "failed"
+    assert response.json()["page"] == 2
+    assert response.json()["size"] == 50
+    assert client.get("/api/admin/downloads?status=unknown").status_code == 400
+    assert client.post("/api/admin/downloads/bulk-delete", json={"ids": [7, 7, 8]}).json() == {
+        "status": "ok",
+        "deleted": 2,
+    }
+    assert downloads.deleted == [7, 8]
+    assert client.delete("/api/admin/downloads/7").status_code == 405
