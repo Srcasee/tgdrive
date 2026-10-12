@@ -67,7 +67,7 @@
               >
                 <template #cell="{ record }">{{ formatDetailCell(item, record._detailValues?.[item.key] ?? record[item.key]) }}</template>
               </a-table-column>
-              <a-table-column title="来源账号" :width="180">
+              <a-table-column title="来源账号" :width="130">
                 <template #cell="{ record }">
                   <a-space wrap>
                     <a-tag v-for="account in sourceAccounts(record)" :key="account.id" size="small">
