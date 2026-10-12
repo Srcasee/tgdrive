@@ -15,6 +15,7 @@ from telegram.client import get_clients, refresh_clients
 from telegram.dialog_discovery import DialogDiscoveryService
 from telegram.runtime_events import initialize_runtime_events, wait_for_runtime_event
 from ingestion.service import IngestionService
+from repositories.downloads import DownloadRepository
 from ingestion.source_scan import SourceScanCoordinator
 from ingestion.scanner_manager import ScannerManager
 
@@ -25,6 +26,7 @@ RECONCILIATION_INTERVAL = 3600
 class ApplicationLifecycle:
     def __init__(self):
         self.scanner_task = None
+        self.download_cleanup_task = None
         self.authorized_accounts = set()
         self.telegram_enabled = False
 
@@ -47,6 +49,7 @@ class ApplicationLifecycle:
         open_pool()
         initialize()
         self._bootstrap_admin()
+        self.download_cleanup_task = asyncio.create_task(self._run_download_cleanup())
 
         if not self._telegram_configured():
             print("[TG] Telegram is not configured; Telegram runtime disabled", flush=True)
@@ -55,6 +58,19 @@ class ApplicationLifecycle:
         initialize_runtime_events()
         self.scanner_task = asyncio.create_task(self._run_scanners())
         print("[TG] Telegram runtime reconciliation started", flush=True)
+
+    async def _run_download_cleanup(self):
+        repository = DownloadRepository()
+        while True:
+            try:
+                deleted = await asyncio.to_thread(repository.cleanup_older_than, 30)
+                if deleted:
+                    print(f"[DOWNLOAD] cleaned up {deleted} records older than 30 days", flush=True)
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                print(f"[DOWNLOAD] record cleanup failed: {exc!r}", flush=True)
+            await asyncio.sleep(24 * 60 * 60)
 
     @staticmethod
     def _telegram_configured():
@@ -209,6 +225,13 @@ class ApplicationLifecycle:
             await asyncio.to_thread(self.source_repository.mark_idle, source["id"])
 
     async def shutdown(self):
+        if self.download_cleanup_task:
+            self.download_cleanup_task.cancel()
+            try:
+                await self.download_cleanup_task
+            except asyncio.CancelledError:
+                pass
+
         if self.scanner_task:
             self.scanner_task.cancel()
             try:
