@@ -1441,7 +1441,7 @@ export const systemMenu = [
   },
   {
     id: "25", parentId: "0", path: "/tgdrive/downloads", name: "tgdrive-downloads", component: "tgdrive/downloads/index",
-    meta: { title: "下载管理", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], icon: "icon-menu", sort: 25, type: 2 },
+    meta: { title: "下载记录", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], icon: "icon-menu", sort: 25, type: 2 },
     children: null
   },
 ];
