@@ -34,6 +34,14 @@
         </div>
         <a-divider margin="0" />
         <div class="resource-content">
+          <div v-if="batchSelectionEnabled" class="batch-toolbar">
+            <a-checkbox :model-value="currentPageAllSelected" :indeterminate="currentPageSomeSelected" @change="toggleCurrentPageSelection">选择当前页</a-checkbox>
+            <span>已选 {{ selectedResources.size }} 项 · {{ formatSize(selectedTotalSize) }}</span>
+            <a-button size="small" :disabled="selectedResources.size === 0 || batchRunning" @click="clearSelection">清空选择</a-button>
+            <a-button size="small" type="primary" :disabled="selectedResources.size === 0 || batchRunning" @click="startBatchDownload">批量下载（并发 8）</a-button>
+            <a-button v-if="batchRunning" size="small" status="warning" @click="stopBatchDownload">停止后续任务</a-button>
+            <span v-if="batchStatus" class="batch-status">{{ batchStatus }}</span>
+          </div>
           <a-table
             :data="rows"
             :loading="loading"
@@ -45,6 +53,11 @@
             @page-size-change="onPageSizeChange"
           >
             <template #columns>
+              <a-table-column v-if="batchSelectionEnabled" title="选择" :width="72" align="center">
+                <template #cell="{ record }">
+                  <a-checkbox :model-value="selectedResources.has(String(record.id))" :disabled="batchRunning" @change="(checked: boolean) => toggleResourceSelection(record, checked)" />
+                </template>
+              </a-table-column>
               <a-table-column title="操作" :width="180">
                 <template #cell="{ record }">
                   <a-space>
@@ -162,6 +175,14 @@ const treeData = ref<TreeNode[]>([]);
 const selectedTreeKeys = ref<string[]>([]);
 const breadcrumb = ref<TreeNode[]>([]);
 const detailOpen = ref(false);
+const selectedResources = ref(new Map<string, any>());
+const batchSelectionEnabled = computed(() => accountId.value != null && chatId.value != null);
+const currentPageAllSelected = computed(() => rows.value.length > 0 && rows.value.every((record: any) => selectedResources.value.has(String(record.id))));
+const currentPageSomeSelected = computed(() => rows.value.some((record: any) => selectedResources.value.has(String(record.id))) && !currentPageAllSelected.value);
+const selectedTotalSize = computed(() => [...selectedResources.value.values()].reduce((total: number, record: any) => total + (Number(record.size) || 0), 0));
+const batchRunning = ref(false);
+const batchStopRequested = ref(false);
+const batchStatus = ref("");
 // Manual category assignment state is disabled; retained as comments.
 // const categoryOpen = ref(false);
 // const currentId = ref<number>();
@@ -285,6 +306,8 @@ const onSearch = () => {
 const onTreeSelect = (keys: string[]) => {
   const key = keys?.[0];
   if (!key) return;
+  clearSelection();
+  batchStatus.value = "";
   selectedTreeKeys.value = [key];
   breadcrumb.value = findPath(treeData.value, key) || [];
   const selected = breadcrumb.value[breadcrumb.value.length - 1];
@@ -295,6 +318,8 @@ const onTreeSelect = (keys: string[]) => {
   load();
 };
 const resetTreeSelection = () => {
+  clearSelection();
+  batchStatus.value = "";
   selectedTreeKeys.value = [];
   breadcrumb.value = [];
   accountId.value = undefined;
@@ -303,7 +328,30 @@ const resetTreeSelection = () => {
   pagination.value.current = 1;
   load();
 };
-const downloadResource = (record: any) => {
+const toggleResourceSelection = (record: any, checked: boolean) => {
+  const next = new Map(selectedResources.value);
+  const id = String(record.id);
+  if (checked) next.set(id, record);
+  else next.delete(id);
+  selectedResources.value = next;
+};
+const toggleCurrentPageSelection = (checked: boolean) => {
+  const next = new Map(selectedResources.value);
+  for (const record of rows.value) {
+    const id = String(record.id);
+    if (checked) next.set(id, record);
+    else next.delete(id);
+  }
+  selectedResources.value = next;
+};
+const clearSelection = () => { selectedResources.value = new Map(); };
+const formatSize = (bytes: number) => {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  return (bytes / 1024 ** index).toFixed(index === 0 ? 0 : 1) + " " + units[index];
+};
+const triggerDownload = (record: any) => {
   const link = document.createElement("a");
   link.href = `/resources/${encodeURIComponent(String(record.id))}/download`;
   link.download = record.filename || "";
@@ -311,6 +359,45 @@ const downloadResource = (record: any) => {
   link.click();
   link.remove();
 };
+const startBatchDownload = async () => {
+  const queue = [...selectedResources.value.values()];
+  if (!queue.length || batchRunning.value) return;
+  batchRunning.value = true;
+  batchStopRequested.value = false;
+  let started = 0;
+  let nextIndex = 0;
+  batchStatus.value = "准备发起 " + queue.length + " 项下载";
+  const worker = async () => {
+    while (!batchStopRequested.value) {
+      const index = nextIndex++;
+      if (index >= queue.length) return;
+      const record = queue[index];
+      try {
+        triggerDownload(record);
+        started += 1;
+      } catch {
+        batchStatus.value = "发起下载时遇到错误（已发起 " + started + "/" + queue.length + " 项）";
+      }
+      batchStatus.value = "已发起 " + started + "/" + queue.length + " 项" + (batchStopRequested.value ? "，正在停止" : "");
+      // Keep at most eight queue workers active and pace browser download prompts.
+      await new Promise(resolve => window.setTimeout(resolve, 250));
+    }
+  };
+  try {
+    await Promise.all(Array.from({ length: Math.min(8, queue.length) }, () => worker()));
+    batchStatus.value = batchStopRequested.value
+      ? "已停止后续任务，已发起 " + started + "/" + queue.length + " 项"
+      : "已发起全部 " + started + " 项下载；实际完成状态由浏览器下载管理器确认";
+  } finally {
+    batchRunning.value = false;
+    batchStopRequested.value = false;
+  }
+};
+const stopBatchDownload = () => {
+  batchStopRequested.value = true;
+  batchStatus.value = "正在停止后续任务…";
+};
+const downloadResource = (record: any) => triggerDownload(record);
 
 const share = async (record: any) => {
   await createShareAPI(record.id);
