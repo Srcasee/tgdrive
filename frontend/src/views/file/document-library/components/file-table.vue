@@ -88,8 +88,13 @@ const total = ref(0);
 const scope = ref<{ account_id?: number; chat_id?: number; topic_id?: number }>({});
 const isAdmin = computed(() => {
   try {
-    const user = JSON.parse(localStorage.getItem("user-info") || "{}");
-    return user?.role === "admin" || user?.user?.role === "admin";
+    const userInfo = JSON.parse(localStorage.getItem("user-info") || "{}");
+    return (
+      userInfo?.account?.roles?.includes("admin") ||
+      userInfo?.account?.user?.role === "admin" ||
+      userInfo?.role === "admin" ||
+      userInfo?.user?.role === "admin"
+    );
   } catch {
     return false;
   }
