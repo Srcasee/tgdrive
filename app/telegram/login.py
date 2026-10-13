@@ -8,11 +8,11 @@ from pathlib import Path
 from telethon import TelegramClient, errors
 
 from database_pool import close_pool, initialize, open_pool
-from plugins.runtime import PluginRuntime
 from repositories.accounts import AccountRepository
 from config import settings, validate_telegram_credentials
 from telegram import client as telegram_client
 from telegram.runtime_events import notify_dialog_refresh
+from telegram.proxy_config import get_telegram_proxy
 
 
 _ACCOUNT_NAME_RE = re.compile(r"^[A-Za-z0-9._-]{1,80}$")
@@ -23,7 +23,6 @@ class LoginService:
         self._sessions = {}
         self._lock = asyncio.Lock()
         self._accounts = AccountRepository()
-        self._plugins = PluginRuntime()
 
     def _session_path(self, login_name: str) -> Path:
         if not _ACCOUNT_NAME_RE.fullmatch(login_name) or login_name in {".", ".."}:
@@ -59,8 +58,7 @@ class LoginService:
 
         async with self._lock:
             login_id = uuid.uuid4().hex
-            proxy_plugin = self._plugins.get_capability("telegram.proxy")
-            proxy = proxy_plugin.get_proxy(login_name) if proxy_plugin else None
+            proxy = get_telegram_proxy()
             client = TelegramClient(
                 str(session_path),
                 settings.TG_API_ID,
@@ -199,9 +197,7 @@ async def main():
     try:
         initialize()
 
-        plugin_runtime = PluginRuntime()
-        proxy_plugin = plugin_runtime.get_capability("telegram.proxy")
-        proxy = proxy_plugin.get_proxy(args.account) if proxy_plugin else None
+        proxy = get_telegram_proxy()
 
         client = TelegramClient(session, api_id, api_hash, proxy=proxy)
 
