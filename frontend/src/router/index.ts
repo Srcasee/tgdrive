@@ -1,3 +1,4 @@
+import { HOME_PATH } from "@/config/index";
 import NProgress from "@/config/nprogress";
 import pinia from "@/store/index";
 import { createRouter, createWebHashHistory, createWebHistory } from "vue-router";
@@ -56,7 +57,7 @@ router.beforeEach(async (to: any, _: any, next: any) => {
   if (to.path === "/login") {
     // 项目内的跳转，处理跳转路由高亮
     currentlyRoute(to);
-    return next("/home");
+    return next(HOME_PATH);
   }
 
   // 3、去非登录页，有token，路由树是否存在，有则放行，否则重新获取路由信息、初始化路由
