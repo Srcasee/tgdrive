@@ -281,7 +281,7 @@ docker compose up -d --build
 pytest -q
 ```
 
-GitHub Actions validates PostgreSQL integration, supported Python versions, the full test suite and deployment/Compose configuration. Separate publishing workflows build and push the Core and optional proxy images to GHCR. Recent feature work has focused on Telegram Source lifecycle and administrator management; download optimization is intentionally being treated as a separate measurement-driven phase.
+GitHub Actions validates PostgreSQL integration, supported Python versions, the full test suite, deployment/Compose configuration, and both image build paths. A separate publishing workflow builds and pushes only the optional proxy image to GHCR. Recent feature work has focused on Telegram Source lifecycle and administrator management; download optimization is intentionally being treated as a separate measurement-driven phase.
 
 ## Current project status
 
