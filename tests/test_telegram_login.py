@@ -23,17 +23,6 @@ class FakeClient:
         self.disconnected = True
 
 
-class FakePlugin:
-    def get_proxy(self, account):
-        return {"proxy_type": "socks5", "addr": "proxy", "port": 1080}
-
-
-class FakeRuntime:
-    def get_capability(self, capability):
-        assert capability == "telegram.proxy"
-        return FakePlugin()
-
-
 class FakeAccounts:
     def __init__(self):
         self.calls = []
@@ -56,7 +45,7 @@ def test_login_initializes_and_closes_database_pool(monkeypatch, tmp_path):
     monkeypatch.setattr(login, "open_pool", lambda: events.append("open"))
     monkeypatch.setattr(login, "initialize", lambda: events.append("initialize"))
     monkeypatch.setattr(login, "close_pool", lambda: events.append("close"))
-    monkeypatch.setattr(login, "PluginRuntime", FakeRuntime)
+    monkeypatch.setattr(login, "get_telegram_proxy", lambda: {"proxy_type": "socks5", "addr": "proxy", "port": 1080})
     monkeypatch.setattr(login, "TelegramClient", FakeClient)
     monkeypatch.setattr(login, "AccountRepository", lambda: accounts)
 
