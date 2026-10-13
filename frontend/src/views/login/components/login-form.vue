@@ -39,6 +39,7 @@
 
 <script setup lang="ts">
 import { useRouter } from "vue-router";
+import { HOME_PATH } from "@/config/index";
 import { useUserInfoStore } from "@/store/modules/user-info";
 import { loginAPI } from "@/api/modules/user/index";
 import { useRouteConfigStore } from "@/store/modules/route-config";
@@ -103,7 +104,7 @@ const onLogin = async () => {
 
   arcoMessage("success", "登录成功");
   // 跳转首页
-  router.replace("/home");
+  router.replace(HOME_PATH);
   // 设置字典
   useSystemStore().setDictData();
 };
