@@ -3,44 +3,6 @@ import os
 import subprocess
 from pathlib import Path
 
-
-class ProxyPlugin:
-    name = "proxy"
-    version = "0.6.1"
-    capabilities = frozenset({"telegram.proxy"})
-
-    @staticmethod
-    def _enabled():
-        return os.getenv("TG_PROXY_ENABLED", "false").strip().lower() == "true"
-
-    def get_proxy(self, account_name=None):
-        if not self._enabled():
-            return None
-        proxy_type = os.getenv("TG_PROXY_TYPE", "socks5").strip().lower()
-        if proxy_type not in {"socks5", "http"}:
-            raise RuntimeError("TG_PROXY_TYPE must be socks5 or http")
-        host = os.getenv("TG_PROXY_HOST", "proxy").strip()
-        if not host:
-            raise RuntimeError("TG_PROXY_HOST is required when proxy is enabled")
-        try:
-            port = int(os.getenv("TG_PROXY_PORT", "1080"))
-        except ValueError as exc:
-            raise RuntimeError("TG_PROXY_PORT must be an integer") from exc
-        if not 1 <= port <= 65535:
-            raise RuntimeError("TG_PROXY_PORT must be between 1 and 65535")
-        # Telethon expects the proxy_type/addr naming used by python-socks.
-        # The previous type/host form was passed as keyword arguments to
-        # Telethon's _parse_proxy() and fails with an unexpected-keyword error.
-        return {
-            "proxy_type": proxy_type,
-            "addr": host,
-            "port": port,
-            "rdns": True,
-            "username": os.getenv("TG_PROXY_USERNAME") or None,
-            "password": os.getenv("TG_PROXY_PASSWORD") or None,
-        }
-
-
 def _upstream():
     kind = os.getenv("TG_PROXY_UPSTREAM_TYPE", "vless").lower()
     if kind == "vless":
