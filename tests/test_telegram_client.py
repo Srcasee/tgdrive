@@ -1,11 +1,6 @@
 import telegram.client as telegram_client
 
 
-class FakePluginRuntime:
-    def get_capability(self, capability):
-        return None
-
-
 class FakeTelegramClient:
     def __init__(self, session, api_id, api_hash, proxy=None):
         self.session = session
@@ -27,7 +22,7 @@ def test_client_refresh_only_loads_enabled_sessions(monkeypatch, tmp_path):
     monkeypatch.setattr(telegram_client.settings, "TG_API_ID", 1)
     monkeypatch.setattr(telegram_client.settings, "TG_API_HASH", "hash")
     monkeypatch.setattr(telegram_client, "validate_telegram_credentials", lambda: None)
-    monkeypatch.setattr(telegram_client, "plugin_runtime", FakePluginRuntime())
+    monkeypatch.setattr(telegram_client, "get_telegram_proxy", lambda: None)
     monkeypatch.setattr(telegram_client, "TelegramClient", FakeTelegramClient)
     telegram_client.clients.clear()
 
