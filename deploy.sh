@@ -14,8 +14,7 @@ echo "[DEPLOY] step 1/7: checking Docker prerequisites"
 command -v docker >/dev/null 2>&1 || { echo "[DEPLOY] docker is required" >&2; exit 1; }
 docker compose version >/dev/null 2>&1 || { echo "[DEPLOY] docker compose plugin is required" >&2; exit 1; }
 
-echo "[DEPLOY] step 2/7: building Core image locally from source"
-docker compose build tgdrive
+echo "[DEPLOY] step 2/7: preparing local source build"
 
 echo "[DEPLOY] step 3/7: preparing persistent directories"
 mkdir -p data/accounts data/postgres
@@ -101,7 +100,9 @@ else
     echo "[DEPLOY] step 4/7: using existing .env"
 fi
 
-echo "[DEPLOY] step 5/7: validating Compose configuration"
+echo "[DEPLOY] step 5/7: building Core image locally from source"
+docker compose build tgdrive
+echo "[DEPLOY] validating Compose configuration"
 docker compose config >/dev/null
 
 echo "[DEPLOY] step 6/7: starting Core + PostgreSQL"
