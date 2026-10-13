@@ -1,10 +1,9 @@
 #!/bin/sh
 set -eu
 
-# One-command bootstrap for a development host.
-# Build the Core image locally from the checked-out source. After verifying the
-# image and containers, source files may be removed manually; rebuilding then
-# requires restoring the source tree.
+# One-command bootstrap for a fresh Docker host.
+# This script prepares the application and starts Core + PostgreSQL.
+# Telegram accounts and proxy credentials are deliberately configured separately.
 # Existing .env is preserved; set environment variables for non-interactive use.
 
 ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
@@ -14,7 +13,18 @@ echo "[DEPLOY] step 1/7: checking Docker prerequisites"
 command -v docker >/dev/null 2>&1 || { echo "[DEPLOY] docker is required" >&2; exit 1; }
 docker compose version >/dev/null 2>&1 || { echo "[DEPLOY] docker compose plugin is required" >&2; exit 1; }
 
-echo "[DEPLOY] step 2/7: preparing local source build"
+echo "[DEPLOY] step 2/7: building Core"
+if docker buildx version >/dev/null 2>&1; then
+    echo "[DEPLOY] building Core image without a CPU quota"
+    BUILDX_NO_DEFAULT_ATTESTATIONS=1 docker buildx build \
+        --load \
+        --provenance=false \
+        -t tgdrive:laster \
+        -f Dockerfile .
+else
+    echo "[DEPLOY] Buildx unavailable; using Compose build without a CPU quota"
+    docker compose build tgdrive
+fi
 
 echo "[DEPLOY] step 3/7: preparing persistent directories"
 mkdir -p data/accounts data/postgres
@@ -24,7 +34,7 @@ if [ ! -f .env ]; then
     API_ID=${TG_API_ID:-}
     API_HASH=${TG_API_HASH:-}
     ADMIN_USER=${ADMIN_USERNAME:-admin}
-    ADMIN_PASS=${ADMIN_PASSWORD:-}
+    ADMIN_PASS=${ADMIN_PASSWORD:-$(openssl rand -hex 8)}
 
     if [ -z "$API_ID" ]; then
         printf "TG_API_ID: "
@@ -35,18 +45,11 @@ if [ ! -f .env ]; then
         read -r API_HASH
     fi
     if [ -z "$ADMIN_PASS" ]; then
-        command -v openssl >/dev/null 2>&1 || { echo "[DEPLOY] openssl is required to generate secrets" >&2; exit 1; }
-        if [ -t 0 ]; then
-            printf "ADMIN_PASSWORD (leave blank to generate securely): "
-            stty -echo
-            read -r ADMIN_PASS
-            stty echo
-            printf "\n"
-        fi
-        if [ -z "$ADMIN_PASS" ]; then
-            ADMIN_PASS=$(openssl rand -hex 16)
-            echo "[DEPLOY] generated an administrator password; save it securely: $ADMIN_PASS"
-        fi
+        printf "ADMIN_PASSWORD: "
+        stty -echo
+        read -r ADMIN_PASS
+        stty echo
+        printf "\n"
     fi
 
     if [ -z "$API_ID" ] || [ -z "$API_HASH" ] || [ -z "$ADMIN_PASS" ]; then
@@ -100,49 +103,18 @@ else
     echo "[DEPLOY] step 4/7: using existing .env"
 fi
 
-echo "[DEPLOY] step 5/7: building Core image locally from source"
-docker compose build tgdrive
-echo "[DEPLOY] validating Compose configuration"
+echo "[DEPLOY] step 5/7: validating Compose configuration"
 docker compose config >/dev/null
 
 echo "[DEPLOY] step 6/7: starting Core + PostgreSQL"
 docker compose up -d postgres tgdrive
-echo "[DEPLOY] waiting for PostgreSQL and Core startup"
-i=0
-until [ "$i" -ge 30 ]; do
-    if docker compose exec -T postgres pg_isready -U tgdrive -d tgdrive >/dev/null 2>&1; then
-        break
-    fi
-    i=$((i + 1))
-    sleep 2
-done
-if [ "$i" -ge 30 ]; then
-    echo "[DEPLOY] PostgreSQL did not become ready; inspect: docker compose logs postgres" >&2
-    exit 1
-fi
-
-echo "[DEPLOY] waiting for Core HTTP health check"
-i=0
-until [ "$i" -ge 45 ]; do
-    if docker compose exec -T tgdrive python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/', timeout=3)" >/dev/null 2>&1; then
-        break
-    fi
-    i=$((i + 1))
-    sleep 2
-done
-if [ "$i" -ge 45 ]; then
-    echo "[DEPLOY] Core did not become ready; inspect: docker compose logs --tail=100 tgdrive" >&2
-    exit 1
-fi
+sleep 5
 docker compose ps
 
 echo "[DEPLOY] step 7/7: base bootstrap complete"
 echo "[DEPLOY] NEXT 1/3: configure Proxy BEFORE Telegram login when proxy is required"
 echo "[DEPLOY]   edit .env: TG_PROXY_ENABLED=true and configure TG_PROXY_* values"
-echo "[DEPLOY]   then run: docker compose --profile proxy up -d (pulls the published proxy image)"
-echo "[DEPLOY] NEXT 2/3: Telegram login: ./login-account.sh <account_name> <phone> (while this checkout is present)"
+echo "[DEPLOY]   then run: docker compose --profile proxy up -d --build (pulls the published proxy image)"
+echo "[DEPLOY] NEXT 2/3: Telegram login: ./login-account.sh <account_name> <phone>"
 echo "[DEPLOY] NEXT 3/3: configure Telegram Source in Web admin (enable an account to discover dialogs, then select the exact chat ID)"
 echo "[DEPLOY] Verify: docker compose ps && docker compose logs --tail=100 tgdrive"
-echo "[DEPLOY] After confirming the local image works, you may manually remove source files."
-echo "[DEPLOY] Keep data/, .env and docker-compose.yml. The local image remains on this Docker host."
-echo "[DEPLOY] IMPORTANT: rebuilding after deleting source requires restoring app/, frontend/, requirements.txt and Dockerfile."
