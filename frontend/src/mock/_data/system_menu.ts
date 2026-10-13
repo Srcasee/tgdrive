@@ -73,7 +73,7 @@ export const systemMenu = [
       isFull: false,
       roles: ["admin"],
       svgIcon: "classify",
-      sort: 6,
+      sort: 90,
       type: 1
     },
     children: null
@@ -94,7 +94,7 @@ export const systemMenu = [
       iframe: false,
       isFull: false,
       roles: ["admin"],
-      icon: "icon-menu",
+      icon: "icon-play-circle",
       sort: 1,
       type: 2
     },
@@ -122,8 +122,8 @@ export const systemMenu = [
       iframe: false,
       isFull: false,
       roles: ["admin"],
-      icon: "icon-menu",
-      sort: 8,
+      icon: "icon-fingerprint",
+      sort: 2,
       type: 2
     },
     children: null
@@ -160,7 +160,7 @@ export const systemMenu = [
       isFull: false,
       roles: ["admin", "common"],
       svgIcon: "set",
-      sort: 10,
+      sort: 91,
       type: 1
     },
     children: null
@@ -182,8 +182,8 @@ export const systemMenu = [
       iframe: false,
       isFull: false,
       roles: ["admin"],
-      icon: "icon-menu",
-      sort: 2,
+      icon: "icon-user-group",
+      sort: 1,
       type: 2
     },
     children: null
@@ -205,35 +205,13 @@ export const systemMenu = [
       isFull: false,
       roles: ["admin"],
       icon: "icon-menu",
-      sort: 3,
+      sort: 2,
       type: 2
     },
     children: null
   },
   
   
-  {
-    id: "1006",
-    parentId: "10",
-    path: "/system/log",
-    name: "log",
-    component: "system/log/log",
-    meta: {
-      title: "log",
-      hide: true,
-      disable: false,
-      keepAlive: true,
-      affix: false,
-      link: "",
-      iframe: false,
-      isFull: false,
-      roles: ["admin"],
-      icon: "icon-menu",
-      sort: 6,
-      type: 2
-    },
-    children: null
-  },
   {
     id: "1007",
     parentId: "10",
@@ -250,52 +228,8 @@ export const systemMenu = [
       iframe: false,
       isFull: false,
       roles: ["admin", "common"],
-      icon: "icon-menu",
-      sort: 7,
-      type: 2
-    },
-    children: null
-  },
-  {
-    id: "11",
-    parentId: "0",
-    path: "/disable-menu",
-    name: "disable-menu",
-    component: "disable-menu/disable-menu",
-    meta: {
-      title: "disable-menu",
-      hide: false,
-      disable: true,
-      keepAlive: true,
-      affix: false,
-      link: "",
-      iframe: false,
-      isFull: false,
-      roles: ["admin"],
-      svgIcon: "switch",
-      sort: 11,
-      type: 2
-    },
-    children: null
-  },
-  {
-    id: "12",
-    parentId: "0",
-    path: "/hide-menu",
-    name: "hide-menu",
-    component: "hide-menu/hide-menu",
-    meta: {
-      title: "hide-menu",
-      hide: true,
-      disable: false,
-      keepAlive: true,
-      affix: false,
-      link: "",
-      iframe: false,
-      isFull: false,
-      roles: ["admin"],
-      svgIcon: "switch",
-      sort: 12,
+      icon: "icon-user",
+      sort: 3,
       type: 2
     },
     children: null
@@ -338,39 +272,39 @@ export const systemMenu = [
       isFull: false,
       roles: ["admin", "common"],
       svgIcon: "about",
-      sort: 18,
+      sort: 92,
       type: 2
     },
     children: null
   },
   {
     id: "19", parentId: "0", path: "/tgdrive/dashboard", name: "tgdrive-dashboard", component: "tgdrive/dashboard/index",
-    meta: { title: "TGDrive 概览", hide: false, disable: false, keepAlive: true, affix: true, link: "", iframe: false, isFull: false, roles: ["admin", "common"], icon: "icon-menu", sort: 19, type: 2 },
+    meta: { title: "TGDrive 概览", hide: false, disable: false, keepAlive: true, affix: true, link: "", iframe: false, isFull: false, roles: ["admin", "common"], icon: "icon-dashboard", sort: 1, type: 2 },
     children: null
   },
   {
     id: "20", parentId: "0", path: "/tgdrive/telegram/accounts", name: "tgdrive-accounts", component: "tgdrive/telegram/accounts",
-    meta: { title: "账号管理", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], icon: "icon-menu", sort: 20, type: 2 },
+    meta: { title: "账号管理", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], icon: "icon-user", sort: 2, type: 2 },
     children: null
   },
   {
     id: "21", parentId: "0", path: "/tgdrive/telegram/dialogs", name: "tgdrive-dialogs", component: "tgdrive/telegram/dialogs",
-    meta: { title: "群组/频道管理", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], icon: "icon-menu", sort: 21, type: 2 },
+    meta: { title: "群组/频道管理", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], icon: "icon-user-group", sort: 3, type: 2 },
     children: null
   },
   {
     id: "23", parentId: "0", path: "/tgdrive/resources/files", name: "tgdrive-resources", component: "tgdrive/resources/files",
-    meta: { title: "资源文件", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], icon: "icon-menu", sort: 23, type: 2 },
+    meta: { title: "资源文件", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], icon: "icon-folder", sort: 4, type: 2 },
     children: null
   },
   {
     id: "24", parentId: "0", path: "/tgdrive/resources/categories", name: "tgdrive-categories", component: "tgdrive/resources/categories",
-    meta: { title: "资源分类", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], icon: "icon-menu", sort: 24, type: 2 },
+    meta: { title: "资源分类", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], icon: "icon-tags", sort: 5, type: 2 },
     children: null
   },
   {
     id: "25", parentId: "0", path: "/tgdrive/downloads", name: "tgdrive-downloads", component: "tgdrive/downloads/index",
-    meta: { title: "下载记录", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], icon: "icon-menu", sort: 25, type: 2 },
+    meta: { title: "下载记录", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], icon: "icon-download", sort: 6, type: 2 },
     children: null
   },
 ];
