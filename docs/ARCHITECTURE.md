@@ -94,6 +94,7 @@ app/
 │   ├── client.py
 │   ├── login.py
 │   ├── scanner.py
+│   ├── proxy_config.py            # optional Core-side Telethon proxy settings
 │   └── api.py
 ├── ingestion/                    # recognition / normalization / identity
 │   ├── recognizer.py
@@ -124,7 +125,6 @@ app/
 │   └── shares.py
 ├── admin/                        # administrator HTTP adapter
 ├── web/                          # browser UI
-├── telegram/proxy_config.py     # optional Core-side Telethon proxy settings
 ├── config.py
 ├── database.py
 └── database_pool.py
