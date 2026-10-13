@@ -5,8 +5,8 @@ FROM python:3.12-slim
 ARG TARGETARCH=amd64
 
 COPY bin/sing-box-linux-${TARGETARCH} /usr/local/bin/sing-box
-COPY plugin.py /opt/tgdrive-proxy/plugin.py
+COPY server.py /opt/tgdrive-proxy/server.py
 
 RUN chmod 0755 /usr/local/bin/sing-box
 
-ENTRYPOINT ["python", "/opt/tgdrive-proxy/plugin.py"]
+ENTRYPOINT ["python", "/opt/tgdrive-proxy/server.py"]
