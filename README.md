@@ -39,6 +39,8 @@ chmod +x deploy.sh
 
 `deploy.sh` performs the base infrastructure bootstrap only: Docker checks, persistent directories, `.env`, secrets, Compose validation, Core image pull, and PostgreSQL + Core startup. It does **not** log in Telegram and does **not** enable the optional proxy.
 
+Core and proxy images are published to GitHub Container Registry by the repository workflows. Before first deployment, make the `tgdrive` package public or authenticate Docker to GHCR; the proxy package can remain unused unless you enable the proxy profile.
+
 ### Fresh server deployment
 
 The complete recommended flow is:
