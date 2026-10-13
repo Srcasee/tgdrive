@@ -2,8 +2,8 @@
 set -eu
 
 # One-command bootstrap for a fresh Docker host.
-# This script prepares the application and starts Core + PostgreSQL.
-# Telegram accounts and proxy credentials are deliberately configured separately.
+# The Core image is published by GitHub Actions; production hosts do not need
+# the application source tree after this script has completed.
 # Existing .env is preserved; set environment variables for non-interactive use.
 
 ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
@@ -13,17 +13,11 @@ echo "[DEPLOY] step 1/7: checking Docker prerequisites"
 command -v docker >/dev/null 2>&1 || { echo "[DEPLOY] docker is required" >&2; exit 1; }
 docker compose version >/dev/null 2>&1 || { echo "[DEPLOY] docker compose plugin is required" >&2; exit 1; }
 
-echo "[DEPLOY] step 2/7: building Core"
-if docker buildx version >/dev/null 2>&1; then
-    echo "[DEPLOY] building Core image without a CPU quota"
-    BUILDX_NO_DEFAULT_ATTESTATIONS=1 docker buildx build \
-        --load \
-        --provenance=false \
-        -t tgdrive:laster \
-        -f Dockerfile .
-else
-    echo "[DEPLOY] Buildx unavailable; using Compose build without a CPU quota"
-    docker compose build tgdrive
+echo "[DEPLOY] step 2/7: pulling the published Core image"
+if ! docker pull ghcr.io/srcasee/tgdrive:latest; then
+    echo "[DEPLOY] failed to pull ghcr.io/srcasee/tgdrive:latest" >&2
+    echo "[DEPLOY] ensure the GitHub Actions image-publish workflow has succeeded and the GHCR package is public (or run docker login ghcr.io)" >&2
+    exit 1
 fi
 
 echo "[DEPLOY] step 3/7: preparing persistent directories"
@@ -34,7 +28,7 @@ if [ ! -f .env ]; then
     API_ID=${TG_API_ID:-}
     API_HASH=${TG_API_HASH:-}
     ADMIN_USER=${ADMIN_USERNAME:-admin}
-    ADMIN_PASS=${ADMIN_PASSWORD:-$(openssl rand -hex 8)}
+    ADMIN_PASS=${ADMIN_PASSWORD:-}
 
     if [ -z "$API_ID" ]; then
         printf "TG_API_ID: "
@@ -45,11 +39,16 @@ if [ ! -f .env ]; then
         read -r API_HASH
     fi
     if [ -z "$ADMIN_PASS" ]; then
-        printf "ADMIN_PASSWORD: "
+        printf "ADMIN_PASSWORD (leave blank to generate securely): "
         stty -echo
         read -r ADMIN_PASS
         stty echo
         printf "\n"
+        if [ -z "$ADMIN_PASS" ]; then
+            command -v openssl >/dev/null 2>&1 || { echo "[DEPLOY] openssl is required to generate secrets" >&2; exit 1; }
+            ADMIN_PASS=$(openssl rand -hex 16)
+            echo "[DEPLOY] generated an administrator password; save it securely: $ADMIN_PASS"
+        fi
     fi
 
     if [ -z "$API_ID" ] || [ -z "$API_HASH" ] || [ -z "$ADMIN_PASS" ]; then
@@ -108,13 +107,26 @@ docker compose config >/dev/null
 
 echo "[DEPLOY] step 6/7: starting Core + PostgreSQL"
 docker compose up -d postgres tgdrive
-sleep 5
+echo "[DEPLOY] waiting for PostgreSQL and Core startup"
+i=0
+until [ "$i" -ge 30 ]; do
+    if docker compose exec -T postgres pg_isready -U tgdrive -d tgdrive >/dev/null 2>&1; then
+        break
+    fi
+    i=$((i + 1))
+    sleep 2
+done
+if [ "$i" -ge 30 ]; then
+    echo "[DEPLOY] PostgreSQL did not become ready; inspect: docker compose logs postgres" >&2
+    exit 1
+fi
 docker compose ps
 
 echo "[DEPLOY] step 7/7: base bootstrap complete"
 echo "[DEPLOY] NEXT 1/3: configure Proxy BEFORE Telegram login when proxy is required"
 echo "[DEPLOY]   edit .env: TG_PROXY_ENABLED=true and configure TG_PROXY_* values"
-echo "[DEPLOY]   then run: docker compose --profile proxy up -d --build (pulls the published proxy image)"
-echo "[DEPLOY] NEXT 2/3: Telegram login: ./login-account.sh <account_name> <phone>"
+echo "[DEPLOY]   then run: docker compose --profile proxy up -d (pulls the published proxy image)"
+echo "[DEPLOY] NEXT 2/3: Telegram login: ./login-account.sh <account_name> <phone> (while this checkout is present)"
 echo "[DEPLOY] NEXT 3/3: configure Telegram Source in Web admin (enable an account to discover dialogs, then select the exact chat ID)"
 echo "[DEPLOY] Verify: docker compose ps && docker compose logs --tail=100 tgdrive"
+echo "[DEPLOY] Once setup is complete, runtime needs only data/, .env and docker-compose.yml; keep deploy/login scripts elsewhere if desired."
