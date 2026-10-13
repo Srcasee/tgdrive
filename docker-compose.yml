@@ -17,10 +17,7 @@ services:
       - telegram-net
 
   tgdrive:
-    image: tgdrive:laster
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ${TGDRIVE_IMAGE:-ghcr.io/srcasee/tgdrive:latest}
     restart: unless-stopped
     working_dir: /app
     volumes:
@@ -43,7 +40,7 @@ services:
         max-file: "3"
 
   telegram-login:
-    image: tgdrive:laster
+    image: ${TGDRIVE_IMAGE:-ghcr.io/srcasee/tgdrive:latest}
     working_dir: /app
     volumes:
       - ./data:/data
