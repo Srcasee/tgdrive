@@ -2,9 +2,9 @@
   <div class="snow-page">
     <a-card title="简介">
       <div>
-        <p>SnowAdmin 一款基于 Vue、TypeScript、Vite7、Pinia、Arco.Design开源的后台管理框架，使用目前最新技术栈开发。</p>
-        <p>融合了全新的UI框架，高度可自定义的主题功能使得用户可以根据自身需求轻松定制界面。</p>
-        <p>代码全注释，可提供参考和学习。</p>
+        <p>TGDrive 是面向 Telegram 的文件目录与分发系统，支持账号管理、频道资源整理、分类和下载任务管理。</p>
+        <p>通过统一的资源目录管理 Telegram 中的文件，并提供资源分类和分发能力。</p>
+        <p>本项目持续围绕 Telegram 资源管理与交付场景迭代。</p>
       </div>
     </a-card>
     <a-card class="margin-top" title="项目信息">
@@ -34,23 +34,13 @@ const projectInfo: any = [
   {
     label: "项目名称",
     link: false,
-    value: "SnowAdmin"
+    value: "TGDrive"
   },
   {
     label: "GitHub",
     link: true,
-    value: "https://github.com/imwangfan/SnowAdmin"
+    value: "https://github.com/Srcasee/tgdrive"
   },
-  {
-    label: "文档地址",
-    link: true,
-    value: "http://124.223.224.174:91/"
-  },
-  {
-    label: "预览地址",
-    link: true,
-    value: "http://124.223.224.174/#/login"
-  }
 ];
 
 const dependencies = ref<any>([]);

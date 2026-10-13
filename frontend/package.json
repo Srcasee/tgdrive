@@ -16,7 +16,7 @@
   "scripts": {
     "dev": "vite",
     "build:dev": "vue-tsc && vite build --mode development",
-    "build:prod": "node build/fetch-snowadmin-assets.mjs && vue-tsc && vite build --mode production",
+    "build:prod": "vue-tsc && vite build --mode production",
     "build:test": "vue-tsc && vite build --mode test",
     "preview": "vite preview",
     "lint:eslint": "eslint --fix --ext .js,.ts,.vue ./src",
