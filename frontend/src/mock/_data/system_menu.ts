@@ -47,6 +47,74 @@ export const systemMenu = [
   // layout-二级路由(主要渲染页面)
 
   {
+    id: "06",
+    parentId: "0",
+    path: "/component",
+    name: "component",
+    redirect: "/component/player",
+    meta: {
+      title: "component",
+      hide: false,
+      disable: false,
+      keepAlive: true,
+      affix: false,
+      link: "",
+      iframe: false,
+      isFull: false,
+      roles: ["admin"],
+      svgIcon: "classify",
+      sort: 90,
+      type: 1
+    },
+    children: null
+  },
+  {
+    id: "0601",
+    parentId: "06",
+    path: "/component/player",
+    name: "player",
+    component: "component/player/player",
+    meta: {
+      title: "player",
+      hide: false,
+      disable: false,
+      keepAlive: true,
+      affix: false,
+      link: "",
+      iframe: false,
+      isFull: false,
+      roles: ["admin"],
+      svgIcon: "video",
+      sort: 1,
+      type: 2
+    },
+    children: null
+  },
+
+  {
+    id: "0608",
+    parentId: "06",
+    path: "/component/fingerprintjs2",
+    name: "fingerprintjs2",
+    component: "component/fingerprintjs2/fingerprintjs2",
+    meta: {
+      title: "fingerprintjs2",
+      hide: false,
+      disable: false,
+      keepAlive: true,
+      affix: false,
+      link: "",
+      iframe: false,
+      isFull: false,
+      roles: ["admin"],
+      svgIcon: "data-setting",
+      sort: 2,
+      type: 2
+    },
+    children: null
+  },
+
+  {
     id: "10",
     parentId: "0",
     path: "/system",
