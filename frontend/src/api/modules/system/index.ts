@@ -6,7 +6,6 @@ import axios from "@/api";
 // 菜单管理与动态路由共用同一份持久化配置，避免“管理页改了，但侧边栏仍使用旧 mock 数据”。
 // 从历史本地菜单配置中清理已移除的模板导航，避免旧缓存重新生成这些路由。
 const DELETED_NAVIGATION_PATHS = [
-  "/component",
   "/home",
   "/file",
   "/multilevel",
