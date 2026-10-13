@@ -131,7 +131,7 @@ app/
 
 plugins/proxy/
 ├── Dockerfile                   # independently published proxy image
-└── plugin.py                    # sing-box service entrypoint; not loaded by Core
+└── server.py                    # standalone sing-box service entrypoint; not loaded by Core
 ```
 
 The optional Video plugin is not part of the Core runtime or normal Compose service.
