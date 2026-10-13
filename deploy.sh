@@ -93,8 +93,18 @@ fi
 echo "[DEPLOY] step 4/7: validating Compose configuration"
 docker compose config >/dev/null
 
-echo "[DEPLOY] step 5/7: pulling the published Core image"
-docker compose pull tgdrive
+echo "[DEPLOY] step 5/7: building Core + PostgreSQL"
+if docker buildx version >/dev/null 2>&1; then
+    echo "[DEPLOY] building Core image without a CPU quota"
+    BUILDX_NO_DEFAULT_ATTESTATIONS=1 docker buildx build \
+        --load \
+        --provenance=false \
+        -t tgdrive:laster \
+        -f Dockerfile .
+else
+    echo "[DEPLOY] Buildx unavailable; using Compose build without a CPU quota"
+    docker compose build tgdrive
+fi
 
 echo "[DEPLOY] step 6/7: starting Core + PostgreSQL"
 docker compose up -d postgres tgdrive
