@@ -11,6 +11,8 @@ const include = [
   "@codemirror/lang-json",
   "@codemirror/theme-one-dark",
   "vue-codemirror6",
+  "qrcode",
+  "jsbarcode",
   "vuedraggable",
   "@wangeditor/editor",
   "print-js",
