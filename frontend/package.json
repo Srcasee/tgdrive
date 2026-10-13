@@ -1,22 +1,17 @@
 {
-  "name": "snow-admin",
+  "name": "tgdrive-frontend",
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "snow-admin open source management system",
-  "author": {
-    "name": "imwangfan",
-    "email": "2547096351@qq.com",
-    "url": "https://github.com/imwangfan"
-  },
+  "description": "TGDrive frontend application",
   "license": "MIT",
-  "homepage": "https://github.com/imwangfan/SnowAdmin",
+  "homepage": "https://github.com/Srcasee/tgdrive",
   "repository": {
     "type": "git",
-    "url": "https://github.com/imwangfan/SnowAdmin.git"
+    "url": "https://github.com/Srcasee/tgdrive.git"
   },
   "bugs": {
-    "url": "https://github.com/imwangfan/SnowAdmin/issues"
+    "url": "https://github.com/Srcasee/tgdrive/issues"
   },
   "scripts": {
     "dev": "vite",
