@@ -55,9 +55,12 @@ router.beforeEach(async (to: any, _: any, next: any) => {
 
   // 2、有token但去登录页 -> 重定向到首页
   if (to.path === "/login") {
-    // 项目内的跳转，处理跳转路由高亮
-    currentlyRoute(to);
-    return next(HOME_PATH);
+    // 先初始化动态路由，再跳转首页，避免首次登录时首页尚未注册而命中 404。
+    if (!routeTree.value.length) {
+      await store.setAccount();
+      await routeStore.initSetRouter();
+    }
+    return next({ path: HOME_PATH, replace: true });
   }
 
   // 3、去非登录页，有token，路由树是否存在，有则放行，否则重新获取路由信息、初始化路由
