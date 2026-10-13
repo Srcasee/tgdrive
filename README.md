@@ -37,7 +37,7 @@ chmod +x deploy.sh
 ./deploy.sh
 ```
 
-`deploy.sh` performs the base infrastructure bootstrap only: Docker checks, persistent directories, `.env`, secrets, Compose validation, Core build, and PostgreSQL + Core startup. It does **not** log in Telegram and does **not** enable the optional proxy.
+`deploy.sh` performs the base infrastructure bootstrap only: Docker checks, persistent directories, `.env`, secrets, Compose validation, Core image pull, and PostgreSQL + Core startup. It does **not** log in Telegram and does **not** enable the optional proxy.
 
 ### Fresh server deployment
 
@@ -76,7 +76,7 @@ Resources appear in the catalog / Source management
 
 #### 1. Base deployment
 
-Run `./deploy.sh` on a new Docker host. When `.env` does not exist, the script creates the required persistent directories, collects required credentials, generates deployment secrets, validates Compose, builds Core, initializes PostgreSQL and starts PostgreSQL + Core.
+Run `./deploy.sh` on a new Docker host. When `.env` does not exist, the script creates the required persistent directories, collects required credentials, generates deployment secrets, validates Compose, pulls the published Core image, initializes PostgreSQL and starts PostgreSQL + Core.
 
 Verify:
 
@@ -99,7 +99,7 @@ Direct Telegram connectivity is the default. **Proxy is optional and must be ena
 docker compose --profile proxy up -d --build
 ```
 
-The `proxy` profile uses `ghcr.io/srcasee/tgdrive-proxy:latest` and pulls it when invoked. Core does not mount or scan `plugins/proxy`; the same command remains the optional proxy startup path. After the first image is published, set the GHCR package visibility to **Public** if deployment hosts should pull it without `docker login`. Wait for the `proxy` health check to pass before starting a Telegram login.
+The `proxy` profile uses `ghcr.io/srcasee/tgdrive-proxy:latest` and pulls it when invoked. Core does not mount or scan `plugins/proxy`; the same command remains the optional proxy startup path. After the first images are published, set both GHCR packages (`tgdrive` and `tgdrive-proxy`) to **Public** if deployment hosts should pull them without `docker login`. Wait for the `proxy` health check to pass before starting a Telegram login.
 
 The proxy service is published as a separate GHCR image. Its image contains the pinned sing-box binary, so the deployment host does not build the proxy image or download sing-box during deployment.
 
@@ -275,7 +275,9 @@ Video chunk caching is outside the current Core delivery path. The optional Vide
 ```bash
 cp .env.example .env
 # fill required values
-docker compose up -d --build
+docker build -t tgdrive:laster .
+export TGDRIVE_IMAGE=tgdrive:laster
+docker compose up -d
 pytest -q
 ```
 
