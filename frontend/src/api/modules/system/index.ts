@@ -4,45 +4,57 @@ import axios from "@/api";
 
 // 获取菜单数据
 // 菜单管理与动态路由共用同一份持久化配置，避免“管理页改了，但侧边栏仍使用旧 mock 数据”。
-// 隐藏模板演示类导航入口，但保留路由定义和页面实现，避免影响现有底层功能。
-const HIDDEN_NAVIGATION_PATHS = new Set([
+// 从历史本地菜单配置中清理已移除的模板导航，避免旧缓存重新生成这些路由。
+const DELETED_NAVIGATION_PATHS = [
   "/home",
   "/file",
   "/multilevel",
   "/functions",
   "/permission",
   "/link",
-  "/system-monitor"
-]);
+  "/monitor",
+  "/component/print",
+  "/component/draggable",
+  "/component/editor",
+  "/component/newbie",
+  "/component/icon-selector",
+  "/component/user-center",
+  "/component/barcode",
+  "/component/qrcode",
+  "/component/pinyin",
+  "/component/recorder",
+  "/component/virtual-list",
+  "/component/common-layouts",
+  "/system/account",
+  "/system/division",
+  "/system/dictionary"
+];
 
-const hideNavigationEntries = (nodes: any[]): any[] =>
-  nodes.map(node => ({
-    ...node,
-    meta: HIDDEN_NAVIGATION_PATHS.has(node.path)
-      ? { ...node.meta, hide: true }
-      : node.meta,
-    children: node.children?.length ? hideNavigationEntries(node.children) : node.children
-  }));
+const removeDeletedNavigationEntries = (nodes: any[]): any[] =>
+  nodes
+    .filter(node => !DELETED_NAVIGATION_PATHS.some(path => node.path === path || node.path?.startsWith(path + "/")))
+    .map(node => ({
+      ...node,
+      children: node.children?.length ? removeDeletedNavigationEntries(node.children) : node.children
+    }));
 
 const normalizeMenuData = (nodes: any[]): any[] =>
   nodes.map(node => ({
     ...node,
     meta:
-      node.path === "/file" || node.path === "/file/document-library"
-        ? { ...node.meta, roles: ["admin", "common"] }
-        : node.path === "/tgdrive/telegram/accounts" && node.meta?.title === "Telegram 账号"
-          ? { ...node.meta, title: "账号管理" }
-          : node.path === "/tgdrive/telegram/dialogs" && node.meta?.title === "Telegram 对话"
-            ? { ...node.meta, title: "群组/频道管理" }
-            : node.meta,
+      node.path === "/tgdrive/telegram/accounts" && node.meta?.title === "Telegram 账号"
+        ? { ...node.meta, title: "账号管理" }
+        : node.path === "/tgdrive/telegram/dialogs" && node.meta?.title === "Telegram 对话"
+          ? { ...node.meta, title: "群组/频道管理" }
+          : node.meta,
     children: node.children?.length ? normalizeMenuData(node.children) : node.children
   }));
 
 export const getRoutersAPI = () => {
   const stored = localStorage.getItem("snowadmin-menu-data");
   const menuData = stored
-    ? hideNavigationEntries(normalizeMenuData(treeSort(JSON.parse(stored))))
-    : hideNavigationEntries(treeSort(buildTreeOptimized([...deepClone(systemMenu)])));
+    ? removeDeletedNavigationEntries(normalizeMenuData(treeSort(JSON.parse(stored))))
+    : treeSort(buildTreeOptimized([...deepClone(systemMenu)]));
   const userInfo = JSON.parse(localStorage.getItem("user-info") || "{}");
   const userRoles = userInfo?.account?.roles?.length
     ? userInfo.account.roles
@@ -102,7 +114,7 @@ export const getAccountAPI = () => {
 export const getMenuListAPI = () => {
   const stored = localStorage.getItem("snowadmin-menu-data");
   const data = stored
-    ? normalizeMenuData(treeSort(JSON.parse(stored)))
+    ? removeDeletedNavigationEntries(normalizeMenuData(treeSort(JSON.parse(stored))))
     : treeSort(buildTreeOptimized([...deepClone(systemMenu), ...deepClone(permissionData)]));
   return Promise.resolve({ data });
 };
