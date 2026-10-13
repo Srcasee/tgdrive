@@ -7,11 +7,10 @@ from pathlib import Path
 from telethon import TelegramClient
 
 from config import settings, validate_telegram_credentials
-from plugins.runtime import PluginRuntime
+from telegram.proxy_config import get_telegram_proxy
 
 
 clients = {}
-plugin_runtime = PluginRuntime()
 
 _LEGACY_ARCHIVED_SESSION_RE = re.compile(r"^(?P<name>.+)\.(?P<suffix>[0-9a-f]{32})\.session$")
 
@@ -40,7 +39,6 @@ def refresh_clients(session_names):
     if not os.path.exists(session_dir):
         return clients
 
-    proxy_plugin = plugin_runtime.get_capability("telegram.proxy")
     for filename in os.listdir(session_dir):
         if not filename.endswith(".session"):
             continue
@@ -53,7 +51,7 @@ def refresh_clients(session_names):
         if existing is not None:
             clients.pop(name, None)
         session = os.path.join(session_dir, name)
-        proxy = proxy_plugin.get_proxy(name) if proxy_plugin else None
+        proxy = get_telegram_proxy()
         clients[name] = TelegramClient(
             session,
             settings.TG_API_ID,
@@ -125,7 +123,6 @@ async def reconnect_clients(session_names):
         if client.is_connected():
             await client.disconnect()
         clients.pop(name, None)
-    plugin_runtime.refresh()
     return refresh_clients(session_names)
 
 
@@ -144,8 +141,7 @@ def get_client(session_name):
     if not session_file.exists():
         raise RuntimeError(f"Session {session_name} not found")
 
-    proxy_plugin = plugin_runtime.get_capability("telegram.proxy")
-    proxy = proxy_plugin.get_proxy(session_name) if proxy_plugin else None
+    proxy = get_telegram_proxy()
     client = TelegramClient(
         str(session_file.with_suffix("")),
         settings.TG_API_ID,
