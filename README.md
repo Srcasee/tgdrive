@@ -47,7 +47,6 @@ The complete recommended flow is:
 New server
    ↓
 git clone https://github.com/Srcasee/tgdrive.git
-(git clone https://gh-proxy.com/https://github.com/Srcasee/tgdrive.git
 git clone https://gh-proxy.com/https://github.com/Srcasee/tgdrive.git)
 
    ↓
@@ -101,7 +100,9 @@ Direct Telegram connectivity is the default. **Proxy is optional and must be ena
 docker compose --profile proxy up -d --build
 ```
 
-The fixed sing-box version required by the proxy is included in the repository, so the proxy image does not download sing-box during its build.
+The `proxy` profile uses `ghcr.io/srcasee/tgdrive-proxy:latest` and pulls it when invoked. Core does not mount or scan `plugins/proxy`; the same command remains the optional proxy startup path.
+
+The proxy service is published as a separate GHCR image. Its image contains the pinned sing-box binary, so the deployment host does not build the proxy image or download sing-box during deployment.
 
 Verify:
 
@@ -264,7 +265,7 @@ Direct Telegram connectivity is the default. Configure the optional proxy **befo
 docker compose --profile proxy up -d --build
 ```
 
-Core does not contain region detection or concrete proxy protocol logic. After proxy changes, use the administrator reconnect endpoint or restart Core.
+Core does not load the proxy service plugin or include sing-box. It only reads `TG_PROXY_ENABLED` and the local proxy endpoint settings to configure Telethon. The proxy image owns upstream protocol configuration and sing-box. After proxy changes, use the administrator reconnect endpoint or restart Core.
 
 ## Video
 
