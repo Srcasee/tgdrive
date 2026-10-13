@@ -17,7 +17,7 @@ services:
       - telegram-net
 
   tgdrive:
-    image: tgdrive:local
+    image: tgdrive:laster
     build:
       context: .
       dockerfile: Dockerfile
