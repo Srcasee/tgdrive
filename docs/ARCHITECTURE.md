@@ -124,13 +124,14 @@ app/
 │   └── shares.py
 ├── admin/                        # administrator HTTP adapter
 ├── web/                          # browser UI
-├── plugins/                      # optional plugin runtime contracts
+├── telegram/proxy_config.py     # optional Core-side Telethon proxy settings
 ├── config.py
 ├── database.py
 └── database_pool.py
 
-plugins/
-└── proxy/                        # optional Telegram connectivity implementation
+plugins/proxy/
+├── Dockerfile                   # independently published proxy image
+└── plugin.py                    # sing-box service entrypoint; not loaded by Core
 ```
 
 The optional Video plugin is not part of the Core runtime or normal Compose service.
@@ -151,7 +152,7 @@ The optional Video plugin is not part of the Core runtime or normal Compose serv
 | Delivery | `app/download/api.py`, `app/download/service.py`, `app/download/transfer.py` | Implemented; Resource IDs are the public delivery key. |
 | Source selection/failover | `app/download/source_selector.py` | Tries enabled account paths for the same Telegram chat/message; after a stream error it can continue at the current byte offset, with a default 15-second wait before the next source. A silent stall without an exception is not covered by that delay. |
 | Content verification | `app/ingestion/verification.py`, `ResourceRepository.verify_file()` | Implemented for complete non-range delivery; real-device verification of canonical promotion remains pending. |
-| Proxy | `plugins/proxy/`, `app/plugins/runtime.py` | Optional and deployment-controlled; explicit `/api/telegram/reconnect` rebuilds clients after proxy changes. |
+| Proxy | `app/telegram/proxy_config.py`, `plugins/proxy/`, `docker-compose.yml` | Optional published service image; Core reads only the endpoint settings and never loads the proxy service code. Reconnect clients after settings change. |
 | Web UI | `app/web/index.html` | Resource-first, responsive, no dependency on Video. |
 | Web Auth | `app/auth/*` | Cross-cutting and isolated from content semantics. |
 | Deployment | `deploy.sh`, `docker-compose.yml`, `Dockerfile` | One-command fresh-host bootstrap is implemented; CI validates deployment syntax/model and image builds. |
@@ -243,10 +244,10 @@ Telegram client
       ↓
 connectivity policy
    ┌──┴──┐
-Direct Proxy plugin
+Direct    Optional proxy container
 ```
 
-Core does not perform country/region detection or implement concrete proxy protocols. Proxy is selected by deployment configuration. Because Telegram clients capture proxy settings at construction, proxy changes take effect through explicit client recreation/reconnect.
+Core does not perform country/region detection and does not load the proxy service plugin or include sing-box. With `TG_PROXY_ENABLED=false`, Telegram clients connect directly. When enabled, Core passes the configured local SOCKS5/HTTP endpoint to Telethon, while a separately published proxy image owns sing-box and upstream protocol configuration. The existing `docker compose --profile proxy up -d --build` command pulls and starts that optional image. Because Telegram clients capture proxy settings at construction, changes take effect through explicit client recreation/reconnect.
 
 ## Deferred work
 
