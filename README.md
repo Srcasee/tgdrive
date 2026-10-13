@@ -37,9 +37,9 @@ chmod +x deploy.sh
 ./deploy.sh
 ```
 
-`deploy.sh` performs the base infrastructure bootstrap only: Docker checks, persistent directories, `.env`, secrets, Compose validation, Core image pull, and PostgreSQL + Core startup. It does **not** log in Telegram and does **not** enable the optional proxy.
+`deploy.sh` performs the base infrastructure bootstrap only: Docker checks, persistent directories, `.env`, secrets, Compose validation, Core image build, and PostgreSQL + Core startup. It does **not** log in Telegram and does **not** enable the optional proxy.
 
-Core and proxy images are published to GitHub Container Registry by the repository workflows. Before first deployment, make the `tgdrive` package public or authenticate Docker to GHCR; the proxy package can remain unused unless you enable the proxy profile.
+The Core image is built locally from the checked-out source during development deployment. Only the optional proxy service is pulled from GitHub Container Registry; make the `tgdrive-proxy` package public or authenticate Docker to GHCR if the deployment host should pull it without credentials.
 
 ### Fresh server deployment
 
@@ -78,7 +78,7 @@ Resources appear in the catalog / Source management
 
 #### 1. Base deployment
 
-Run `./deploy.sh` on a new Docker host. When `.env` does not exist, the script creates the required persistent directories, collects required credentials, generates deployment secrets, validates Compose, pulls the published Core image, initializes PostgreSQL and starts PostgreSQL + Core.
+Run `./deploy.sh` on a new Docker host. When `.env` does not exist, the script creates the required persistent directories, collects required credentials, generates deployment secrets, validates Compose, builds the Core image from the checked-out source, initializes PostgreSQL and starts PostgreSQL + Core.
 
 Verify:
 
@@ -277,9 +277,7 @@ Video chunk caching is outside the current Core delivery path. The optional Vide
 ```bash
 cp .env.example .env
 # fill required values
-docker build -t tgdrive:laster .
-export TGDRIVE_IMAGE=tgdrive:laster
-docker compose up -d
+docker compose up -d --build
 pytest -q
 ```
 
