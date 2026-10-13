@@ -8,7 +8,7 @@ SESSION_DIR="${TG_SESSION_DIR:-/data/accounts}"
 SESSION_PATH="${SESSION_DIR}/${ACCOUNT_NAME}"
 
 COMPOSE="docker compose"
-RUNTIME_SERVICE="telegram-drive"
+RUNTIME_SERVICE="tgdrive"
 LOGIN_SERVICE="telegram-login"
 DB_SERVICE="postgres"
 RUNTIME_WAS_RUNNING=0
@@ -19,7 +19,7 @@ fi
 
 restart_runtime() {
   if [ "${RUNTIME_WAS_RUNNING}" -eq 1 ]; then
-    echo "[LOGIN] restarting Telegram runtime"
+    echo "[LOGIN] restarting Core service"
     ${COMPOSE} start "${RUNTIME_SERVICE}" >/dev/null
   fi
 }
@@ -30,12 +30,10 @@ echo "[LOGIN] account : ${ACCOUNT_NAME}"
 echo "[LOGIN] session : ${SESSION_PATH}"
 echo "[LOGIN] phone   : ${PHONE}"
 
-# Telethon stores the session in SQLite. The long-running Telegram runtime may
-# already have this session open, which can race with the interactive login and
-# produce "sqlite3.OperationalError: database is locked". Pause that runtime
-# while login.py owns the session file; it is restarted automatically afterwards.
+# Telethon stores the session in SQLite. Pause Core while interactive login
+# owns the session file to avoid "database is locked" errors.
 if [ "${RUNTIME_WAS_RUNNING}" -eq 1 ]; then
-  echo "[LOGIN] stopping Telegram runtime to avoid SQLite session lock"
+  echo "[LOGIN] stopping Core to avoid SQLite session lock"
   ${COMPOSE} stop "${RUNTIME_SERVICE}" >/dev/null
 fi
 
