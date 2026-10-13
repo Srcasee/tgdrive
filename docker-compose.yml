@@ -66,6 +66,16 @@ services:
       - proxy
     env_file:
       - .env
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import os,socket; s=socket.create_connection(('127.0.0.1', int(os.getenv('TG_PROXY_PORT', '1080'))), timeout=2); s.close()"
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
     networks:
       telegram-net:
         aliases:
