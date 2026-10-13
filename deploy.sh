@@ -15,7 +15,7 @@ command -v docker >/dev/null 2>&1 || { echo "[DEPLOY] docker is required" >&2; e
 docker compose version >/dev/null 2>&1 || { echo "[DEPLOY] docker compose plugin is required" >&2; exit 1; }
 
 echo "[DEPLOY] step 2/7: building Core image locally from source"
-docker compose build tgdrive telegram-login
+docker compose build tgdrive
 
 echo "[DEPLOY] step 3/7: preparing persistent directories"
 mkdir -p data/accounts data/postgres
