@@ -105,7 +105,7 @@
 import Notice from "@/layout/components/Header/components/Notice/index.vue";
 import SystemSettings from "@/layout/components/Header/components/system-settings/index.vue";
 import ThemeSettings from "@/layout/components/Header/components/theme-settings/index.vue";
-import myImage from "@/assets/img/my-image.jpg";
+import myImage from "@/assets/svgs/user.svg";
 import { useI18n } from "vue-i18n";
 import { Modal } from "@arco-design/web-vue";
 import { useRouter } from "vue-router";
