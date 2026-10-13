@@ -47,7 +47,6 @@ services:
     working_dir: /app
     volumes:
       - ./data:/data
-      - ./plugins/proxy:/opt/tgdrive-plugins/proxy:ro
     env_file:
       - .env
     environment:
