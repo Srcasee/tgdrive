@@ -148,7 +148,7 @@ export const systemMenu = [
     parentId: "0",
     path: "/system",
     name: "system",
-    redirect: "/system/account",
+    redirect: "/system/role",
     meta: {
       title: "system",
       hide: false,
@@ -345,7 +345,7 @@ export const systemMenu = [
   },
   {
     id: "19", parentId: "0", path: "/tgdrive/dashboard", name: "tgdrive-dashboard", component: "tgdrive/dashboard/index",
-    meta: { title: "TGDrive 概览", hide: false, disable: false, keepAlive: true, affix: true, link: "", iframe: false, isFull: false, roles: ["admin"], icon: "icon-menu", sort: 19, type: 2 },
+    meta: { title: "TGDrive 概览", hide: false, disable: false, keepAlive: true, affix: true, link: "", iframe: false, isFull: false, roles: ["admin", "common"], icon: "icon-menu", sort: 19, type: 2 },
     children: null
   },
   {
