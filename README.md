@@ -39,7 +39,7 @@ chmod +x deploy.sh
 
 `deploy.sh` performs the base infrastructure bootstrap only: Docker checks, persistent directories, `.env`, secrets, Compose validation, Core image build, and PostgreSQL + Core startup. It does **not** log in Telegram and does **not** enable the optional proxy.
 
-The Core image is built locally from the checked-out source during development deployment. Only the optional proxy service is pulled from GitHub Container Registry; make the `tgdrive-proxy` package public or authenticate Docker to GHCR if the deployment host should pull it without credentials.
+The Core image is built and published to GitHub Container Registry by `.github/workflows/publish-core.yml`. Production hosts pull `ghcr.io/srcasee/tgdrive:latest`; they do not need the application source code. The Core and proxy GHCR packages must be public for unauthenticated pulls, or the host must authenticate with `docker login ghcr.io`.
 
 ### Fresh server deployment
 
@@ -84,10 +84,10 @@ Verify:
 
 ```bash
 docker compose ps
-docker compose logs --tail=100 telegram-drive
+docker compose logs --tail=100 tgdrive
 ```
 
-The Core Web service is exposed on port `8080` by the default Compose configuration.
+The Core Web service is exposed on port `8080` by the default Compose configuration. The Core image is pulled from GHCR; the host does not build it locally.
 
 #### 2. Optional proxy
 
@@ -335,3 +335,17 @@ The legacy static admin frontend has been removed. The public/user-facing Web UI
 - All other SnowAdmin pages, layouts, menus, components, and demo/mock functionality remain unchanged for now.
 
 SnowAdmin is MIT licensed. See `frontend/LICENSE` for the required license notice.
+
+
+### Minimal production directory
+
+The initial setup needs a checkout (or a copy of `deploy.sh`, `docker-compose.yml`, and `login-account.sh`) to create `.env` and initialize the deployment. Once the Core image has been pulled and the services are running, the runtime only needs these items in the deployment directory:
+
+```text
+tgdrive/
+├── data/
+├── .env
+└── docker-compose.yml
+```
+
+The Compose file references the published Core image and has no local `build:` context, so the host does not need `app/`, `frontend/`, `Dockerfile`, or the rest of the repository to keep the service running or restart it. Back up `data/` and `.env` together. Keep `login-account.sh` elsewhere if you want its convenience wrapper; the Compose `telegram-login` service itself uses the published image.
