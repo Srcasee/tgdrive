@@ -5,7 +5,7 @@
  * 如果使用的第三方库是全局引入，也就是src/main.ts文件里，那么它就会自动被vite缓存到node_modules/.vite，此时就不用将该第三方库做依赖预构建(添加到include内)。
  */
 const include = [
-  "pinyin-pro"
+  "pinyin-pro",
   "@codemirror/lang-vue",
   "@codemirror/lang-javascript",
   "@codemirror/lang-json",
