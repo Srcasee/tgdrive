@@ -67,8 +67,6 @@ TG_PROXY_HOST=proxy
 TG_PROXY_PORT=1080
 TG_PROXY_USERNAME=
 TG_PROXY_PASSWORD=
-SING_BOX_VERSION=1.13.19
-SING_BOX_DOWNLOAD_BASE=https://github.com/SagerNet/sing-box/releases/download
 TG_PROXY_UPSTREAM_TYPE=vless
 TG_PROXY_VLESS_SERVER=
 TG_PROXY_VLESS_PORT=443
@@ -76,7 +74,6 @@ TG_PROXY_VLESS_UUID=
 TG_PROXY_VLESS_SERVER_NAME=
 TG_PROXY_VLESS_WS_PATH=/
 TG_PROXY_VLESS_WS_HOST=
-TG_PROXY_RUNTIME_DIR=/tmp/tgdrive-proxy
 
 POSTGRES_PASSWORD=$POSTGRES_PASSWORD
 DATABASE_URL=postgresql://tgdrive:$POSTGRES_PASSWORD@postgres:5432/tgdrive
@@ -117,7 +114,7 @@ docker compose ps
 echo "[DEPLOY] step 7/7: base bootstrap complete"
 echo "[DEPLOY] NEXT 1/3: configure Proxy BEFORE Telegram login when proxy is required"
 echo "[DEPLOY]   edit .env: TG_PROXY_ENABLED=true and configure TG_PROXY_* values"
-echo "[DEPLOY]   then run: docker compose --profile proxy up -d --build"
+echo "[DEPLOY]   then run: docker compose --profile proxy up -d --build (pulls the published proxy image)"
 echo "[DEPLOY] NEXT 2/3: Telegram login: ./login-account.sh <account_name> <phone>"
 echo "[DEPLOY] NEXT 3/3: configure Telegram Source in Web admin (enable an account to discover dialogs, then select the exact chat ID)"
 echo "[DEPLOY] Verify: docker compose ps && docker compose logs --tail=100 tgdrive"
