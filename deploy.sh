@@ -1,9 +1,10 @@
 #!/bin/sh
 set -eu
 
-# One-command bootstrap for a fresh Docker host.
-# The Core image is published by GitHub Actions; production hosts do not need
-# the application source tree after this script has completed.
+# One-command bootstrap for a development host.
+# Build the Core image locally from the checked-out source. After verifying the
+# image and containers, source files may be removed manually; rebuilding then
+# requires restoring the source tree.
 # Existing .env is preserved; set environment variables for non-interactive use.
 
 ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
@@ -13,12 +14,8 @@ echo "[DEPLOY] step 1/7: checking Docker prerequisites"
 command -v docker >/dev/null 2>&1 || { echo "[DEPLOY] docker is required" >&2; exit 1; }
 docker compose version >/dev/null 2>&1 || { echo "[DEPLOY] docker compose plugin is required" >&2; exit 1; }
 
-echo "[DEPLOY] step 2/7: pulling the published Core image"
-if ! docker pull ghcr.io/srcasee/tgdrive:latest; then
-    echo "[DEPLOY] failed to pull ghcr.io/srcasee/tgdrive:latest" >&2
-    echo "[DEPLOY] ensure the GitHub Actions image-publish workflow has succeeded and the GHCR package is public (or run docker login ghcr.io)" >&2
-    exit 1
-fi
+echo "[DEPLOY] step 2/7: building Core image locally from source"
+docker compose build tgdrive telegram-login
 
 echo "[DEPLOY] step 3/7: preparing persistent directories"
 mkdir -p data/accounts data/postgres
@@ -145,4 +142,6 @@ echo "[DEPLOY]   then run: docker compose --profile proxy up -d (pulls the publi
 echo "[DEPLOY] NEXT 2/3: Telegram login: ./login-account.sh <account_name> <phone> (while this checkout is present)"
 echo "[DEPLOY] NEXT 3/3: configure Telegram Source in Web admin (enable an account to discover dialogs, then select the exact chat ID)"
 echo "[DEPLOY] Verify: docker compose ps && docker compose logs --tail=100 tgdrive"
-echo "[DEPLOY] Once setup is complete, runtime needs only data/, .env and docker-compose.yml; keep deploy/login scripts elsewhere if desired."
+echo "[DEPLOY] After confirming the local image works, you may manually remove source files."
+echo "[DEPLOY] Keep data/, .env and docker-compose.yml. The local image remains on this Docker host."
+echo "[DEPLOY] IMPORTANT: rebuilding after deleting source requires restoring app/, frontend/, requirements.txt and Dockerfile."
