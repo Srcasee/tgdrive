@@ -53,9 +53,22 @@ def generate_config(path):
     if not 1 <= port <= 65535:
         raise RuntimeError("TG_PROXY_PORT must be between 1 and 65535")
     inbound_type = "http" if local_type == "http" else "socks"
+    inbound = {
+        "type": inbound_type,
+        "tag": "proxy-in",
+        "listen": "0.0.0.0",
+        "listen_port": port,
+    }
+    username = os.getenv("TG_PROXY_USERNAME", "").strip()
+    password = os.getenv("TG_PROXY_PASSWORD", "")
+    if bool(username) != bool(password):
+        raise RuntimeError("TG_PROXY_USERNAME and TG_PROXY_PASSWORD must be set together")
+    if username and password:
+        inbound["users"] = [{"username": username, "password": password}]
+
     config = {
         "log": {"level": os.getenv("TG_PROXY_LOG_LEVEL", "info")},
-        "inbounds": [{"type": inbound_type, "tag": "proxy-in", "listen": "0.0.0.0", "listen_port": port}],
+        "inbounds": [inbound],
         "outbounds": [_upstream()],
     }
     Path(path).write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
