@@ -41,6 +41,24 @@ const removeDeletedNavigationEntries = (nodes: any[]): any[] =>
       children: node.children?.length ? removeDeletedNavigationEntries(node.children) : node.children
     }));
 
+// 历史 localStorage 菜单可能早于 TGDrive 页面，补齐默认 TGDrive 路由，避免登录后 HOME_PATH 指向不存在的动态路由。
+const mergeRequiredNavigationEntries = (nodes: any[]): any[] => {
+  const merged = nodes.map(node => ({
+    ...node,
+    children: node.children?.length ? mergeRequiredNavigationEntries(node.children) : node.children
+  }));
+  const existingPaths = new Set<string>();
+  const collectPaths = (items: any[]) => items.forEach(item => {
+    if (item.path) existingPaths.add(item.path);
+    if (item.children?.length) collectPaths(item.children);
+  });
+  collectPaths(merged);
+  const requiredEntries = deepClone(systemMenu).filter((node: any) =>
+    typeof node.path === "string" && node.path.startsWith("/tgdrive/") && !existingPaths.has(node.path)
+  );
+  return [...merged, ...requiredEntries];
+};
+
 const normalizeMenuData = (nodes: any[]): any[] =>
   nodes.map(node => ({
     ...node,
@@ -56,7 +74,7 @@ const normalizeMenuData = (nodes: any[]): any[] =>
 export const getRoutersAPI = () => {
   const stored = localStorage.getItem("snowadmin-menu-data");
   const menuData = stored
-    ? removeDeletedNavigationEntries(normalizeMenuData(treeSort(JSON.parse(stored))))
+    ? mergeRequiredNavigationEntries(removeDeletedNavigationEntries(normalizeMenuData(treeSort(JSON.parse(stored)))))
     : treeSort(buildTreeOptimized([...deepClone(systemMenu)]));
   const userInfo = JSON.parse(localStorage.getItem("user-info") || "{}");
   const userRoles = userInfo?.account?.roles?.length
