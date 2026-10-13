@@ -72,7 +72,5 @@ def run_proxy():
     os.execvp("sing-box", ["sing-box", "run", "-c", str(config)])
 
 
-PLUGIN = ProxyPlugin()
-
 if __name__ == "__main__":
     raise SystemExit(run_proxy())
