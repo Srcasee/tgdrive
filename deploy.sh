@@ -39,13 +39,15 @@ if [ ! -f .env ]; then
         read -r API_HASH
     fi
     if [ -z "$ADMIN_PASS" ]; then
-        printf "ADMIN_PASSWORD (leave blank to generate securely): "
-        stty -echo
-        read -r ADMIN_PASS
-        stty echo
-        printf "\n"
+        command -v openssl >/dev/null 2>&1 || { echo "[DEPLOY] openssl is required to generate secrets" >&2; exit 1; }
+        if [ -t 0 ]; then
+            printf "ADMIN_PASSWORD (leave blank to generate securely): "
+            stty -echo
+            read -r ADMIN_PASS
+            stty echo
+            printf "\n"
+        fi
         if [ -z "$ADMIN_PASS" ]; then
-            command -v openssl >/dev/null 2>&1 || { echo "[DEPLOY] openssl is required to generate secrets" >&2; exit 1; }
             ADMIN_PASS=$(openssl rand -hex 16)
             echo "[DEPLOY] generated an administrator password; save it securely: $ADMIN_PASS"
         fi
