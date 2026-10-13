@@ -120,6 +120,20 @@ if [ "$i" -ge 30 ]; then
     echo "[DEPLOY] PostgreSQL did not become ready; inspect: docker compose logs postgres" >&2
     exit 1
 fi
+
+echo "[DEPLOY] waiting for Core HTTP health check"
+i=0
+until [ "$i" -ge 45 ]; do
+    if docker compose exec -T tgdrive python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/', timeout=3)" >/dev/null 2>&1; then
+        break
+    fi
+    i=$((i + 1))
+    sleep 2
+done
+if [ "$i" -ge 45 ]; then
+    echo "[DEPLOY] Core did not become ready; inspect: docker compose logs --tail=100 tgdrive" >&2
+    exit 1
+fi
 docker compose ps
 
 echo "[DEPLOY] step 7/7: base bootstrap complete"
