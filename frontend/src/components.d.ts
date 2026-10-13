@@ -17,5 +17,15 @@ declare module 'vue' {
     SSelectIcon: typeof import('./components/s-select-icon/index.vue')['default']
     SSvgIcon: typeof import('./components/s-svg-icon/index.vue')['default']
     SVerifyCode: typeof import('./components/s-verify-code/index.vue')['default']
+    SBarcodeDraw: typeof import('./components/s-barcode-draw/index.vue')['default']
+    SCodeView: typeof import('./components/s-code-view/index.vue')['default']
+    SExternalLinkPage: typeof import('./components/s-external-link-page/index.vue')['default']
+    SFoldPage: typeof import('./components/s-fold-page/index.vue')['default']
+    SFullPage: typeof import('./components/s-full-page/index.vue')['default']
+    SInternalLinkPage: typeof import('./components/s-internal-link-page/index.vue')['default']
+    SPinyinPro: typeof import('./components/s-pinyin-pro/index.vue')['default']
+    SQrcodeDraw: typeof import('./components/s-qrcode-draw/index.vue')['default']
+    SRecorderPcm: typeof import('./components/s-recorder-pcm/index.vue')['default']
+    SSvgAndIcon: typeof import('./components/s-svg-and-icon/index.vue')['default']
   }
 }
