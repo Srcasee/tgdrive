@@ -74,7 +74,7 @@ const normalizeMenuData = (nodes: any[]): any[] =>
 export const getRoutersAPI = () => {
   const stored = localStorage.getItem("snowadmin-menu-data");
   const menuData = stored
-    ? mergeRequiredNavigationEntries(removeDeletedNavigationEntries(normalizeMenuData(treeSort(JSON.parse(stored)))))
+    ? mergeRequiredNavigationEntries(mergeRequiredNavigationEntries(removeDeletedNavigationEntries(normalizeMenuData(treeSort(JSON.parse(stored))))))
     : treeSort(buildTreeOptimized([...deepClone(systemMenu)]));
   const userInfo = JSON.parse(localStorage.getItem("user-info") || "{}");
   const userRoles = userInfo?.account?.roles?.length
