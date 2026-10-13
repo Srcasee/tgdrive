@@ -45,17 +45,7 @@
  */
 export const systemMenu = [
   // layout-二级路由(主要渲染页面)
-  
-  
-  
 
-
-  
-  
-  
-  
-  
-  
   {
     id: "06",
     parentId: "0",
@@ -100,12 +90,7 @@ export const systemMenu = [
     },
     children: null
   },
-  
-  
-  
-  
-  
-  
+
   {
     id: "0608",
     parentId: "06",
@@ -128,21 +113,7 @@ export const systemMenu = [
     },
     children: null
   },
-  
-  
-  
-  
-  
-  
 
-  
-  
-  
-  
-  
-  
-  
-  
   {
     id: "10",
     parentId: "0",
@@ -165,7 +136,7 @@ export const systemMenu = [
     },
     children: null
   },
-  
+
   {
     id: "1002",
     parentId: "10",
@@ -210,8 +181,7 @@ export const systemMenu = [
     },
     children: null
   },
-  
-  
+
   {
     id: "1007",
     parentId: "10",
@@ -234,26 +204,6 @@ export const systemMenu = [
     },
     children: null
   },
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-
 
   {
     id: "18",
