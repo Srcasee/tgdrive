@@ -25,7 +25,6 @@ services:
     working_dir: /app
     volumes:
       - ./data:/data
-      - ./plugins/proxy:/opt/tgdrive-plugins/proxy:ro
     env_file:
       - .env
     environment:
@@ -61,12 +60,8 @@ services:
       - login
 
   proxy:
-    build:
-      context: ./plugins/proxy
-      dockerfile: Dockerfile
-      args:
-        SING_BOX_VERSION: ${SING_BOX_VERSION:-1.13.19}
-        SING_BOX_DOWNLOAD_BASE: ${SING_BOX_DOWNLOAD_BASE:-https://github.com/SagerNet/sing-box/releases/download}
+    image: ${TGDRIVE_PROXY_IMAGE:-ghcr.io/srcasee/tgdrive-proxy:latest}
+    pull_policy: always
     restart: unless-stopped
     profiles:
       - proxy
