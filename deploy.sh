@@ -13,15 +13,28 @@ echo "[DEPLOY] step 1/7: checking Docker prerequisites"
 command -v docker >/dev/null 2>&1 || { echo "[DEPLOY] docker is required" >&2; exit 1; }
 docker compose version >/dev/null 2>&1 || { echo "[DEPLOY] docker compose plugin is required" >&2; exit 1; }
 
-echo "[DEPLOY] step 2/7: preparing persistent directories"
+echo "[DEPLOY] step 2/7: building Core"
+if docker buildx version >/dev/null 2>&1; then
+    echo "[DEPLOY] building Core image without a CPU quota"
+    BUILDX_NO_DEFAULT_ATTESTATIONS=1 docker buildx build \
+        --load \
+        --provenance=false \
+        -t tgdrive:laster \
+        -f Dockerfile .
+else
+    echo "[DEPLOY] Buildx unavailable; using Compose build without a CPU quota"
+    docker compose build tgdrive
+fi
+
+echo "[DEPLOY] step 3/7: preparing persistent directories"
 mkdir -p data/accounts data/postgres
 
 if [ ! -f .env ]; then
-    echo "[DEPLOY] step 3/7: creating .env"
+    echo "[DEPLOY] step 4/7: creating .env"
     API_ID=${TG_API_ID:-}
     API_HASH=${TG_API_HASH:-}
     ADMIN_USER=${ADMIN_USERNAME:-admin}
-    ADMIN_PASS=${ADMIN_PASSWORD:-}
+    ADMIN_PASS=${ADMIN_PASSWORD:-$(openssl rand -hex 8)}
 
     if [ -z "$API_ID" ]; then
         printf "TG_API_ID: "
@@ -87,24 +100,11 @@ EOF
     chmod 600 .env
     echo "[DEPLOY] .env created (Telegram phone/account and proxy were NOT configured)"
 else
-    echo "[DEPLOY] step 3/7: using existing .env"
+    echo "[DEPLOY] step 4/7: using existing .env"
 fi
 
-echo "[DEPLOY] step 4/7: validating Compose configuration"
+echo "[DEPLOY] step 5/7: validating Compose configuration"
 docker compose config >/dev/null
-
-echo "[DEPLOY] step 5/7: building Core + PostgreSQL"
-if docker buildx version >/dev/null 2>&1; then
-    echo "[DEPLOY] building Core image without a CPU quota"
-    BUILDX_NO_DEFAULT_ATTESTATIONS=1 docker buildx build \
-        --load \
-        --provenance=false \
-        -t tgdrive:laster \
-        -f Dockerfile .
-else
-    echo "[DEPLOY] Buildx unavailable; using Compose build without a CPU quota"
-    docker compose build tgdrive
-fi
 
 echo "[DEPLOY] step 6/7: starting Core + PostgreSQL"
 docker compose up -d postgres tgdrive
