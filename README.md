@@ -39,7 +39,7 @@ chmod +x deploy.sh
 
 `deploy.sh` performs the base infrastructure bootstrap only: Docker checks, persistent directories, `.env`, secrets, Compose validation, Core image build, and PostgreSQL + Core startup. It does **not** log in Telegram and does **not** enable the optional proxy.
 
-The Core image is built and published to GitHub Container Registry by `.github/workflows/publish-core.yml`. Production hosts pull `ghcr.io/srcasee/tgdrive:latest`; they do not need the application source code. The Core and proxy GHCR packages must be public for unauthenticated pulls, or the host must authenticate with `docker login ghcr.io`.
+The Core image is built locally from the checked-out source by `deploy.sh` / `docker compose build tgdrive`. After a successful build, you may manually remove the source files if you do not need to rebuild; the local Docker image remains on that host. Restoring the source tree is required for future builds.
 
 ### Fresh server deployment
 
@@ -87,7 +87,7 @@ docker compose ps
 docker compose logs --tail=100 tgdrive
 ```
 
-The Core Web service is exposed on port `8080` by the default Compose configuration. The Core image is pulled from GHCR; the host does not build it locally.
+The Core Web service is exposed on port `8080` by the default Compose configuration. The Core image is built locally from source.
 
 #### 2. Optional proxy
 
@@ -101,7 +101,7 @@ Direct Telegram connectivity is the default. **Proxy is optional and must be ena
 docker compose --profile proxy up -d --build
 ```
 
-The `proxy` profile uses `ghcr.io/srcasee/tgdrive-proxy:latest` and pulls it when invoked. Core does not mount or scan `plugins/proxy`; the same command remains the optional proxy startup path. After the first images are published, set both GHCR packages (`tgdrive` and `tgdrive-proxy`) to **Public** if deployment hosts should pull them without `docker login`. Wait for the `proxy` health check to pass before starting a Telegram login.
+The `proxy` profile uses `ghcr.io/srcasee/tgdrive-proxy:latest` and pulls it when invoked. Core does not mount or scan `plugins/proxy`; the same command remains the optional proxy startup path. The Core image is built locally; the optional proxy image is still pulled from GHCR. Set the `tgdrive-proxy` GHCR package to **Public** if the host should pull it without `docker login`. Wait for the `proxy` health check to pass before starting a Telegram login.
 
 The proxy service is published as a separate GHCR image. Its image contains the pinned sing-box binary, so the deployment host does not build the proxy image or download sing-box during deployment.
 
@@ -348,4 +348,4 @@ tgdrive/
 └── docker-compose.yml
 ```
 
-The Compose file references the published Core image and has no local `build:` context, so the host does not need `app/`, `frontend/`, `Dockerfile`, or the rest of the repository to keep the service running or restart it. Back up `data/` and `.env` together. Keep `login-account.sh` elsewhere if you want its convenience wrapper; the Compose `telegram-login` service itself uses the published image.
+The Compose file uses `build: .` and the local image tag `tgdrive:local`. After building successfully, the host can keep running the existing image after source files are removed, as long as the image remains on that Docker host. Do not run `docker compose build` after removing source files. Back up `data/` and `.env` together. Keep `login-account.sh` elsewhere if you want its convenience wrapper; the Compose `telegram-login` service uses the same local image.
