@@ -99,7 +99,7 @@ Direct Telegram connectivity is the default. **Proxy is optional and must be ena
 docker compose --profile proxy up -d --build
 ```
 
-The `proxy` profile uses `ghcr.io/srcasee/tgdrive-proxy:latest` and pulls it when invoked. Core does not mount or scan `plugins/proxy`; the same command remains the optional proxy startup path.
+The `proxy` profile uses `ghcr.io/srcasee/tgdrive-proxy:latest` and pulls it when invoked. Core does not mount or scan `plugins/proxy`; the same command remains the optional proxy startup path. After the first image is published, set the GHCR package visibility to **Public** if deployment hosts should pull it without `docker login`. Wait for the `proxy` health check to pass before starting a Telegram login.
 
 The proxy service is published as a separate GHCR image. Its image contains the pinned sing-box binary, so the deployment host does not build the proxy image or download sing-box during deployment.
 
