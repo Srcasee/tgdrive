@@ -155,7 +155,7 @@ The optional Video plugin is not part of the Core runtime or normal Compose serv
 | Proxy | `app/telegram/proxy_config.py`, `plugins/proxy/`, `docker-compose.yml` | Optional published service image; Core reads only the endpoint settings and never loads the proxy service code. Reconnect clients after settings change. |
 | Web UI | `app/web/index.html` | Resource-first, responsive, no dependency on Video. |
 | Web Auth | `app/auth/*` | Cross-cutting and isolated from content semantics. |
-| Deployment | `deploy.sh`, `docker-compose.yml`, `Dockerfile` | One-command fresh-host bootstrap is implemented; CI validates deployment syntax/model and image builds. |
+| Deployment | `deploy.sh`, `docker-compose.yml`, `Dockerfile` | One-command fresh-host bootstrap pulls the published Core image; the optional proxy profile pulls a separate published image. CI validates deployment syntax/model and publishes both images. |
 
 ## Resource and physical-location model
 
