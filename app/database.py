@@ -290,5 +290,12 @@ def init_database():
                 """)
                 cursor.execute("INSERT INTO schema_migrations(version) VALUES (19)")
 
+            if 20 not in applied:
+                cursor.execute("""
+                    ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret TEXT;
+                    ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN NOT NULL DEFAULT FALSE;
+                """)
+                cursor.execute("INSERT INTO schema_migrations(version) VALUES (20)")
+
             conn.commit()
             print("[DB] PostgreSQL database initialized", flush=True)
