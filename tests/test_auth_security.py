@@ -3,7 +3,7 @@ import os
 os.environ["AUTH_SECRET"] = "test-secret"
 os.environ["AUTH_TOKEN_TTL"] = "60"
 
-from auth.security import create_token, hash_password, verify_password, verify_token
+from auth.security import create_token, hash_password, verify_password, verify_token, verify_totp
 
 
 def test_password_hash_round_trip():
@@ -29,3 +29,11 @@ def test_tampered_token_is_rejected():
     except Exception:
         return
     raise AssertionError("tampered token was accepted")
+
+
+
+def test_totp_rfc_vector_and_invalid_code():
+    # RFC 6238 SHA-1 test secret, truncated to the six-digit form.
+    secret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
+    assert verify_totp(secret, "287082", now=59, window=0)
+    assert not verify_totp(secret, "287083", now=59, window=0)
