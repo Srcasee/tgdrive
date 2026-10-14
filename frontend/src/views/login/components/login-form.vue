@@ -22,6 +22,9 @@
             <s-verify-code :content-height="30" :font-size-max="30" :content-width="110" @verify-code-change="verifyCodeChange" />
           </div>
         </a-form-item>
+        <a-form-item field="totp_code" :hide-asterisk="true">
+          <a-input v-model="form.totp_code" :max-length="6" allow-clear placeholder="动态口令（未启用可留空）" />
+        </a-form-item>
         <a-form-item field="remember">
           <div class="remember">
             <a-checkbox v-model="form.remember">记住密码</a-checkbox>
@@ -51,6 +54,7 @@ const form = ref({
   username: "",
   password: "",
   verifyCode: null,
+  totp_code: "",
   remember: false
 });
 const rules = ref({
@@ -94,7 +98,13 @@ const onSubmit = async ({ errors }: any) => {
 // 登录
 const onLogin = async () => {
   // 登录
-  let res = await loginAPI(form.value);
+  let res;
+  try {
+    res = await loginAPI(form.value);
+  } catch (error: any) {
+    arcoMessage("error", error?.response?.data?.detail || "登录失败，请检查账号密码和动态口令");
+    return;
+  }
   // 存储token
   await userStores.setToken(res.data.token);
   // 加载用户信息
