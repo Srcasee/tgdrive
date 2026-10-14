@@ -187,3 +187,225 @@ def test_legacy_web_entry_points_redirect_to_admin_frontend(monkeypatch):
         response = client.get(path, follow_redirects=False)
         assert response.status_code == 307
         assert response.headers["location"] == "/admin/"
+
+
+def test_auth_and_authorization(monkeypatch):
+    client, _, _ = make_client(monkeypatch)
+    assert client.get("/auth/me").status_code == 401
+
+    response = client.post("/auth/login", json={"username": "user", "password": "user-pass"})
+    assert response.status_code == 200
+    assert response.json()["role"] == "user"
+    assert client.get("/auth/me").status_code == 200
+    assert client.get("/api/admin/categories").status_code == 403
+
+    response = client.post("/auth/login", json={"username": "admin", "password": "admin-pass"})
+    assert response.status_code == 200
+    assert client.get("/api/admin/categories").status_code == 200
+
+
+def test_auth_me_refreshes_session_cookie(monkeypatch):
+    client, _, _ = make_client(monkeypatch)
+    login = client.post("/auth/login", json={"username": "admin", "password": "admin-pass"})
+    assert login.status_code == 200
+
+    refreshed = client.get("/auth/me")
+    assert refreshed.status_code == 200
+    assert "tgdrive_session=" in refreshed.headers["set-cookie"]
+    assert "Max-Age=3600" in refreshed.headers["set-cookie"]
+    assert "HttpOnly" in refreshed.headers["set-cookie"]
+    assert "Path=/" in refreshed.headers["set-cookie"]
+
+
+def test_manual_category_mutations_are_disabled(monkeypatch):
+    client, _, _ = make_client(monkeypatch)
+    client.post("/auth/login", json={"username": "admin", "password": "admin-pass"})
+
+    # Previous CRUD expectations are intentionally retained as comments because manual
+    # category management is disabled.
+    # created = client.post("/api/admin/categories", json={"name": "Movies"})
+    # assert created.status_code == 200
+    # category_id = created.json()["id"]
+    # assert client.put(f"/api/admin/categories/{category_id}", json={"name": "Films"}).status_code == 200
+    # assert client.delete(f"/api/admin/categories/{category_id}").status_code == 200
+
+    assert client.get("/api/admin/categories").status_code == 200
+    assert client.post("/api/admin/categories", json={"name": "Movies"}).status_code == 405
+    assert client.put("/api/admin/categories/1", json={"name": "Films"}).status_code == 404
+    assert client.delete("/api/admin/categories/1").status_code == 404
+    assert client.put("/api/admin/resources/1/categories", json={"category_ids": [1]}).status_code == 404
+
+
+def test_protected_catalog_and_delivery_apis(monkeypatch):
+    client, _, _ = make_client(monkeypatch)
+    assert client.get("/catalog").status_code == 401
+    assert client.get("/catalog/search?q=video").status_code == 401
+    assert client.get("/resources/1/download").status_code == 401
+    assert client.get("/resources/1/stream").status_code == 401
+
+    client.post("/auth/login", json={"username": "user", "password": "user-pass"})
+    assert client.get("/catalog").status_code == 200
+    assert client.get("/catalog/search?q=video").status_code == 200
+    assert client.get("/resources/999/download").status_code == 404
+    assert client.get("/resources/999/stream").status_code == 404
+
+
+def test_unavailable_resource_is_not_downloadable_or_streamable(monkeypatch):
+    client, resources, _ = make_client(monkeypatch)
+    client.post("/auth/login", json={"username": "user", "password": "user-pass"})
+    resources.available[1]["is_available"] = False
+    assert client.get("/resources/1/download").status_code == 404
+    assert client.get("/resources/1/stream").status_code == 404
+
+
+def test_share_link_creation_and_admin_revoke(monkeypatch):
+    client, resources, shares = make_client(monkeypatch)
+    assert client.post("/resources/1/share").status_code == 401
+
+    client.post("/auth/login", json={"username": "user", "password": "user-pass"})
+    response = client.post("/resources/1/share")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["id"] == 1
+    assert payload["url"] == "http://testserver/share/test-share-token-1"
+    assert payload["resource_id"] == 1
+    assert payload["expires_at"] is None
+
+    token = "test-share-token-1"
+    assert client.get("/share/unknown-token").status_code == 404
+    assert shares.get_resource_id(token) == 1
+    landing = client.get(f"/share/{token}")
+    assert landing.status_code == 200
+    assert "video.mp4" in landing.text
+    assert "100 字节" in landing.text
+    assert f"/share/{token}/download" in landing.text
+    assert client.get("/share/unknown-token/download").status_code == 404
+    second = client.post("/resources/1/share")
+    assert second.status_code == 200
+    assert second.json()["id"] == payload["id"]
+    assert second.json()["url"] != payload["url"]
+    assert shares.get_resource_id(token) is None
+    token = second.json()["url"].rsplit("/", 1)[-1]
+    assert shares.get_resource_id(token) == 1
+
+    catalog = client.get("/catalog").json()
+    assert catalog["data"]["items"][0]["shares"] == []
+
+    assert client.delete("/api/admin/shares/1").status_code == 403
+
+    client.post("/auth/login", json={"username": "admin", "password": "admin-pass"})
+    assert client.delete("/api/admin/shares/1").status_code == 200
+    assert client.delete("/api/admin/shares/1").status_code == 404
+    assert shares.get_resource_id(token) is None
+
+
+def test_share_expiration_validation_and_public_expiry(monkeypatch):
+    client, _, shares = make_client(monkeypatch)
+    client.post("/auth/login", json={"username": "user", "password": "user-pass"})
+
+    assert client.post(
+        "/resources/1/share",
+        json={"expires_at": "2000-01-01T00:00:00Z"},
+    ).status_code == 400
+    assert client.post(
+        "/resources/1/share",
+        json={"expires_at": "2099-01-01T00:00:00"},
+    ).status_code == 400
+
+    response = client.post(
+        "/resources/1/share",
+        json={"expires_at": "2099-01-01T00:00:00Z"},
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["expires_at"] is not None
+    token = payload["url"].rsplit("/", 1)[-1]
+    assert shares.get_resource_id(token) == 1
+
+    shares.tokens[token]["expires_at"] = 100
+    assert client.get(f"/share/{token}").status_code == 404
+    assert client.get(f"/share/{token}/download").status_code == 404
+
+
+def test_download_range_returns_only_requested_bytes(monkeypatch):
+    client, resources, _ = make_client(monkeypatch)
+
+    class FakeSelector:
+        async def stream_resource(self, resource_id, offset=0, on_source=None, expected_hash=None, expected_bytes=None):
+            if on_source:
+                on_source({"id": 1})
+            yield bytes((i % 256 for i in range(offset, min(offset + 10, 100))))
+
+    class FakeDownloadService:
+        def start(self, resource_id, created_by=None):
+            return None
+
+        def stream(self, chunks, record_id, expected_bytes, on_digest=None, hash_content=False):
+            return chunks
+
+    monkeypatch.setattr("download.api.source_selector", FakeSelector())
+    monkeypatch.setattr("download.api.download_service", FakeDownloadService())
+    monkeypatch.setattr("download.api.resource_repository", resources)
+
+    client.post("/auth/login", json={"username": "user", "password": "user-pass"})
+    response = client.get("/resources/1/download", headers={"Range": "bytes=10-19"})
+
+    assert response.status_code == 206
+    assert response.headers["content-range"] == "bytes 10-19/100"
+    assert response.headers["content-length"] == "10"
+    assert response.content == bytes(range(10, 20))
+
+
+def test_download_unsatisfiable_range_returns_416(monkeypatch):
+    client, _, _ = make_client(monkeypatch)
+    client.post("/auth/login", json={"username": "user", "password": "user-pass"})
+
+    response = client.get("/resources/1/download", headers={"Range": "bytes=100-110"})
+
+    assert response.status_code == 416
+    assert response.headers["content-range"] == "bytes */100"
+
+
+def test_download_records_are_paginated_and_bulk_deletable(monkeypatch):
+    client, _, _ = make_client(monkeypatch)
+
+    class FakeDownloads:
+        def __init__(self):
+            self.deleted = []
+
+        def list_by_status(self, status, page=1, size=50):
+            return {
+                "items": [{
+                    "id": 7,
+                    "filename": "video.mp4",
+                    "status": status,
+                    "started_at": 1700000000,
+                    "completed_at": 1700000010 if status != "active" else None,
+                }],
+                "total": 1,
+                "page": page,
+                "size": size,
+            }
+
+        def bulk_delete(self, ids):
+            self.deleted.extend(ids)
+            return len(ids)
+
+    downloads = FakeDownloads()
+    monkeypatch.setattr("admin.api.download_service", downloads)
+
+    assert client.get("/api/admin/downloads").status_code == 401
+    client.post("/auth/login", json={"username": "admin", "password": "admin-pass"})
+
+    response = client.get("/api/admin/downloads?status=failed&page=2&size=50")
+    assert response.status_code == 200
+    assert response.json()["items"][0]["status"] == "failed"
+    assert response.json()["page"] == 2
+    assert response.json()["size"] == 50
+    assert client.get("/api/admin/downloads?status=unknown").status_code == 400
+    assert client.post("/api/admin/downloads/bulk-delete", json={"ids": [7, 7, 8]}).json() == {
+        "status": "ok",
+        "deleted": 2,
+    }
+    assert sorted(downloads.deleted) == [7, 8]
+    assert client.delete("/api/admin/downloads/7").status_code == 404
