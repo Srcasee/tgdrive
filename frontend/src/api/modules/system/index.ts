@@ -41,12 +41,35 @@ const removeDeletedNavigationEntries = (nodes: any[]): any[] =>
       children: node.children?.length ? removeDeletedNavigationEntries(node.children) : node.children
     }));
 
+// 递归复制菜单树时只处理子节点，不执行补齐逻辑，避免每个子树都重复插入“组件管理”目录。
+const cloneMenuTree = (nodes: any[]): any[] =>
+  nodes.map(node => ({
+    ...node,
+    children: node.children?.length ? cloneMenuTree(node.children) : node.children
+  }));
+
+// 防止历史菜单数据中同级路由重复，合并重复项的子节点而不丢失已有菜单。
+const deduplicateMenuEntries = (nodes: any[]): any[] => {
+  const unique: any[] = [];
+  const byPath = new Map<string, any>();
+  for (const node of nodes) {
+    const copy = { ...node, children: node.children?.length ? deduplicateMenuEntries(node.children) : node.children };
+    const existing = copy.path ? byPath.get(copy.path) : undefined;
+    if (!existing) {
+      unique.push(copy);
+      if (copy.path) byPath.set(copy.path, copy);
+      continue;
+    }
+    if (copy.children?.length) {
+      existing.children = deduplicateMenuEntries([...(existing.children || []), ...copy.children]);
+    }
+  }
+  return unique;
+};
+
 // 历史 localStorage 菜单可能早于 TGDrive 页面，补齐默认 TGDrive 路由，避免登录后 HOME_PATH 指向不存在的动态路由。
 const mergeRequiredNavigationEntries = (nodes: any[]): any[] => {
-  const merged = nodes.map(node => ({
-    ...node,
-    children: node.children?.length ? mergeRequiredNavigationEntries(node.children) : node.children
-  }));
+  const merged = cloneMenuTree(nodes);
   const existingPaths = new Set<string>();
   const collectPaths = (items: any[]) => items.forEach(item => {
     if (item.path) existingPaths.add(item.path);
@@ -73,7 +96,7 @@ const mergeRequiredNavigationEntries = (nodes: any[]): any[] => {
     }
   }
 
-  return [...merged, ...requiredEntries];
+  return deduplicateMenuEntries([...merged, ...requiredEntries]);
 };
 
 const normalizeMenuData = (nodes: any[]): any[] =>
