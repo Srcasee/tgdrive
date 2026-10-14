@@ -1,5 +1,5 @@
-import { deepClone, buildTreeOptimized, filterByDisable, treeSort } from "@/mock/_utils";
-import { systemMenu, permissionData } from "@/mock/_data/system_menu";
+import { deepClone, buildTreeOptimized, filterByDisable, treeSort } from "@/utils/tree";
+import { systemMenu, permissionData } from "@/config/system-menu";
 import axios from "@/api";
 
 // 获取菜单数据
