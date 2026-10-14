@@ -39,7 +39,9 @@
             <a-tabs type="rounded" size="medium">
               <a-tab-pane key="security" title="安全设置">
                 <SecuritySettings v-model="userInfo" @refresh="refresh" />
-                <TotpSettings class="margin-top" />
+              </a-tab-pane>
+              <a-tab-pane key="totp" title="动态口令">
+                <TotpSettings />
               </a-tab-pane>
             </a-tabs>
           </a-col>
