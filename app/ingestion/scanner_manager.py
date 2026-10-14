@@ -6,6 +6,7 @@ class ScannerManager:
 
     def __init__(self):
         self.tasks = {}
+        self.refresh_events = {}
 
     async def stop_accounts_except(self, enabled_account_ids):
         enabled_account_ids = set(enabled_account_ids)
@@ -33,7 +34,20 @@ class ScannerManager:
                 # Retrieve any unobserved exception before replacing a finished task.
                 if not task.cancelled():
                     task.exception()
-            self.tasks[key] = asyncio.create_task(task_factory(source))
+            refresh_event = self.refresh_events.setdefault(source_id, asyncio.Event())
+            self.tasks[key] = asyncio.create_task(task_factory(source, refresh_event))
+
+    def request_refresh(self, source_id=None):
+        """Signal active source tasks to run a full scan in the background."""
+        requested = 0
+        for (_, active_source_id), task in self.tasks.items():
+            if task.done() or (source_id is not None and active_source_id != source_id):
+                continue
+            event = self.refresh_events.get(active_source_id)
+            if event is not None:
+                event.set()
+                requested += 1
+        return requested
 
     async def _cancel_tasks(self, keys):
         tasks = []
@@ -45,6 +59,8 @@ class ScannerManager:
                 tasks.append(task)
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
+        for _, source_id in keys:
+            self.refresh_events.pop(source_id, None)
 
     async def stop_all(self):
         await self._cancel_tasks(list(self.tasks))
