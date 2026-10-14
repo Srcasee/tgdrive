@@ -87,7 +87,7 @@ export default {
     ["throttle"]: "throttle",
     ["test-directive"]: "test-directive",
     ["personal"]: "personal",
-    ["userinfo"]: "userinfo",
+    ["basic-settings"]: "basic settings",
     ["user-settings"]: "user-settings",
     ["system"]: "system",
     ["account"]: "account",
