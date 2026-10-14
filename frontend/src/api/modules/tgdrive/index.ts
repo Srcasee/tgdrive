@@ -4,9 +4,6 @@ const http = axios.create({ withCredentials: true });
 
 export const getAccountsAPI = () => http.get("/api/telegram/accounts");
 export const getAccountInfoAPI = (id: number) => http.get(`/api/telegram/accounts/${id}/info`);
-// Account enable/disable is intentionally disabled for now.
-// export const setAccountEnabledAPI = (id: number, enabled: boolean) =>
-//   http.put(`/api/telegram/accounts/${id}/enabled`, { enabled });
 export const deleteAccountAPI = (id: number) => http.delete(`/api/telegram/accounts/${id}`);
 export const getDeletedAccountsAPI = () => http.get("/api/telegram/accounts/deleted");
 export const restoreDeletedAccountAPI = (session: string) =>
@@ -44,12 +41,6 @@ export const setDialogSourceEnabledAPI = (accountId: number, chatId: number, ena
 export const deleteSourceAPI = (id: number) => http.delete(`/api/telegram/sources/${id}`);
 
 export const getCategoriesAPI = () => http.get("/api/admin/categories");
-// Manual category mutations are disabled; keep API definitions as comments.
-// export const createCategoryAPI = (name: string) => http.post("/api/admin/categories", { name });
-// export const updateCategoryAPI = (id: number, name: string) => http.put(`/api/admin/categories/${id}`, { name });
-// export const deleteCategoryAPI = (id: number) => http.delete(`/api/admin/categories/${id}`);
-// export const setResourceCategoriesAPI = (id: number, category_ids: number[]) =>
-//   http.put(`/api/admin/resources/${id}/categories`, { category_ids });
 export const deleteShareAPI = (id: number) => http.delete(`/api/admin/shares/${id}`);
 
 export const getResourceTreeAPI = () => http.get("/catalog/tree");
