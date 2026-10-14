@@ -21,3 +21,8 @@ export const getUserInfoAPI = async (_params?: Record<string, unknown>) => {
     }
   };
 };
+
+export const updateUserProfileAPI = async (data: { username: string; current_password: string; new_password?: string | null }) => {
+  const response = await axios.put("/auth/profile", data, { withCredentials: true });
+  return { data: response.data };
+};
