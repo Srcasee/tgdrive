@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Query
 
 from auth.dependencies import require_user
 from auth.models import Principal
-from common.response import api_error, api_success
+from core.response import api_error, api_success
 from catalog.repository import CatalogRepository
 from catalog.service import CatalogService
 
