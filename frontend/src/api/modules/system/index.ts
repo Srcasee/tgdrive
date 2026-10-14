@@ -105,7 +105,7 @@ export const getRoutersAPI = () => {
   const filterTree = (nodes: any[]): any[] =>
     filterByDisable(
       nodes
-        .filter(node => node?.meta?.type !== 3)
+        .filter(node => node?.meta?.type !== 3 && node?.meta?.disable !== true)
         .map(node => ({
           ...node,
           children: node.children?.length ? filterTree(node.children) : null
