@@ -63,8 +63,6 @@
       <div>
         <div class="title">{{ $t(`system.system settings`) }}</div>
         <div class="flex-row">
-          <div>{{ $t(`system.anti-debugging`) }}</div>
-          <a-switch v-model="debugPrevention" />
         </div>
       </div>
     </div>
@@ -77,7 +75,6 @@ import { storeToRefs } from "pinia";
 import { useRouteConfigStore } from "@/store/modules/route-config";
 import { useThemeConfig } from "@/store/modules/theme-config";
 import { currentlyRoute } from "@/router/route-output";
-import { DebugControl } from "@/utils/debug-prevention";
 const themeStore = useThemeConfig();
 const routerStore = useRouteConfigStore();
 const {
@@ -90,8 +87,7 @@ const {
   watermarkStyle,
   watermarkRotate,
   watermarkGap,
-  darkMode,
-  debugPrevention
+  darkMode
 } = storeToRefs(themeStore);
 const { tabsList, cacheRoutes } = storeToRefs(routerStore);
 const route = useRoute();
@@ -121,21 +117,6 @@ const tabsChange = (e: boolean) => {
   }
 };
 
-// 监听debug开关;
-const debugControl = new DebugControl();
-watch(
-  () => debugPrevention.value,
-  newValue => {
-    if (newValue) {
-      debugControl.start();
-    } else {
-      debugControl.stop();
-    }
-  },
-  {
-    immediate: true
-  }
-);
 
 const emits = defineEmits(["systemCancel"]);
 const handleCancel = () => {
