@@ -52,8 +52,10 @@ def login(data: LoginRequest, request: Request, response: Response):
     if not user or not user["enabled"] or user.get("role_enabled", 1) != 1 or not verify_password(data.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="invalid credentials")
     if user.get("totp_enabled"):
-        if not data.totp_code or not verify_totp(user.get("totp_secret") or "", data.totp_code):
-            raise HTTPException(status_code=401, detail="动态口令无效或缺失")
+        if not data.totp_code:
+            raise HTTPException(status_code=401, detail="TOTP_REQUIRED")
+        if not verify_totp(user.get("totp_secret") or "", data.totp_code):
+            raise HTTPException(status_code=401, detail="动态口令无效")
     login_at = int(time.time())
     login_ip = request.client.host if request.client else None
     user_repository.record_login(user["id"], login_at, login_ip)
