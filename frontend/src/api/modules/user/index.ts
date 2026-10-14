@@ -1,7 +1,7 @@
 import axios from "axios";
 
 export const loginAPI = async (data: { username: string; password: string; totp_code?: string }) => {
-  const response = await axios.post("/auth/login", data, { withCredentials: true });
+  const response = await axios.post("/auth/login", { ...data, totp_code: data.totp_code || undefined }, { withCredentials: true });
   return {
     data: {
       token: response.data.role === "admin" ? "Admin-Token" : "Common-Token",
