@@ -4,10 +4,9 @@
       <LoginBanner v-if="isPc" />
       <div class="login_box">
         <div class="login_title">Welcome Back</div>
-        <div class="login_title_desc">国际化，路由配置，状态管理应有尽有</div>
-        <div class="login_title_desc">丰富的的页面模板，覆盖大多数典型业务场景</div>
+        <div class="login_title_desc">一款基于TG的个人无限存储云盘解决方案！</div>
         <LoginForm />
-        <!-- <div class="author">by 兔子先森</div> -->
+        <!-- <div class="author">by 青青子衿</div> -->
       </div>
     </div>
   </div>
