@@ -155,7 +155,7 @@ const onLange = (value: string) => {
 // 个人中心
 const onPerson = (type: number) => {
   router.push({
-    path: "/system/userinfo",
+    path: "/system/basic-settings",
     query: {
       id: account.value.user.id,
       userName: account.value.user.userName,
