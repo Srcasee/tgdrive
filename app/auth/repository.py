@@ -15,7 +15,7 @@ class UserRepository:
         with connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
-                    "SELECT id, username, password_hash, role, enabled, last_login_at, last_login_ip FROM users WHERE id=%s",
+                    "SELECT id, username, password_hash, role, enabled, last_login_at, last_login_ip, avatar_url FROM users WHERE id=%s",
                     (user_id,),
                 )
                 return cursor.fetchone()
@@ -24,7 +24,7 @@ class UserRepository:
         with connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
-                    "SELECT id, username, role, enabled, last_login_at, last_login_ip FROM users WHERE id=%s",
+                    "SELECT id, username, role, enabled, last_login_at, last_login_ip, avatar_url FROM users WHERE id=%s",
                     (user_id,),
                 )
                 return cursor.fetchone()
@@ -42,14 +42,24 @@ class UserRepository:
             with conn.cursor() as cursor:
                 if password_hash:
                     cursor.execute(
-                        "UPDATE users SET username=%s, password_hash=%s WHERE id=%s RETURNING id, username, role, enabled, last_login_at, last_login_ip",
+                        "UPDATE users SET username=%s, password_hash=%s WHERE id=%s RETURNING id, username, role, enabled, last_login_at, last_login_ip, avatar_url",
                         (username, password_hash, user_id),
                     )
                 else:
                     cursor.execute(
-                        "UPDATE users SET username=%s WHERE id=%s RETURNING id, username, role, enabled, last_login_at, last_login_ip",
+                        "UPDATE users SET username=%s WHERE id=%s RETURNING id, username, role, enabled, last_login_at, last_login_ip, avatar_url",
                         (username, user_id),
                     )
+                return cursor.fetchone()
+
+
+    def update_avatar(self, user_id, avatar_url):
+        with transaction() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "UPDATE users SET avatar_url=%s WHERE id=%s RETURNING id, username, role, enabled, last_login_at, last_login_ip, avatar_url",
+                    (avatar_url, user_id),
+                )
                 return cursor.fetchone()
 
     def create(self, username, password_hash, role="user"):
