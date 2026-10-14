@@ -1,16 +1,48 @@
 <template>
   <div class="snow-page">
-    <a-spin :loading="loading" tip="loading...">
+    <a-spin :loading="loading" class="container" tip="loading...">
       <a-card :bordered="false">
-        <a-descriptions
-          title="用户资料"
-          :data="profileDetails"
-          :column="descriptionsColumn(1, 3)"
-          :align="{ label: 'right' }"
-        />
+        <a-row align="center">
+          <a-col :span="isMobile ? 24 : 2">
+            <div :class="{ center: isMobile }">
+              <a-avatar :size="100" trigger-type="mask" @click="chooseAvatar">
+                <img v-if="userInfo.avatar_url" alt="avatar" :src="userInfo.avatar_url" />
+                <span v-else>{{ userInfo.username?.slice(0, 1)?.toUpperCase() || "U" }}</span>
+                <template #trigger-icon>
+                  <IconEdit />
+                </template>
+              </a-avatar>
+              <input
+                ref="avatarInput"
+                class="avatar-input"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                @change="onAvatarSelected"
+              />
+            </div>
+          </a-col>
+          <a-col :span="isMobile ? 24 : 22">
+            <a-space direction="vertical" size="large">
+              <a-descriptions
+                title="用户资料"
+                :data="profileDetails"
+                :column="descriptionsColumn(1, 4)"
+                :align="{ label: 'right' }"
+              />
+            </a-space>
+          </a-col>
+        </a-row>
       </a-card>
       <a-card class="margin-top" :bordered="false">
-        <SecuritySettings v-model="userInfo" @refresh="refresh" />
+        <a-row align="center">
+          <a-col :span="24">
+            <a-tabs type="rounded" size="medium">
+              <a-tab-pane key="security" title="安全设置">
+                <SecuritySettings v-model="userInfo" @refresh="refresh" />
+              </a-tab-pane>
+            </a-tabs>
+          </a-col>
+        </a-row>
       </a-card>
     </a-spin>
   </div>
@@ -18,13 +50,19 @@
 
 <script setup lang="ts">
 import SecuritySettings from "@/views/system/userinfo/components/security-settings.vue";
+import useGlobalProperties from "@/hooks/useGlobalProperties";
+import { useDevicesSize } from "@/hooks/useDevicesSize";
 import { useLayoutModel } from "@/hooks/useLayoutModel";
-import { getUserInfoAPI } from "@/api/modules/user";
+import { getUserInfoAPI, updateUserAvatarAPI } from "@/api/modules/user";
 import { useRouteConfigStore } from "@/store/modules/route-config";
 
+const proxy = useGlobalProperties();
 const routerStore = useRouteConfigStore();
+const { isMobile } = useDevicesSize();
 const { descriptionsColumn } = useLayoutModel();
 const loading = ref(false);
+const uploadingAvatar = ref(false);
+const avatarInput = ref<HTMLInputElement>();
 const userInfo = ref<any>({});
 
 const formatLoginTime = (value?: number | string | null) => {
@@ -59,6 +97,38 @@ const getUserInfo = async () => {
   }
 };
 
+const chooseAvatar = () => {
+  if (!uploadingAvatar.value) avatarInput.value?.click();
+};
+
+const onAvatarSelected = async (event: Event) => {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+  if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+    proxy.$message.warning("仅支持 JPG、PNG 或 WebP 图片");
+    input.value = "";
+    return;
+  }
+  if (file.size > 2 * 1024 * 1024) {
+    proxy.$message.warning("头像文件不能超过 2 MB");
+    input.value = "";
+    return;
+  }
+
+  try {
+    uploadingAvatar.value = true;
+    const result = await updateUserAvatarAPI(file);
+    userInfo.value = { ...userInfo.value, ...result.data };
+    proxy.$message.success("头像更新成功");
+  } catch (error: any) {
+    proxy.$message.error(error?.response?.data?.detail || "头像上传失败，请重试");
+  } finally {
+    uploadingAvatar.value = false;
+    input.value = "";
+  }
+};
+
 const refresh = () => {
   void getUserInfo();
 };
@@ -68,7 +138,18 @@ routerStore.setTabsTitle("用户信息");
 </script>
 
 <style lang="scss" scoped>
+.container {
+  display: flex;
+  flex-direction: column;
+}
 .margin-top {
   margin-top: $padding;
+}
+.center {
+  display: flex;
+  justify-content: center;
+}
+.avatar-input {
+  display: none;
 }
 </style>
