@@ -12,7 +12,7 @@ import eslintPlugin from "@nabla/vite-plugin-eslint";
  * 创建 vite 插件
  * @param viteEnv
  */
-export const createVitePlugins = (viteEnv: ViteEnv): (PluginOption | PluginOption[])[] => {
+export const createVitePlugins = (_viteEnv: ViteEnv): (PluginOption | PluginOption[])[] => {
   const env = viteEnv;
   return [
     vue(),
