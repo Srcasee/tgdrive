@@ -239,12 +239,12 @@ export const systemMenu = [
   },
   {
     id: "21", parentId: "0", path: "/telegram/dialogs", name: "tgdrive-dialogs", component: "telegram/dialogs",
-    meta: { title: "群组/频道管理", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], svgIcon: "switch", sort: 3, type: 2 },
+    meta: { title: "群组/频道", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], svgIcon: "switch", sort: 3, type: 2 },
     children: null
   },
   {
     id: "23", parentId: "0", path: "/resources/files", name: "tgdrive-resources", component: "resources/files",
-    meta: { title: "资源文件", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], svgIcon: "folder-open", sort: 4, type: 2 },
+    meta: { title: "资源文件", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], svgIcon: "folder-menu", sort: 4, type: 2 },
     children: null
   },
   {
