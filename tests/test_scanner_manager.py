@@ -68,3 +68,27 @@ def test_stop_accounts_except_cancels_tasks_for_disabled_accounts():
         await manager.stop_all()
 
     asyncio.run(run())
+
+
+def test_stop_source_cancels_and_awaits_only_the_requested_source():
+    async def run():
+        manager = ScannerManager()
+        stopped = asyncio.Event()
+
+        async def runner(source):
+            try:
+                await asyncio.Event().wait()
+            finally:
+                if source["id"] == 1:
+                    stopped.set()
+
+        await manager.reconcile_sources(10, [{"id": 1}, {"id": 2}], runner)
+        await asyncio.sleep(0)
+        await manager.stop_source(1)
+
+        assert stopped.is_set()
+        assert (10, 1) not in manager.tasks
+        assert (10, 2) in manager.tasks
+        await manager.stop_all()
+
+    asyncio.run(run())
