@@ -257,5 +257,30 @@ def init_database():
                 cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT")
                 cursor.execute("INSERT INTO schema_migrations(version) VALUES (17)")
 
+            if 18 not in applied:
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS roles (
+                        id BIGSERIAL PRIMARY KEY,
+                        name TEXT NOT NULL,
+                        code TEXT NOT NULL UNIQUE,
+                        status INTEGER NOT NULL DEFAULT 1 CHECK (status IN (0, 1)),
+                        sort INTEGER NOT NULL DEFAULT 1,
+                        description TEXT NOT NULL DEFAULT '',
+                        permissions JSONB NOT NULL DEFAULT '[]'::jsonb,
+                        created_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW())::BIGINT
+                    );
+                    INSERT INTO roles(name, code, status, sort, description)
+                    VALUES ('超级管理员', 'admin', 1, 1, '系统内置角色')
+                    ON CONFLICT (code) DO NOTHING;
+                    INSERT INTO roles(name, code, status, sort, description)
+                    VALUES ('普通用户', 'common', 1, 2, '默认普通用户角色')
+                    ON CONFLICT (code) DO NOTHING;
+                    INSERT INTO roles(name, code, status, sort, description)
+                    SELECT DISTINCT role, role, 1, 100, '从现有用户角色自动迁移'
+                    FROM users WHERE role IS NOT NULL AND trim(role) <> ''
+                    ON CONFLICT (code) DO NOTHING;
+                """)
+                cursor.execute("INSERT INTO schema_migrations(version) VALUES (18)")
+
             conn.commit()
             print("[DB] PostgreSQL database initialized", flush=True)
