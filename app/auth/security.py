@@ -67,6 +67,6 @@ def verify_token(token: str) -> dict:
         raise InvalidToken()
     if payload.get("exp", 0) < int(time.time()):
         raise InvalidToken()
-    if not payload.get("sub") or payload.get("role") not in {"user", "admin"}:
+    if not payload.get("sub") or not isinstance(payload.get("role"), str) or not payload["role"]:
         raise InvalidToken()
     return payload
