@@ -1,6 +1,6 @@
 import axios from "axios";
 
-export const loginAPI = async (data: { username: string; password: string }) => {
+export const loginAPI = async (data: { username: string; password: string; totp_code?: string }) => {
   const response = await axios.post("/auth/login", data, { withCredentials: true });
   return {
     data: {
@@ -32,4 +32,24 @@ export const updateUserAvatarAPI = async (file: File) => {
   formData.append("file", file);
   const response = await axios.post("/auth/avatar", formData, { withCredentials: true });
   return { data: response.data };
+};
+
+export const getTotpStatusAPI = async () => {
+  const response = await axios.get("/auth/totp", { withCredentials: true });
+  return { data: response.data as { enabled: boolean } };
+};
+
+export const setupTotpAPI = async (current_password: string) => {
+  const response = await axios.post("/auth/totp/setup", { current_password }, { withCredentials: true });
+  return { data: response.data as { secret: string; otpauth_url: string } };
+};
+
+export const enableTotpAPI = async (code: string) => {
+  const response = await axios.post("/auth/totp/enable", { code }, { withCredentials: true });
+  return { data: response.data as { enabled: boolean } };
+};
+
+export const disableTotpAPI = async (current_password: string, code?: string) => {
+  const response = await axios.post("/auth/totp/disable", { current_password, code }, { withCredentials: true });
+  return { data: response.data as { enabled: boolean } };
 };
