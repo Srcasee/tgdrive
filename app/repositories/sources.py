@@ -77,12 +77,58 @@ class SourceRepository:
                 return cursor.fetchall()
 
     def delete(self, source_id):
+        """Delete a source's physical data and orphaned resources before its mapping."""
         with transaction() as conn:
             with conn.cursor() as cursor:
-                cursor.execute("SELECT account_id, telegram_chat_id FROM telegram_sources WHERE id=%s", (source_id,))
+                cursor.execute(
+                    "SELECT account_id, telegram_chat_id FROM telegram_sources WHERE id=%s FOR UPDATE",
+                    (source_id,),
+                )
                 row = cursor.fetchone()
                 if row is None:
                     return None
+
+                account_id, chat_id = row["account_id"], row["telegram_chat_id"]
+                cursor.execute(
+                    "SELECT DISTINCT resource_id FROM files WHERE account_id=%s AND telegram_chat_id=%s",
+                    (account_id, chat_id),
+                )
+                resource_ids = [item["resource_id"] for item in cursor.fetchall()]
+
+                cursor.execute(
+                    "DELETE FROM files WHERE account_id=%s AND telegram_chat_id=%s",
+                    (account_id, chat_id),
+                )
+                cursor.execute(
+                    "DELETE FROM topic_shares WHERE account_id=%s AND chat_id=%s",
+                    (account_id, chat_id),
+                )
+
+                if resource_ids:
+                    cursor.execute(
+                        """
+                        SELECT id FROM resources
+                        WHERE id = ANY(%s)
+                          AND NOT EXISTS (
+                              SELECT 1 FROM files f WHERE f.resource_id=resources.id
+                          )
+                        """,
+                        (resource_ids,),
+                    )
+                    orphan_resource_ids = [item["id"] for item in cursor.fetchall()]
+                    if orphan_resource_ids:
+                        cursor.execute(
+                            "DELETE FROM download_records WHERE resource_id = ANY(%s)",
+                            (orphan_resource_ids,),
+                        )
+                        # Shares and resource-category rows cascade when the orphaned
+                        # Resource is removed. Resources still referenced by another
+                        # Telegram source are preserved.
+                        cursor.execute(
+                            "DELETE FROM resources WHERE id = ANY(%s)",
+                            (orphan_resource_ids,),
+                        )
+
                 cursor.execute("DELETE FROM telegram_sources WHERE id=%s", (source_id,))
                 return row
 
@@ -147,8 +193,8 @@ class SourceRepository:
                 cursor.execute(
                     """
                     INSERT INTO telegram_sources
-                    (account_id, telegram_chat_id, name, enabled)
-                    VALUES (%s, %s, %s, TRUE)
+                    (account_id, telegram_chat_id, name, enabled, scan_status)
+                    VALUES (%s, %s, %s, TRUE, 'pending')
                     RETURNING id
                     """
                     ,
