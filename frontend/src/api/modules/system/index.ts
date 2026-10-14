@@ -100,16 +100,27 @@ const mergeRequiredNavigationEntries = (nodes: any[]): any[] => {
 };
 
 const normalizeMenuData = (nodes: any[]): any[] =>
-  nodes.map(node => ({
-    ...node,
-    meta:
-      node.path === "/tgdrive/telegram/accounts" && node.meta?.title === "Telegram 账号"
-        ? { ...node.meta, title: "账号管理" }
-        : node.path === "/tgdrive/telegram/dialogs" && node.meta?.title === "Telegram 对话"
-          ? { ...node.meta, title: "群组/频道管理" }
-          : node.meta,
-    children: node.children?.length ? normalizeMenuData(node.children) : node.children
-  }));
+  nodes.map(node => {
+    const isBasicSettings = node.path === "/system/userinfo" || node.path === "/system/basic-settings";
+    return {
+      ...node,
+      ...(isBasicSettings
+        ? {
+            path: "/system/basic-settings",
+            name: "basic-settings",
+            component: "system/basic-settings/basic-settings"
+          }
+        : {}),
+      meta: isBasicSettings
+        ? { ...node.meta, title: "basic-settings" }
+        : node.path === "/tgdrive/telegram/accounts" && node.meta?.title === "Telegram 账号"
+          ? { ...node.meta, title: "账号管理" }
+          : node.path === "/tgdrive/telegram/dialogs" && node.meta?.title === "Telegram 对话"
+            ? { ...node.meta, title: "群组/频道管理" }
+            : node.meta,
+      children: node.children?.length ? normalizeMenuData(node.children) : node.children
+    };
+  });
 
 export const getRoutersAPI = () => {
   const stored = localStorage.getItem("snowadmin-menu-data");
