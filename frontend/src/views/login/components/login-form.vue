@@ -22,8 +22,8 @@
             <s-verify-code :content-height="30" :font-size-max="30" :content-width="110" @verify-code-change="verifyCodeChange" />
           </div>
         </a-form-item>
-        <a-form-item field="totp_code" :hide-asterisk="true">
-          <a-input v-model="form.totp_code" :max-length="6" allow-clear placeholder="动态口令（未启用可留空）" />
+        <a-form-item v-if="totpRequired" field="totp_code" :hide-asterisk="true">
+          <a-input v-model="form.totp_code" :max-length="6" allow-clear placeholder="请输入身份验证器生成的 6 位动态口令" />
         </a-form-item>
         <a-form-item field="remember">
           <div class="remember">
@@ -87,6 +87,7 @@ const rules = ref({
   ]
 });
 const verifyCode = ref("");
+const totpRequired = ref(false);
 const verifyCodeChange = (code: string) => (verifyCode.value = code);
 
 // 提交表单
@@ -102,7 +103,13 @@ const onLogin = async () => {
   try {
     res = await loginAPI(form.value);
   } catch (error: any) {
-    arcoMessage("error", error?.response?.data?.detail || "登录失败，请检查账号密码和动态口令");
+    const detail = error?.response?.data?.detail;
+    if (detail === "TOTP_REQUIRED") {
+      totpRequired.value = true;
+      arcoMessage("warning", "请输入身份验证器生成的 6 位动态口令");
+    } else {
+      arcoMessage("error", detail || "登录失败，请检查账号密码和动态口令");
+    }
     return;
   }
   // 存储token
