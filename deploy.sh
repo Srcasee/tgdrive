@@ -33,7 +33,7 @@ if [ ! -f .env ]; then
     API_ID=${TG_API_ID:-}
     API_HASH=${TG_API_HASH:-}
     ADMIN_USER=${ADMIN_USERNAME:-admin}
-    ADMIN_PASS=${ADMIN_PASSWORD:-$(openssl rand -hex 8)}
+    ADMIN_PASS=${ADMIN_PASSWORD:-}
 
     if [ -z "$API_ID" ]; then
         printf "TG_API_ID: "
