@@ -1,6 +1,9 @@
 import time
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile
+from pathlib import Path
+
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from auth.dependencies import current_principal
@@ -11,6 +14,13 @@ from config import settings
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 user_repository = UserRepository()
+AVATAR_DIR = Path("/data/avatars")
+AVATAR_TYPES = {
+    "image/jpeg": (".jpg", lambda data: data.startswith(b"\xff\xd8\xff")),
+    "image/png": (".png", lambda data: data.startswith(b"\x89PNG\r\n\x1a\n")),
+    "image/webp": (".webp", lambda data: len(data) >= 12 and data[:4] == b"RIFF" and data[8:12] == b"WEBP"),
+}
+MAX_AVATAR_SIZE = 2 * 1024 * 1024
 
 
 class LoginRequest(BaseModel):
@@ -81,6 +91,50 @@ def update_profile(data: ProfileUpdateRequest, principal: Principal = Depends(cu
         # The unique constraint is the final guard against concurrent username changes.
         raise HTTPException(status_code=409, detail="username already exists") from exc
     return updated
+
+
+
+@router.post("/avatar")
+async def upload_avatar(
+    file: UploadFile = File(...),
+    principal: Principal = Depends(current_principal),
+):
+    image_type = AVATAR_TYPES.get(file.content_type or "")
+    if not image_type:
+        raise HTTPException(status_code=400, detail="仅支持 JPG、PNG 或 WebP 图片")
+
+    content = await file.read(MAX_AVATAR_SIZE + 1)
+    if not content or len(content) > MAX_AVATAR_SIZE:
+        raise HTTPException(status_code=413, detail="头像文件不能超过 2 MB")
+    extension, validate_signature = image_type
+    if not validate_signature(content):
+        raise HTTPException(status_code=400, detail="图片文件格式无效")
+
+    user_id = int(principal.subject)
+    AVATAR_DIR.mkdir(parents=True, exist_ok=True)
+    destination = AVATAR_DIR / f"{user_id}{extension}"
+    destination.write_bytes(content)
+    for old_extension, _ in AVATAR_TYPES.values():
+        old_path = AVATAR_DIR / f"{user_id}{old_extension}"
+        if old_path != destination:
+            old_path.unlink(missing_ok=True)
+
+    avatar_url = f"/auth/avatar?v={int(time.time())}"
+    updated = user_repository.update_avatar(user_id, avatar_url)
+    if not updated:
+        destination.unlink(missing_ok=True)
+        raise HTTPException(status_code=401, detail="user is missing")
+    return updated
+
+
+@router.get("/avatar")
+def get_avatar(principal: Principal = Depends(current_principal)):
+    user_id = int(principal.subject)
+    for extension, media_type in ((".jpg", "image/jpeg"), (".png", "image/png"), (".webp", "image/webp")):
+        avatar_path = AVATAR_DIR / f"{user_id}{extension}"
+        if avatar_path.is_file():
+            return FileResponse(avatar_path, media_type=media_type, headers={"Cache-Control": "no-cache"})
+    raise HTTPException(status_code=404, detail="avatar not found")
 
 
 @router.post("/logout")
