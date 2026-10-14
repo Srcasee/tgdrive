@@ -25,6 +25,12 @@ class FakeUsers:
     def get_by_id(self, user_id):
         return next((u for u in self.users.values() if u["id"] == user_id), None)
 
+    def record_login(self, user_id, login_at, login_ip):
+        user = next((u for u in self.users.values() if u["id"] == user_id), None)
+        if user:
+            user["last_login_at"] = login_at
+            user["last_login_ip"] = login_ip
+
 
 class FakeCategories:
     def __init__(self):

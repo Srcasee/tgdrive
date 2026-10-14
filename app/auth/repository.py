@@ -11,13 +11,45 @@ class UserRepository:
                 )
                 return cursor.fetchone()
 
+    def get_credentials_by_id(self, user_id):
+        with connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "SELECT id, username, password_hash, role, enabled, last_login_at, last_login_ip FROM users WHERE id=%s",
+                    (user_id,),
+                )
+                return cursor.fetchone()
+
     def get_by_id(self, user_id):
         with connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
-                    "SELECT id, username, role, enabled FROM users WHERE id=%s",
+                    "SELECT id, username, role, enabled, last_login_at, last_login_ip FROM users WHERE id=%s",
                     (user_id,),
                 )
+                return cursor.fetchone()
+
+    def record_login(self, user_id, login_at, login_ip):
+        with transaction() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "UPDATE users SET last_login_at=%s, last_login_ip=%s WHERE id=%s",
+                    (login_at, login_ip, user_id),
+                )
+
+    def update_credentials(self, user_id, username, password_hash=None):
+        with transaction() as conn:
+            with conn.cursor() as cursor:
+                if password_hash:
+                    cursor.execute(
+                        "UPDATE users SET username=%s, password_hash=%s WHERE id=%s RETURNING id, username, role, enabled, last_login_at, last_login_ip",
+                        (username, password_hash, user_id),
+                    )
+                else:
+                    cursor.execute(
+                        "UPDATE users SET username=%s WHERE id=%s RETURNING id, username, role, enabled, last_login_at, last_login_ip",
+                        (username, user_id),
+                    )
                 return cursor.fetchone()
 
     def create(self, username, password_hash, role="user"):
