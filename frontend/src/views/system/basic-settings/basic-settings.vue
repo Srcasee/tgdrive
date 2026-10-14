@@ -7,7 +7,6 @@
             <div :class="{ center: isMobile }">
               <a-avatar :size="100" trigger-type="mask" @click="chooseAvatar">
                 <img alt="avatar" :src="userInfo.avatar_url || defaultAvatar" />
-                <span v-else>{{ userInfo.username?.slice(0, 1)?.toUpperCase() || "U" }}</span>
                 <template #trigger-icon>
                   <IconEdit />
                 </template>
