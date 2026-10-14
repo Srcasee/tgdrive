@@ -44,15 +44,25 @@ if [ ! -f .env ]; then
         read -r API_HASH
     fi
     if [ -z "$ADMIN_PASS" ]; then
-        printf "ADMIN_PASSWORD: "
-        stty -echo
-        read -r ADMIN_PASS
-        stty echo
-        printf "\n"
+        if [ -t 0 ]; then
+            printf "ADMIN_PASSWORD (leave blank to generate 8 random characters): "
+            stty -echo
+            read -r ADMIN_PASS
+            stty echo
+            printf "\n"
+        fi
+        if [ -z "$ADMIN_PASS" ]; then
+            command -v openssl >/dev/null 2>&1 || {
+                echo "[DEPLOY] openssl is required to generate an admin password" >&2
+                exit 1
+            }
+            ADMIN_PASS=$(openssl rand -hex 4)
+            echo "[DEPLOY] generated an 8-character admin password; see ADMIN_PASSWORD in .env"
+        fi
     fi
 
-    if [ -z "$API_ID" ] || [ -z "$API_HASH" ] || [ -z "$ADMIN_PASS" ]; then
-        echo "[DEPLOY] Telegram API credentials and admin password are required" >&2
+    if [ -z "$API_ID" ] || [ -z "$API_HASH" ]; then
+        echo "[DEPLOY] Telegram API credentials are required" >&2
         exit 1
     fi
 
