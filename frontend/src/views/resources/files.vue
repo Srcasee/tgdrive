@@ -1,0 +1,871 @@
+<template>
+  <div class="snow-page">
+    <div ref="catalogLayout" class="catalog-layout">
+      <aside class="tree-panel" :style="{ width: treeWidth + 'px', flexBasis: treeWidth + 'px' }">
+        <div class="panel-title">资源归属</div>
+        <a-divider margin="0" />
+        <div class="tree-content">
+          <a-input v-model="treeKeyword" allow-clear placeholder="搜索账号、群组、话题" class="tree-search">
+            <template #prefix><icon-search /></template>
+          </a-input>
+          <a-spin :loading="treeLoading" class="tree-spin">
+            <a-tree :data="visibleTree" :default-expand-all="expandedTreeKeys === undefined" :expanded-keys="expandedTreeKeys" :show-line="true" :selected-keys="selectedTreeKeys" @expand="onTreeExpand" @select="onTreeSelect">
+              <template #title="{ title }"><span class="tree-node-title">{{ title }}</span></template>
+              <template #icon="{ isLeaf, expanded }">
+                <s-svg-icon v-if="!isLeaf && !expanded" name="folder-close" :size="16" />
+                <s-svg-icon v-else-if="!isLeaf" name="folder-open" :size="16" />
+                <s-svg-icon v-else name="txt" :size="16" />
+              </template>
+            </a-tree>
+          </a-spin>
+        </div>
+      </aside>
+      <div class="tree-resizer" role="separator" aria-orientation="vertical" aria-label="调整资源归属面板宽度" @pointerdown="startResize"></div>
+      <section class="resource-panel">
+        <div class="panel-title resource-panel-title">
+          <a-breadcrumb>
+            <a-breadcrumb-item v-for="item in breadcrumb" :key="item.key">{{ item.title }}</a-breadcrumb-item>
+            <a-breadcrumb-item v-if="!breadcrumb.length">全部资源</a-breadcrumb-item>
+          </a-breadcrumb>
+          <div class="header-actions">
+            <a-button @click="resetTreeSelection">全部资源</a-button>
+            <a-input-search v-model="keyword" placeholder="搜索文件名" class="resource-search" @search="onSearch" />
+          </div>
+        </div>
+        <a-divider margin="0" />
+        <div class="resource-content">
+          <div v-if="batchSelectionEnabled" class="batch-toolbar">
+            <a-checkbox :model-value="currentPageAllSelected" :indeterminate="currentPageSomeSelected" :disabled="batchRunning" @change="toggleCurrentPageSelection">选择当前页</a-checkbox>
+            <span>已选 {{ selectedResources.size }} 项 · {{ formatSize(selectedTotalSize) }}</span>
+            <a-button size="small" :disabled="selectedResources.size === 0 || batchRunning" @click="clearSelection">清空选择</a-button>
+            <a-button size="small" type="primary" :disabled="selectedResources.size === 0 || batchRunning" @click="startBatchDownload">批量下载（并发 8）</a-button>
+            <a-button v-if="topicId != null" size="small" :disabled="batchRunning" @click="createTopicShare">分享话题</a-button>
+            <a-button v-if="batchRunning" size="small" status="warning" @click="stopBatchDownload">停止后续任务</a-button>
+            <span v-if="batchStatus" class="batch-status">{{ batchStatus }}</span>
+          </div>
+          <a-table
+            :data="rows"
+            :loading="loading"
+            :pagination="pagination"
+            :scroll="{ y: '100%' }"
+            row-key="id"
+            size="small"
+            @page-change="onPageChange"
+            @page-size-change="onPageSizeChange"
+          >
+            <template #columns>
+              <a-table-column v-if="batchSelectionEnabled" title="选择" :width="72" align="center">
+                <template #cell="{ record }">
+                  <a-checkbox :model-value="selectedResources.has(String(record.id))" :disabled="batchRunning" @change="(checked: boolean) => toggleResourceSelection(record, checked)" />
+                </template>
+              </a-table-column>
+              <a-table-column
+                v-for="item in visibleDetailColumns"
+                :key="item.key"
+                :title="displayDetailLabel(item)"
+                :data-index="item.key"
+                :width="columnWidth(item.key)"
+              >
+                <template #cell="{ record }">{{ formatDetailCell(item, record._detailValues?.[item.key] ?? record[item.key]) }}</template>
+              </a-table-column>
+              <a-table-column title="来源账号" :width="130">
+                <template #cell="{ record }">
+                  <a-space wrap>
+                    <a-tag v-for="account in sourceAccounts(record)" :key="account.id" size="small">
+                      {{ account.name }}
+                    </a-tag>
+                    <span v-if="!sourceAccounts(record).length">—</span>
+                  </a-space>
+                </template>
+              </a-table-column>
+              <a-table-column title="分享操作" :width="100">
+                <template #cell="{ record }">
+                  <a-button size="small" type="primary" @click="share(record)">{{ activeShare(record) ? "复制" : "创建分享" }}</a-button>
+                </template>
+              </a-table-column>
+              <a-table-column title="操作" :width="130" fixed="right">
+                <template #cell="{ record }">
+                  <a-space>
+                    <a-button size="small" @click="detail(record)">查看</a-button>
+                    <a-button size="small" @click="downloadResource(record)">下载</a-button>
+                  </a-space>
+                </template>
+              </a-table-column>
+            </template>
+          </a-table>
+        </div>
+      </section>
+    </div>
+    <a-modal v-model:visible="detailOpen" title="资源详情" hide-cancel @ok="detailOpen=false" :width="720">
+      <a-space direction="vertical" fill size="medium">
+        <a-checkbox :model-value="allDetailsVisible" :indeterminate="someDetailsVisible" @change="toggleAllDetails">列表全部显示</a-checkbox>
+        <a-divider margin="0" />
+        <div v-for="item in detailRows" :key="item.key" class="detail-row">
+          <a-checkbox :model-value="isDetailVisible(item.key)" @change="setDetailVisibility(item.key, $event)">列表显示：{{ displayDetailLabel(item) }}</a-checkbox>
+          <div class="detail-value" v-if="!isDetailValueHidden(item)">{{ formatDetailCell(item, item.value) }}</div>
+          <div v-else class="detail-value"><a-button size="mini" type="text" @click="toggleDetailValue(item.key)">显示参数</a-button></div>
+        </div>
+        <a-divider margin="0" />
+        <div class="share-details">
+          <strong>分享链接</strong>
+          <div v-if="!(selectedResource?.shares || []).length" class="detail-value">尚未创建分享链接</div>
+          <div v-for="shareItem in (selectedResource?.shares || [])" :key="shareItem.id" class="share-detail-item">
+            <a-input :model-value="fullShareUrl(shareItem.url)" readonly />
+            <a-space wrap>
+              <a-button size="small" @click="copyShareUrl(fullShareUrl(shareItem.url))">复制完整链接</a-button>
+              <a-button size="small" status="danger" @click="removeShare(shareItem)">删除</a-button>
+            </a-space>
+          </div>
+        </div>
+      </a-space>
+    </a-modal>
+    <a-modal v-model:visible="topicShareOpen" title="话题分享" :width="480" :footer="false">
+      <a-space direction="vertical" fill size="medium">
+        <div>访客可通过此链接查看当前话题的资源列表，并多选下载。</div>
+        <a-input :model-value="topicShare?.url ? fullShareUrl(topicShare.url) : ''" readonly />
+        <a-space wrap>
+          <a-button type="primary" :disabled="!topicShare?.url" @click="copyShareUrl(fullShareUrl(topicShare.url))">复制链接</a-button>
+          <a-button status="danger" :disabled="!topicShare?.id" @click="removeTopicShare">删除分享</a-button>
+          <a-button @click="topicShareOpen=false">关闭</a-button>
+        </a-space>
+      </a-space>
+    </a-modal>
+    <!-- Manual category assignment is disabled; original dialog retained as a comment.
+    <a-modal v-model:visible="categoryOpen" title="设置分类" @ok="saveCategories">
+      <a-input v-model="categoryText" placeholder="分类 ID，逗号分隔" />
+    </a-modal>
+    -->
+  </div>
+</template>
+
+<script setup lang="ts">
+import { computed, onBeforeMount, onBeforeUnmount, ref } from "vue";
+import { Message } from "@arco-design/web-vue";
+import {
+  getResourcesAPI, getResourceAPI, searchResourcesAPI, getResourceTreeAPI,
+  createShareAPI, deleteShareAPI, createTopicShareAPI, deleteTopicShareAPI
+} from "@/api/modules/tgdrive";
+
+type TreeNode = {
+  key: string;
+  title: string;
+  account_id?: number;
+  chat_id?: number;
+  topic_id?: number;
+  isLeaf?: boolean;
+  children?: TreeNode[];
+};
+
+const catalogLayout = ref<HTMLElement | null>(null);
+const treeWidth = ref(280);
+const resizing = ref(false);
+
+const resizeTree = (event: PointerEvent) => {
+  if (!resizing.value || !catalogLayout.value) return;
+  const bounds = catalogLayout.value.getBoundingClientRect();
+  treeWidth.value = Math.max(200, Math.min(event.clientX - bounds.left, bounds.width * 0.5));
+};
+const stopResize = () => {
+  resizing.value = false;
+  document.removeEventListener("pointermove", resizeTree);
+  document.removeEventListener("pointerup", stopResize);
+  document.body.style.cursor = "";
+  document.body.style.userSelect = "";
+};
+const startResize = (event: PointerEvent) => {
+  if (window.matchMedia("(max-width: 768px)").matches) return;
+  event.preventDefault();
+  resizing.value = true;
+  document.body.style.cursor = "col-resize";
+  document.body.style.userSelect = "none";
+  document.addEventListener("pointermove", resizeTree);
+  document.addEventListener("pointerup", stopResize);
+};
+onBeforeUnmount(stopResize);
+
+const rows = ref<any[]>([]);
+const loading = ref(false);
+const treeLoading = ref(false);
+const keyword = ref("");
+const treeKeyword = ref("");
+const accountId = ref<number>();
+const chatId = ref<number>();
+const topicId = ref<number>();
+const treeData = ref<TreeNode[]>([]);
+const selectedTreeKeys = ref<string[]>([]);
+const expandedTreeKeys = ref<string[] | undefined>();
+const pageStateStorageKey = "tgdrive-resource-files-page-state";
+const readPageState = () => {
+  try {
+    const raw = sessionStorage.getItem(pageStateStorageKey);
+    return raw ? JSON.parse(raw) : {};
+  } catch { return {}; }
+};
+const savedPageState = readPageState();
+expandedTreeKeys.value = Array.isArray(savedPageState.expandedTreeKeys) ? savedPageState.expandedTreeKeys : undefined;
+const persistPageState = () => {
+  try {
+    sessionStorage.setItem(pageStateStorageKey, JSON.stringify({
+      selectedTreeKey: selectedTreeKeys.value[0] || null,
+      expandedTreeKeys: expandedTreeKeys.value,
+      keyword: keyword.value,
+      currentPage: pagination.value.current,
+      pageSize: pagination.value.pageSize
+    }));
+  } catch { /* Ignore unavailable session storage. */ }
+};
+const breadcrumb = ref<TreeNode[]>([]);
+const detailOpen = ref(false);
+const topicShareOpen = ref(false);
+const topicShare = ref<any | null>(null);
+const selectedResource = ref<any | null>(null);
+const selectedResources = ref(new Map<string, any>());
+const batchSelectionEnabled = computed(() => accountId.value != null && chatId.value != null);
+const currentPageAllSelected = computed(() => rows.value.length > 0 && rows.value.every((record: any) => selectedResources.value.has(String(record.id))));
+const currentPageSomeSelected = computed(() => rows.value.some((record: any) => selectedResources.value.has(String(record.id))) && !currentPageAllSelected.value);
+const selectedTotalSize = computed(() => [...selectedResources.value.values()].reduce((total: number, record: any) => total + (Number(record.size) || 0), 0));
+const batchRunning = ref(false);
+const batchStopRequested = ref(false);
+const batchStatus = ref("");
+// Manual category assignment state is disabled; retained as comments.
+// const categoryOpen = ref(false);
+// const currentId = ref<number>();
+// const categoryText = ref("");
+type DetailItem = { key: string; label: string; value: string; visible: boolean };
+const detailRows = ref<DetailItem[]>([]);
+const fieldVisibility = ref<Record<string, boolean>>({});
+const revealedDetailValues = ref<Set<string>>(new Set());
+const displayDetailLabel = (item: DetailItem) => item.label.replace(/[（(]\s*字节\s*[）)]/g, "").trim();
+const isDetailValueHidden = (item: DetailItem) => {
+  const label = String(item.label || "").replace(/\s/g, "");
+  const hiddenByDefault = defaultHiddenDetailKeys.has(item.key) || /资源来源|分享记录/.test(label);
+  return hiddenByDefault && !revealedDetailValues.value.has(item.key);
+};
+const toggleDetailValue = (key: string) => {
+  const next = new Set(revealedDetailValues.value);
+  if (next.has(key)) next.delete(key); else next.add(key);
+  revealedDetailValues.value = next;
+};
+const defaultVisibleDetailKeys = new Set(["filename", "size", "mime_type"]);
+const defaultHiddenDetailKeys = new Set(["source", "sources", "resource_sources", "shares", "share_records", "share_history"]);
+const isDetailVisible = (key: string) => {
+  if (fieldVisibility.value[key] !== undefined) return fieldVisibility.value[key];
+  const item = detailRows.value.find(row => row.key === key);
+  const label = String(item?.label || "").replace(/\s/g, "");
+  if (defaultHiddenDetailKeys.has(key) || /资源来源|分享记录/.test(label)) return false;
+  return defaultVisibleDetailKeys.has(key);
+};
+const visibleDetailColumns = computed(() => detailRows.value.filter(item => isDetailVisible(item.key)));
+const allDetailsVisible = computed(() => detailRows.value.length > 0 && detailRows.value.every(item => isDetailVisible(item.key)));
+const someDetailsVisible = computed(() => detailRows.value.some(item => isDetailVisible(item.key)) && !allDetailsVisible.value);
+const setDetailVisibility = (key: string, visible: boolean) => {
+  fieldVisibility.value[key] = visible;
+  const item = detailRows.value.find(row => row.key === key);
+  if (item) item.visible = visible;
+};
+const toggleAllDetails = (visible: boolean) => detailRows.value.forEach(item => {
+  fieldVisibility.value[item.key] = visible;
+  item.visible = visible;
+});
+const sourceAccounts = (record: any) => {
+  const sources = Array.isArray(record.sources) ? record.sources : [];
+  const unique = new Map<number | string, { id: number | string; name: string }>();
+  for (const source of sources) {
+    const id = source.account_id ?? "unknown";
+    const name = source.account_name || (source.account_id != null ? `账号 ${source.account_id}` : "未知账号");
+    if (!unique.has(id)) unique.set(id, { id, name });
+  }
+  return [...unique.values()];
+};
+const formatCell = (value: unknown) => {
+  if (value === null || value === undefined) return "—";
+  if (typeof value === "object") return JSON.stringify(value, null, 2);
+  return String(value);
+};
+const formatDetailCell = (item: DetailItem, value: unknown) => {
+  if (item.key === "size" || /文件大小|资源大小/.test(item.label)) {
+    const bytes = Number(value);
+    return Number.isFinite(bytes) && bytes >= 0 ? (bytes / (1024 * 1024)).toFixed(2) + " MB" : "—";
+  }
+  if (item.key === "mime_type" || /文件类型|MIME 类型/i.test(item.label)) {
+    const mimeType = String(value ?? "").trim();
+    if (!mimeType) return "—";
+    return mimeType.includes("/") ? mimeType.slice(mimeType.lastIndexOf("/") + 1) : mimeType;
+  }
+  return formatCell(value);
+};
+const activeShare = (record: any) => Array.isArray(record.shares) ? record.shares.find((item: any) => item && item.url) : undefined;
+const columnWidth = (key: string) => {
+  if (["id", "resource_id"].includes(key)) return 76;
+  if (["size", "source_count", "status", "mime_type", "created_at", "updated_at"].includes(key)) return 100;
+  if (["filename", "file_name", "name"].includes(key)) return 300;
+  if (["source", "sources", "resource_sources", "shares", "share_records", "share_history"].includes(key)) return 140;
+  return 120;
+};
+const pagination = ref({
+  current: 1,
+  pageSize: 15,
+  total: 0,
+  showPageSize: true,
+  pageSizeOptions: [15, 30, 50, 100],
+  showTotal: true
+});
+
+const filterTree = (nodes: TreeNode[], query: string): TreeNode[] => {
+  if (!query) return nodes;
+  const q = query.toLowerCase();
+  return nodes.reduce<TreeNode[]>((result, node) => {
+    const children = filterTree(node.children || [], query);
+    if (node.title.toLowerCase().includes(q) || children.length) result.push({ ...node, children });
+    return result;
+  }, []);
+};
+const visibleTree = computed(() => filterTree(treeData.value, treeKeyword.value.trim()));
+
+const findPath = (nodes: TreeNode[], key: string, parents: TreeNode[] = []): TreeNode[] | undefined => {
+  for (const node of nodes) {
+    const path = [...parents, node];
+    if (node.key === key) return path;
+    const found = findPath(node.children || [], key, path);
+    if (found) return found;
+  }
+  return undefined;
+};
+
+const load = async () => {
+  loading.value = true;
+  try {
+    const params = {
+      account_id: accountId.value,
+      chat_id: chatId.value,
+      topic_id: topicId.value
+    };
+    if (keyword.value.trim()) {
+      const response = await searchResourcesAPI({ q: keyword.value.trim(), ...params, limit: 200 });
+      const payload = response.data?.data;
+      rows.value = Array.isArray(payload?.items) ? payload.items : Array.isArray(payload) ? payload : [];
+      pagination.value.total = rows.value.length;
+      void hydrateRowDetails().catch(() => {});
+    } else {
+      const response = await getResourcesAPI({
+        page: pagination.value.current,
+        size: pagination.value.pageSize,
+        ...params
+      });
+      const payload = response.data?.data;
+      rows.value = Array.isArray(payload?.items) ? payload.items : Array.isArray(payload) ? payload : [];
+      pagination.value.total = Number(payload?.total ?? rows.value.length);
+      void hydrateRowDetails().catch(() => {});
+    }
+  } finally {
+    loading.value = false;
+  }
+};
+
+const loadTree = async () => {
+  treeLoading.value = true;
+  try {
+    const response = await getResourceTreeAPI();
+    treeData.value = Array.isArray(response.data?.data) ? response.data.data : [];
+  } finally {
+    treeLoading.value = false;
+  }
+};
+
+const onPageChange = (page: number) => {
+  pagination.value.current = page;
+  persistPageState();
+  if (!keyword.value.trim()) load();
+};
+const onPageSizeChange = (pageSize: number) => {
+  pagination.value.pageSize = pageSize;
+  pagination.value.current = 1;
+  persistPageState();
+  load();
+};
+const onSearch = () => {
+  pagination.value.current = 1;
+  persistPageState();
+  load();
+};
+const onTreeExpand = (keys: string[]) => {
+  expandedTreeKeys.value = keys;
+  persistPageState();
+};
+const onTreeSelect = (keys: string[]) => {
+  const key = keys?.[0];
+  if (!key) return;
+  clearSelection();
+  batchStatus.value = "";
+  selectedTreeKeys.value = [key];
+  breadcrumb.value = findPath(treeData.value, key) || [];
+  const selected = breadcrumb.value[breadcrumb.value.length - 1];
+  accountId.value = selected?.account_id;
+  chatId.value = selected?.chat_id;
+  topicId.value = selected?.topic_id;
+  pagination.value.current = 1;
+  persistPageState();
+  load();
+};
+const resetTreeSelection = () => {
+  clearSelection();
+  batchStatus.value = "";
+  selectedTreeKeys.value = [];
+  breadcrumb.value = [];
+  accountId.value = undefined;
+  chatId.value = undefined;
+  topicId.value = undefined;
+  pagination.value.current = 1;
+  persistPageState();
+  load();
+};
+const toggleResourceSelection = (record: any, checked: boolean) => {
+  const next = new Map(selectedResources.value);
+  const id = String(record.id);
+  if (checked) next.set(id, record);
+  else next.delete(id);
+  selectedResources.value = next;
+};
+const toggleCurrentPageSelection = (checked: boolean) => {
+  const next = new Map(selectedResources.value);
+  for (const record of rows.value) {
+    const id = String(record.id);
+    if (checked) next.set(id, record);
+    else next.delete(id);
+  }
+  selectedResources.value = next;
+};
+const clearSelection = () => { selectedResources.value = new Map(); };
+const formatSize = (bytes: number) => {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  return (bytes / 1024 ** index).toFixed(index === 0 ? 0 : 1) + " " + units[index];
+};
+const triggerDownload = (record: any) => {
+  const link = document.createElement("a");
+  link.href = `/resources/${encodeURIComponent(String(record.id))}/download`;
+  link.download = record.filename || "";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+};
+const startBatchDownload = async () => {
+  const queue = [...selectedResources.value.values()];
+  if (!queue.length || batchRunning.value) return;
+  batchRunning.value = true;
+  batchStopRequested.value = false;
+  let started = 0;
+  let failed = 0;
+  let nextIndex = 0;
+  batchStatus.value = "准备发起 " + queue.length + " 项下载";
+  const worker = async () => {
+    while (!batchStopRequested.value) {
+      const index = nextIndex++;
+      if (index >= queue.length) return;
+      const record = queue[index];
+      try {
+        triggerDownload(record);
+        started += 1;
+      } catch {
+        failed += 1;
+      }
+      batchStatus.value = "已发起 " + started + "/" + queue.length + " 项" + (failed ? "，发起失败 " + failed + " 项" : "") + (batchStopRequested.value ? "，正在停止" : "");
+      // Keep at most eight queue workers active and pace browser download prompts.
+      await new Promise(resolve => window.setTimeout(resolve, 250));
+    }
+  };
+  try {
+    await Promise.all(Array.from({ length: Math.min(8, queue.length) }, () => worker()));
+    batchStatus.value = (batchStopRequested.value
+      ? "已停止后续任务，已发起 " + started + "/" + queue.length + " 项"
+      : "已发起全部任务，已发起 " + started + "/" + queue.length + " 项")
+      + (failed ? "，发起失败 " + failed + " 项" : "")
+      + "；实际完成状态由浏览器下载管理器确认";
+  } finally {
+    batchRunning.value = false;
+    batchStopRequested.value = false;
+  }
+};
+const stopBatchDownload = () => {
+  batchStopRequested.value = true;
+  batchStatus.value = "正在停止后续任务…";
+};
+const downloadResource = (record: any) => triggerDownload(record);
+
+const fullShareUrl = (value: string) => {
+  if (!value) return "";
+  const parsed = new URL(value, window.location.origin);
+  return new URL(parsed.pathname + parsed.search, window.location.origin).href;
+};
+const copyShareUrl = async (url: string) => {
+  if (!url) return;
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(url);
+    } else {
+      const textarea = document.createElement("textarea");
+      textarea.value = url;
+      textarea.setAttribute("readonly", "");
+      textarea.style.position = "fixed";
+      textarea.style.left = "-9999px";
+      document.body.appendChild(textarea);
+      textarea.select();
+      const copied = document.execCommand("copy");
+      textarea.remove();
+      if (!copied) throw new Error("copy failed");
+    }
+    Message.success("完整分享链接已复制");
+  } catch {
+    Message.error("复制失败，请检查浏览器剪贴板权限");
+  }
+};
+const share = async (record: any) => {
+  const existing = activeShare(record);
+  if (existing?.url) {
+    await copyShareUrl(fullShareUrl(existing.url));
+    return;
+  }
+  try {
+    const response = await createShareAPI(record.id);
+    const payload = response.data?.data ?? response.data;
+    await load();
+    const refreshed = rows.value.find((item: any) => Number(item.id) === Number(record.id));
+    if (refreshed) {
+      if (!activeShare(refreshed) && payload?.url) {
+        refreshed.shares = [{ ...payload, url: payload.url }];
+      }
+      selectedResource.value = refreshed;
+    } else if (payload?.url) {
+      record.shares = [{ ...payload, url: payload.url }];
+    }
+    Message.success("分享链接已创建");
+  } catch (error: any) {
+    Message.error(error?.message || "创建分享链接失败");
+  }
+};
+const createTopicShare = async () => {
+  if (accountId.value == null || chatId.value == null || topicId.value == null) {
+    Message.warning("请先选择一个具体话题");
+    return;
+  }
+  try {
+    const response = await createTopicShareAPI({
+      account_id: accountId.value,
+      chat_id: chatId.value,
+      topic_id: topicId.value
+    });
+    topicShare.value = response.data?.data ?? response.data;
+    topicShareOpen.value = true;
+  } catch (error: any) {
+    Message.error(error?.message || "创建话题分享失败");
+  }
+};
+const removeTopicShare = async () => {
+  if (!topicShare.value?.id) return;
+  if (!window.confirm("确定删除这个话题分享链接吗？删除后链接立即失效。")) return;
+  try {
+    await deleteTopicShareAPI(Number(topicShare.value.id));
+    topicShare.value = null;
+    topicShareOpen.value = false;
+    Message.success("话题分享链接已删除");
+  } catch (error: any) {
+    Message.error(error?.message || "删除话题分享链接失败，请确认当前账号具有管理员权限");
+  }
+};
+const removeShare = async (item: any) => {
+  if (!window.confirm("确定删除这个分享链接吗？删除后该链接立即失效。")) return;
+  try {
+    await deleteShareAPI(item.id);
+    if (selectedResource.value) {
+      selectedResource.value.shares = (selectedResource.value.shares || []).filter((shareItem: any) => Number(shareItem.id) !== Number(item.id));
+    }
+    await load();
+    const updated = rows.value.find((record: any) => Number(record.id) === Number(selectedResource.value?.id));
+    if (updated) selectedResource.value = updated;
+    window.alert("分享链接已删除");
+  } catch {
+    window.alert("删除分享链接失败，请确认当前账号具有管理员权限");
+  }
+};
+const applyDetailData = (data: any[]) => data.map((item: any) => ({
+  ...item,
+  visible: isDetailVisible(item.key)
+}));
+const hydrateRowDetails = async () => {
+  const currentRows = rows.value;
+  if (!currentRows.length) return;
+  const responses = await Promise.all(currentRows.map((record: any) => getResourceAPI(record.id)));
+  // Ignore results if the user has already loaded another page or filter.
+  if (rows.value !== currentRows) return;
+  const fieldsByRow = responses.map(response => Array.isArray(response.data?.data) ? response.data.data : []);
+  rows.value = currentRows.map((record: any, index: number) => ({
+    ...record,
+    _detailValues: Object.fromEntries(fieldsByRow[index].map((item: any) => [item.key, item.value]))
+  }));
+  // Reuse the first row's response instead of requesting its details a second time.
+  if (!detailRows.value.length && fieldsByRow.length) {
+    detailRows.value = applyDetailData(fieldsByRow[0]);
+  }
+};
+const detail = async (record: any) => {
+  revealedDetailValues.value = new Set();
+  selectedResource.value = record;
+  const response = await getResourceAPI(record.id);
+  detailRows.value = Array.isArray(response.data?.data) ? applyDetailData(response.data.data) : [];
+  detailOpen.value = true;
+};
+// Manual category assignment functions are disabled; retained as comments.
+// const setCategories = (record: any) => {
+//   currentId.value = record.id;
+//   categoryText.value = (record.category_ids || []).join(",");
+//   categoryOpen.value = true;
+// };
+// const saveCategories = async () => {
+//   if (!currentId.value) return;
+//   const ids = categoryText.value.split(",").map(value => Number(value.trim())).filter(value => Number.isInteger(value) && value > 0);
+//   await setResourceCategoriesAPI(currentId.value, ids);
+//   categoryOpen.value = false;
+//   await load();
+// };
+
+onBeforeMount(async () => {
+  keyword.value = typeof savedPageState.keyword === "string" ? savedPageState.keyword : "";
+  pagination.value.current = Number.isInteger(savedPageState.currentPage) && savedPageState.currentPage > 0 ? savedPageState.currentPage : 1;
+  pagination.value.pageSize = [15, 30, 50, 100].includes(savedPageState.pageSize) ? savedPageState.pageSize : 15;
+  await loadTree();
+  const savedKey = typeof savedPageState.selectedTreeKey === "string" ? savedPageState.selectedTreeKey : "";
+  const path = savedKey ? findPath(treeData.value, savedKey) : undefined;
+  if (path?.length) {
+    selectedTreeKeys.value = [savedKey];
+    breadcrumb.value = path;
+    const selected = path[path.length - 1];
+    accountId.value = selected.account_id;
+    chatId.value = selected.chat_id;
+    topicId.value = selected.topic_id;
+  } else {
+    selectedTreeKeys.value = [];
+    breadcrumb.value = [];
+    accountId.value = undefined;
+    chatId.value = undefined;
+    topicId.value = undefined;
+  }
+  persistPageState();
+  await load();
+});
+</script>
+
+<style scoped>
+.snow-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+.catalog-layout {
+  display: flex;
+  flex: 1 1 0;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  gap: 12px;
+  align-items: stretch;
+}
+.tree-panel,
+.resource-panel {
+  min-width: 0;
+  height: 100%;
+  min-height: 0;
+  background: var(--color-bg-1, var(--color-bg-2));
+}
+.tree-panel {
+  box-sizing: border-box;
+  min-width: 200px;
+  max-width: 50%;
+  flex: 0 0 280px;
+  overflow: auto;
+}
+.tree-resizer {
+  position: relative;
+  z-index: 2;
+  flex: 0 0 6px;
+  margin: 0 -3px;
+  cursor: col-resize;
+  touch-action: none;
+}
+.tree-resizer::after {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 2px;
+  width: 2px;
+  background: var(--color-border-2);
+  content: "";
+}
+.tree-resizer:hover::after {
+  background: rgb(var(--primary-6));
+}
+.resource-panel {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  overflow: hidden;
+}
+.panel-title {
+  display: flex;
+  flex: 0 0 40px;
+  align-items: center;
+  height: 40px;
+  padding: 0 16px;
+}
+.resource-panel-title {
+  justify-content: space-between;
+  gap: 16px;
+}
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.resource-search {
+  width: 260px;
+  flex: 0 1 260px;
+}
+.tree-content {
+  box-sizing: border-box;
+  flex: 1 1 0;
+  min-height: 0;
+  padding: 16px 12px;
+  overflow: auto;
+}
+.tree-search {
+  margin-bottom: 12px;
+}
+.tree-spin {
+  display: block;
+  min-height: 100px;
+}
+.tree-node-title {
+  white-space: nowrap;
+}
+.resource-content {
+  box-sizing: border-box;
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-height: 0;
+  padding: 16px 16px 8px;
+  overflow: hidden;
+}
+.resource-content :deep(.arco-table-wrapper) {
+  flex: 1 1 0;
+  min-height: 0;
+}
+.resource-content :deep(.arco-table) {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.resource-content :deep(.arco-table-container) {
+  flex: 1 1 0;
+  min-height: 0;
+}
+.resource-content :deep(.arco-table-pagination) {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 12px 0 4px;
+  background: var(--color-bg-1, var(--color-bg-2));
+}
+.batch-toolbar {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 0 0 12px;
+}
+.batch-status {
+  color: var(--color-text-2);
+  font-size: 12px;
+}
+.detail-row {
+  display: grid;
+  grid-template-columns: minmax(140px, 220px) minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+}
+.detail-value {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.share-details {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.share-detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+@media (max-width: 768px) {
+  .snow-page {
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+  }
+  .catalog-layout {
+    display: block;
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+  }
+  .tree-panel {
+    width: 100% !important;
+    max-width: 100%;
+    height: auto;
+    max-height: 240px;
+    flex-basis: auto !important;
+  }
+  .tree-resizer {
+    display: none;
+  }
+  .resource-panel-title {
+    height: auto;
+    min-height: 40px;
+    flex-wrap: wrap;
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+  .header-actions {
+    width: 100%;
+  }
+  .resource-search {
+    width: 100%;
+    flex: 1 1 0;
+  }
+  .resource-panel {
+    width: 100%;
+    height: auto;
+    min-height: 420px;
+    margin-top: 12px;
+    overflow: visible;
+  }
+  .resource-content {
+    display: block;
+    overflow: visible;
+  }
+  .resource-content :deep(.arco-table-wrapper),
+  .resource-content :deep(.arco-table) {
+    height: auto;
+  }
+  .resource-content :deep(.arco-table-container) {
+    min-height: auto;
+  }
+}
+</style>
