@@ -163,9 +163,10 @@ async def shared_resource_page(token: str):
         table_rows = []
         for item in resources:
             filename = escape(str(item.get("filename") or "未命名资源"))
-            mime_type = escape(str(item.get("mime_type") or "未知"))
+            raw_mime_type = str(item.get("mime_type") or "未知")
+            mime_type = escape(raw_mime_type.rsplit("/", 1)[-1])
             try:
-                size_text = f"{int(item.get('size') or 0):,} 字节"
+                size_text = f"{int(item.get('size') or 0) / (1024 * 1024):.2f} MB"
             except (TypeError, ValueError):
                 size_text = "未知"
             table_rows.append(
@@ -185,7 +186,6 @@ h1{{font-size:22px;margin:0 0 8px;overflow-wrap:anywhere}}.meta{{color:#64748b;f
 <h1>{safe_topic_name}</h1><div class="meta">话题资源 · 共 {len(resources)} 项 · 选择需要下载的文件</div>
 <div class="toolbar"><label><input id="all" type="checkbox"> 全选</label><button id="download" disabled>下载所选（0）</button><span id="status" role="status"></span></div>
 <div class="table-wrap"><table><thead><tr><th>选择</th><th>文件名</th><th>大小</th><th>类型</th></tr></thead><tbody>{''.join(table_rows)}</tbody></table></div>
-<p class="hint">此页面仅展示分享话题中的可用资源。下载会通过服务端资源下载流程逐个发起；若浏览器提示拦截多个下载，请允许此网站下载多个文件。</p>
 </main><script>
 const boxes=[...document.querySelectorAll('.pick')],all=document.getElementById('all'),button=document.getElementById('download'),status=document.getElementById('status');
 function update(){{const count=boxes.filter(x=>x.checked).length;button.disabled=count===0;button.textContent='下载所选（'+count+'）';all.checked=count===boxes.length;all.indeterminate=count>0&&count<boxes.length;}}
@@ -199,10 +199,11 @@ update();
         return api_error("not_found", "resource not found", 404)
 
     filename = escape(str(resource.get("filename") or "未命名资源"))
-    mime_type = escape(str(resource.get("mime_type") or "未知"))
+    raw_mime_type = str(resource.get("mime_type") or "未知")
+    mime_type = escape(raw_mime_type.rsplit("/", 1)[-1])
     size = resource.get("size")
     try:
-        size_text = f"{int(size):,} 字节" if size is not None else "未知"
+        size_text = f"{int(size) / (1024 * 1024):.2f} MB" if size is not None else "未知"
     except (TypeError, ValueError):
         size_text = "未知"
     download_url = f"/share/{escape(token, quote=True)}/download"
