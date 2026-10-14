@@ -35,7 +35,7 @@ class ScannerManager:
                 if not task.cancelled():
                     task.exception()
             refresh_event = self.refresh_events.setdefault(source_id, asyncio.Event())
-            self.tasks[key] = asyncio.create_task(task_factory(source, refresh_event))
+            self.tasks[key] = asyncio.create_task(task_factory(source))
 
     def request_refresh(self, source_id=None):
         """Signal active source tasks to run a full scan in the background."""
