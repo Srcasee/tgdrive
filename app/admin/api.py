@@ -205,7 +205,7 @@ def get_role_permissions(role_code: str, _: Principal = Depends(require_admin)):
             row = cursor.fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="角色不存在")
-    return row["permissions"] or []
+    return row["permissions"]
 
 
 @router.put("/roles/{role_id}/permissions")
