@@ -143,7 +143,7 @@ export default {
     ["下载记录"]: "下载记录",
     ["tgdrive-dashboard"]: "TGDrive 概览",
     ["tgdrive-accounts"]: "账号管理",
-    ["tgdrive-dialogs"]: "群组/频道管理",
+    ["tgdrive-dialogs"]: "群组/频道",
     ["tgdrive-resources"]: "资源文件",
     ["tgdrive-categories"]: "资源分类",
     ["tgdrive-downloads"]: "下载记录"
@@ -156,7 +156,7 @@ export default {
     downloads: "下载记录",
     completed: "已完成",
     failed: "下载失败",
-    dialogs: "群组/频道管理",
+    dialogs: "群组/频道",
     refresh: "刷新",
     noAccounts: "暂无已启用账号",
     group: "群组",
