@@ -3,9 +3,14 @@
     <a-card :bordered="false">
       <template #title>群组/频道</template>
       <template #extra>
-        <a-button type="primary" :loading="refreshing" @click="refresh">
-          刷新
-        </a-button>
+        <a-space>
+          <a-button :loading="refreshingScans" @click="refreshAllScans">
+            全部立即扫描
+          </a-button>
+          <a-button type="primary" :loading="refreshing" @click="refresh">
+            刷新
+          </a-button>
+        </a-space>
       </template>
       <a-empty v-if="!loading && accounts.length === 0" description="暂无已启用账号" />
 
@@ -56,7 +61,7 @@
                   />
                 </template>
               </a-table-column>
-              <a-table-column title="操作" :width="180" align="center">
+              <a-table-column title="操作" :width="280" align="center">
                 <template #cell="{ record }">
                   <a-space>
                     <a-button
@@ -67,6 +72,14 @@
                       @click="createSource(record)"
                     >
                       新增
+                    </a-button>
+                    <a-button
+                      size="small"
+                      :disabled="!record.source_id || !record.source_enabled"
+                      :loading="record.scanning"
+                      @click="refreshSourceScan(record)"
+                    >
+                      立即扫描
                     </a-button>
                     <a-popconfirm
                       v-if="record.source_id"
@@ -89,12 +102,14 @@
 
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import { Message } from "@arco-design/web-vue";
 import {
   getDialogsAPI,
   refreshDialogsAPI,
   createSourceAPI,
   setDialogSourceEnabledAPI,
-  deleteSourceAPI
+  deleteSourceAPI,
+  refreshScansAPI
 } from "@/api/modules/tgdrive";
 
 type ChannelRow = {
@@ -107,6 +122,7 @@ type ChannelRow = {
   toggling: boolean;
   creating: boolean;
   deleting: boolean;
+  scanning: boolean;
   row_key: string;
   source_id: number | null;
 };
@@ -122,6 +138,7 @@ const accounts = ref<AccountGroup[]>([]);
 const selectedAccountId = ref<number | null>(null);
 const loading = ref(false);
 const refreshing = ref(false);
+const refreshingScans = ref(false);
 
 const selectedAccount = computed(() =>
   accounts.value.find(account => account.account_id === selectedAccountId.value) || null
@@ -148,6 +165,7 @@ const load = async () => {
           toggling: false,
           creating: false,
           deleting: false,
+          scanning: false,
           row_key: `${item.account_id}:${item.telegram_chat_id}`
         }))
     }));
@@ -168,6 +186,41 @@ const refresh = async () => {
     await load();
   } finally {
     refreshing.value = false;
+  }
+};
+
+const refreshAllScans = async () => {
+  refreshingScans.value = true;
+  try {
+    const response = await refreshScansAPI();
+    const queued = Number(response.data?.queued ?? 0);
+    if (queued > 0) {
+      Message.success(`已提交全部扫描刷新请求（${queued} 个任务）`);
+    } else {
+      Message.warning("当前没有正在运行的扫描任务可刷新");
+    }
+  } catch (error: any) {
+    Message.error(error?.response?.data?.detail || "提交扫描刷新请求失败");
+  } finally {
+    refreshingScans.value = false;
+  }
+};
+
+const refreshSourceScan = async (row: ChannelRow) => {
+  if (!row.source_id || !row.source_enabled || row.scanning) return;
+  row.scanning = true;
+  try {
+    const response = await refreshScansAPI(row.source_id);
+    const queued = Number(response.data?.queued ?? 0);
+    if (queued > 0) {
+      Message.success("已提交该群组/频道的扫描刷新请求");
+    } else {
+      Message.warning("该 Source 当前没有正在运行的扫描任务");
+    }
+  } catch (error: any) {
+    Message.error(error?.response?.data?.detail || "提交扫描刷新请求失败");
+  } finally {
+    row.scanning = false;
   }
 };
 
