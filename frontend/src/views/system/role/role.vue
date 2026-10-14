@@ -6,39 +6,28 @@
           <a-space wrap>
             <a-input v-model="form.name" placeholder="请输入角色名称" allow-clear />
             <a-input v-model="form.code" placeholder="请输入角色标识" allow-clear />
-            <a-select placeholder="角色状态" v-model="form.status" style="width: 120px" allow-clear>
+            <a-select v-model="form.status" placeholder="角色状态" style="width: 120px" allow-clear>
               <a-option v-for="item in openState" :key="item.value" :value="item.value">{{ item.name }}</a-option>
             </a-select>
-            <a-range-picker v-model="form.time" show-time format="YYYY-MM-DD HH:mm" allow-clear />
-            <a-button type="primary" @click="search">
-              <template #icon><icon-search /></template>
-              <span>查询</span>
-            </a-button>
-            <a-button @click="reset">
-              <template #icon><icon-refresh /></template>
-              <span>重置</span>
-            </a-button>
+            <a-button type="primary" @click="search"><template #icon><icon-search /></template>查询</a-button>
+            <a-button @click="reset"><template #icon><icon-refresh /></template>重置</a-button>
           </a-space>
         </template>
         <template #right>
           <a-space wrap>
-            <a-button type="primary" @click="onAdd">
-              <template #icon><icon-plus /></template>
-              <span>新增</span>
-            </a-button>
-            <a-button type="primary" status="danger">
-              <template #icon><icon-delete /></template>
-              <span>删除</span>
-            </a-button>
+            <a-button type="primary" @click="onAdd"><template #icon><icon-plus /></template>新增</a-button>
+            <a-popconfirm content="确定删除选中的角色吗？系统管理员角色不可删除，仍被用户使用的角色也无法删除。" type="warning" @ok="removeSelected">
+              <a-button status="danger" :disabled="selectedKeys.length === 0"><template #icon><icon-delete /></template>批量删除</a-button>
+            </a-popconfirm>
           </a-space>
         </template>
       </s-layout-tools>
       <a-table
         row-key="id"
-        :data="roleList"
+        :data="filteredRoleList"
         :bordered="{ cell: true }"
         :loading="loading"
-        :scroll="{ x: '100%', y: '100%', minWidth: 1000 }"
+        :scroll="{ x: '100%', minWidth: 1000 }"
         :pagination="pagination"
         :row-selection="{ type: 'checkbox', showCheckedAll: true }"
         :selected-keys="selectedKeys"
@@ -46,35 +35,29 @@
         @select-all="selectAll"
       >
         <template #columns>
-          <a-table-column title="序号" :width="64">
-            <template #cell="cell">{{ cell.rowIndex + 1 }}</template>
-          </a-table-column>
-          <a-table-column title="角色名称" data-index="name" :width="120" ellipsis tooltip></a-table-column>
-          <a-table-column title="角色标识" data-index="code" :width="120" ellipsis tooltip></a-table-column>
-          <a-table-column title="排序" data-index="sort" :width="100" align="center"></a-table-column>
+          <a-table-column title="序号" :width="64"><template #cell="{ rowIndex }">{{ rowIndex + 1 }}</template></a-table-column>
+          <a-table-column title="角色名称" data-index="name" :width="150" ellipsis tooltip />
+          <a-table-column title="角色标识" data-index="code" :width="140" ellipsis tooltip />
+          <a-table-column title="排序" data-index="sort" :width="90" align="center" />
           <a-table-column title="状态" :width="100" align="center">
             <template #cell="{ record }">
-              <a-tag bordered size="small" color="arcoblue" v-if="record.status === 1">启用</a-tag>
-              <a-tag bordered size="small" color="red" v-else>禁用</a-tag>
+              <a-tag bordered size="small" :color="record.status === 1 ? 'arcoblue' : 'red'">{{ record.status === 1 ? "启用" : "禁用" }}</a-tag>
             </template>
           </a-table-column>
-          <a-table-column title="描述" data-index="description" ellipsis tooltip></a-table-column>
-          <a-table-column title="创建时间" data-index="createTime" :width="180"></a-table-column>
+          <a-table-column title="描述" data-index="description" ellipsis tooltip />
+          <a-table-column title="创建时间" data-index="createTime" :width="180" />
           <a-table-column title="操作" :width="280" align="center" :fixed="tableFixed">
             <template #cell="{ record }">
               <a-space>
                 <a-button type="primary" status="success" size="mini" :disabled="record.admin" @click="onPrivileges(record)">
-                  <template #icon><icon-safe /></template>
-                  <span>分配权限</span>
+                  <template #icon><icon-safe /></template>分配权限
                 </a-button>
                 <a-button type="primary" size="mini" :disabled="record.admin" @click="onUpdate(record)">
-                  <template #icon><icon-edit /></template>
-                  <span>修改</span>
+                  <template #icon><icon-edit /></template>修改
                 </a-button>
-                <a-popconfirm type="warning" content="确定删除该角色吗?">
+                <a-popconfirm content="确定删除该角色吗？" type="warning" @ok="removeRole(record)">
                   <a-button type="primary" status="danger" size="mini" :disabled="record.admin">
-                    <template #icon><icon-delete /></template>
-                    <span>删除</span>
+                    <template #icon><icon-delete /></template>删除
                   </a-button>
                 </a-popconfirm>
               </a-space>
@@ -83,254 +66,224 @@
         </template>
       </a-table>
     </div>
-    <a-modal :width="dialogWidth()" v-model:visible="open" @close="afterClose" @ok="handleOk" @cancel="afterClose">
-      <template #title> {{ title }} </template>
-      <div>
-        <a-form ref="formRef" auto-label-width :layout="formLayout" :rules="rules" :model="addFrom">
-          <a-form-item field="name" label="角色名称" validate-trigger="blur">
-            <a-input v-model="addFrom.name" placeholder="请输入角色名称" allow-clear />
-          </a-form-item>
-          <a-form-item field="code" label="角色编码" validate-trigger="blur">
-            <a-input v-model="addFrom.code" placeholder="请输入角色编码" allow-clear />
-          </a-form-item>
-          <a-form-item field="status" label="状态" validate-trigger="blur">
-            <a-switch type="round" :checked-value="1" :unchecked-value="0" v-model="addFrom.status">
-              <template #checked> 启用 </template>
-              <template #unchecked> 禁用 </template>
-            </a-switch>
-          </a-form-item>
-          <a-form-item field="sort" label="排序" validate-trigger="blur">
-            <a-input-number
-              v-model="addFrom.sort"
-              :step="1"
-              :precision="0"
-              :min="1"
-              :max="9999"
-              :style="{ width: '150px' }"
-              placeholder="请输入"
-              mode="button"
-              class="input-demo"
-            />
-          </a-form-item>
-          <a-form-item field="description" label="描述" validate-trigger="blur">
-            <a-textarea v-model="addFrom.description" placeholder="请输入描述" allow-clear />
-          </a-form-item>
-        </a-form>
-      </div>
+
+    <a-modal :width="dialogWidth()" v-model:visible="open" :mask-closable="false" @close="afterClose" @ok="handleOk" @cancel="afterClose">
+      <template #title>{{ title }}</template>
+      <a-form ref="formRef" auto-label-width :layout="formLayout" :rules="rules" :model="addForm">
+        <a-form-item field="name" label="角色名称" validate-trigger="blur">
+          <a-input v-model="addForm.name" placeholder="请输入角色名称" allow-clear />
+        </a-form-item>
+        <a-form-item field="code" label="角色编码" validate-trigger="blur">
+          <a-input v-model="addForm.code" placeholder="小写字母开头，可包含数字、下划线和连字符" allow-clear />
+        </a-form-item>
+        <a-form-item field="status" label="状态">
+          <a-switch type="round" :checked-value="1" :unchecked-value="0" v-model="addForm.status">
+            <template #checked>启用</template><template #unchecked>禁用</template>
+          </a-switch>
+        </a-form-item>
+        <a-form-item field="sort" label="排序">
+          <a-input-number v-model="addForm.sort" :step="1" :precision="0" :min="0" :max="9999" :style="{ width: '150px' }" />
+        </a-form-item>
+        <a-form-item field="description" label="描述">
+          <a-textarea v-model="addForm.description" placeholder="请输入描述" allow-clear />
+        </a-form-item>
+      </a-form>
     </a-modal>
 
-    <a-drawer :visible="drawerOpen" :width="dialogWidth('500px', '100%')" @ok="drawerOk" @cancel="drawerCancel">
-      <template #title> 分配权限 </template>
-      <div>
+    <a-drawer v-model:visible="drawerOpen" :width="dialogWidth('500px', '100%')" @ok="drawerOk" @cancel="drawerCancel">
+      <template #title>分配权限：{{ activeRole?.name || "" }}</template>
+      <a-space direction="vertical" fill>
         <a-card>
-          <a-row :gutter="24" justify="center">
-            <a-col :span="8">
+          <a-row :gutter="16" align="center">
+            <a-col :span="12">
               <span class="text-right-gap">展开全部</span>
-              <a-switch type="round" v-model="treeSwitch.expandAll" @change="onExpandAll">
-                <template #checked> 是 </template>
-                <template #unchecked> 否 </template>
-              </a-switch>
+              <a-switch type="round" v-model="treeSwitch.expandAll" @change="onExpandAll" />
             </a-col>
-            <a-col :span="8">
+            <a-col :span="12">
               <span class="text-right-gap">全选节点</span>
-              <a-switch type="round" v-model="treeSwitch.selectAll" @change="onSelectAll">
-                <template #checked> 是 </template>
-                <template #unchecked> 否 </template>
-              </a-switch>
-            </a-col>
-            <a-col :span="8">
-              <a-tooltip
-                content="权限树的父子节点独立，因为若节点关联，父节点会存在半选情况，半选节点的ID不会返回，会导致菜单无法渲染"
-              >
-                <span>父子关联 <icon-question-circle-fill /></span>
-              </a-tooltip>
+              <a-switch type="round" v-model="treeSwitch.selectAll" @change="onSelectAll" />
             </a-col>
           </a-row>
         </a-card>
-
         <a-tree
           ref="treeRef"
-          :fieldNames="{
-            key: 'id',
-            title: 'i18n',
-            children: 'children'
-          }"
+          :field-names="{ key: 'id', title: 'i18n', children: 'children' }"
           :check-strictly="true"
-          :checkable="true"
-          :show-line="true"
-          :unmount-on-close="true"
+          checkable
+          show-line
           v-model:checked-keys="permissionKeys"
           :data="permissionTree"
         />
-      </div>
+      </a-space>
     </a-drawer>
   </div>
 </template>
 
 <script setup lang="ts">
 import useGlobalProperties from "@/hooks/useGlobalProperties";
-import { getRoleAPI, getMenuListAPI, getUserPermissionAPI } from "@/api/modules/system/index";
+import {
+  getRoleAPI,
+  createRoleAPI,
+  updateRoleAPI,
+  deleteRoleAPI,
+  getMenuListAPI,
+  getUserPermissionAPI,
+  updateRolePermissionsAPI
+} from "@/api/modules/system/index";
 import { deepClone } from "@/utils";
 import { useLayoutModel } from "@/hooks/useLayoutModel";
 
 const proxy = useGlobalProperties();
 const openState = ref(dictFilter("status"));
 const { dialogWidth, formLayout, tableFixed } = useLayoutModel();
-const form = ref({
-  name: "",
-  code: "",
-  time: [],
-  status: null
-});
-const search = () => {
-  getRole();
-};
-const reset = () => {
-  form.value = {
-    name: "",
-    code: "",
-    time: [],
-    status: null
-  };
-  getRole();
-};
-
-// 新增
-const open = ref(false);
-const rules = {
-  name: [{ required: true, message: "请输入角色名称" }],
-  code: [{ required: true, message: "请输入角色编码" }],
-  status: [{ required: true, message: "请选择状态" }]
-};
-const addFrom = ref<any>({
-  name: "",
-  code: "",
-  status: 1,
-  sort: 1,
-  description: ""
-});
-
-const title = ref("");
-const formRef = ref();
-const onAdd = () => {
-  title.value = "新增角色";
-  open.value = true;
-};
-const handleOk = async () => {
-  let state = await formRef.value.validate();
-  if (state) return (open.value = true); // 校验不通过
-  arcoMessage("success", "模拟提交成功");
-  getRole();
-};
-// 关闭对话框动画结束后触发
-const afterClose = () => {
-  formRef.value.resetFields();
-  addFrom.value = {
-    name: "",
-    code: "",
-    status: 1,
-    sort: 1,
-    description: ""
-  };
-};
-// 修改角色
-const onUpdate = (row: any) => {
-  title.value = "修改角色";
-  addFrom.value = deepClone(row);
-  open.value = true;
-};
-
-// 获取列表
+const form = ref<any>({ name: "", code: "", status: undefined });
 const loading = ref(false);
-const pagination = ref({
-  pageSize: 10,
-  showPageSize: true
-});
-const roleList = ref([]);
+const roleList = ref<any[]>([]);
+const selectedKeys = ref<any[]>([]);
+const pagination = ref({ pageSize: 10, showPageSize: true });
+const filteredRoleList = computed(() => roleList.value.filter((role: any) =>
+  (!form.value.name || role.name?.toLowerCase().includes(form.value.name.toLowerCase())) &&
+  (!form.value.code || role.code?.toLowerCase().includes(form.value.code.toLowerCase())) &&
+  (form.value.status === undefined || form.value.status === null || form.value.status === "" || role.status === form.value.status)
+));
+
 const getRole = async () => {
+  loading.value = true;
   try {
-    loading.value = true;
-    let res = await getRoleAPI();
-    res.data.forEach((item: any) => item.admin && (item.disabled = true));
-    roleList.value = res.data;
+    const result: any = await getRoleAPI();
+    roleList.value = Array.isArray(result) ? result : (result.data || []);
+    selectedKeys.value = selectedKeys.value.filter(id => roleList.value.some(role => role.id === id));
+  } catch (error: any) {
+    arcoMessage("error", error?.response?.data?.detail || "获取角色列表失败");
   } finally {
     loading.value = false;
   }
 };
-const selectedKeys = ref([]);
-const select = (list: []) => {
-  selectedKeys.value = list;
-};
-const selectAll = (state: boolean) => {
-  selectedKeys.value = state ? (roleList.value.map((el: any) => el.id) as []) : [];
-};
+const search = () => { pagination.value = { ...pagination.value, current: 1 } as any; };
+const reset = () => { form.value = { name: "", code: "", status: undefined }; pagination.value = { ...pagination.value, current: 1 } as any; };
 
-// 获取权限树
-const treeRef = ref();
-const treeSwitch = ref({
-  expandAll: true, // 展开全部
-  selectAll: false // 全选
-});
-// 展开全部
-const onExpandAll = (state: boolean) => {
-  treeRef.value.expandAll(state);
+const open = ref(false);
+const title = ref("");
+const editingId = ref<number | null>(null);
+const formRef = ref();
+const addForm = ref<any>({ name: "", code: "", status: 1, sort: 1, description: "" });
+const rules = {
+  name: [{ required: true, message: "请输入角色名称" }],
+  code: [{ required: true, message: "请输入角色编码" }]
 };
-// 全选
-const onSelectAll = (state: boolean) => {
-  treeRef.value.checkAll(state);
+const onAdd = () => {
+  editingId.value = null;
+  title.value = "新增角色";
+  addForm.value = { name: "", code: "", status: 1, sort: 1, description: "" };
+  open.value = true;
 };
-
-// 重置节点操作开关
-const treeSwitchReset = () => {
-  treeSwitch.value = {
-    expandAll: true, // 固定
-    selectAll: false // 全选
+const onUpdate = (row: any) => {
+  editingId.value = row.id;
+  title.value = "修改角色";
+  addForm.value = deepClone(row);
+  open.value = true;
+};
+const handleOk = async () => {
+  const invalid = await formRef.value?.validate();
+  if (invalid) return;
+  const payload = {
+    name: addForm.value.name.trim(),
+    code: addForm.value.code.trim(),
+    status: addForm.value.status,
+    sort: addForm.value.sort,
+    description: addForm.value.description || ""
   };
+  try {
+    if (editingId.value === null) await createRoleAPI(payload);
+    else await updateRoleAPI(editingId.value, payload);
+    arcoMessage("success", editingId.value === null ? "角色创建成功" : "角色更新成功");
+    open.value = false;
+    afterClose();
+    await getRole();
+  } catch (error: any) {
+    arcoMessage("error", error?.response?.data?.detail || error?.message || "保存角色失败");
+  }
 };
+const afterClose = () => {
+  formRef.value?.resetFields?.();
+  addForm.value = { name: "", code: "", status: 1, sort: 1, description: "" };
+  editingId.value = null;
+};
+const removeRole = async (row: any) => {
+  try {
+    await deleteRoleAPI(row.id);
+    arcoMessage("success", "角色已删除");
+    selectedKeys.value = selectedKeys.value.filter(id => id !== row.id);
+    await getRole();
+  } catch (error: any) {
+    arcoMessage("error", error?.response?.data?.detail || "删除角色失败");
+  }
+};
+const removeSelected = async () => {
+  const ids = [...selectedKeys.value];
+  for (const id of ids) {
+    try {
+      await deleteRoleAPI(id);
+    } catch (error: any) {
+      arcoMessage("error", error?.response?.data?.detail || `角色 ${id} 删除失败`);
+    }
+  }
+  selectedKeys.value = [];
+  await getRole();
+};
+const select = (keys: any[]) => { selectedKeys.value = keys; };
+const selectAll = (state: boolean) => { selectedKeys.value = state ? filteredRoleList.value.map((item: any) => item.id) : []; };
+
+const treeRef = ref();
+const treeSwitch = ref({ expandAll: true, selectAll: false });
 const permissionTree = ref<any[]>([]);
-const permissionKeys = ref<any[]>([]);
+const permissionKeys = ref<string[]>([]);
+const activeRole = ref<any>(null);
+const drawerOpen = ref(false);
+const onExpandAll = (state: boolean) => treeRef.value?.expandAll?.(state);
+const onSelectAll = (state: boolean) => treeRef.value?.checkAll?.(state);
+const treeSwitchReset = () => { treeSwitch.value = { expandAll: true, selectAll: false }; };
+const translation = (tree: any[]) => tree.forEach((item: any) => {
+  if (item.children?.length) translation(item.children);
+  if (item.meta?.title) item.i18n = proxy.$t(`menu.${item.meta.title}`);
+});
 const getMenuList = async () => {
-  let { data } = await getMenuListAPI();
+  const result: any = await getMenuListAPI();
+  const data = result.data || [];
   translation(data);
   permissionTree.value = data;
 };
-
-// 分配权限
-const drawerOpen = ref(false);
 const onPrivileges = async (row: any) => {
-  let res = await getUserPermissionAPI({ role: row.code });
-  permissionKeys.value = res.data;
-  drawerOpen.value = true;
-  treeRef.value.expandAll(true);
+  try {
+    activeRole.value = row;
+    const result: any = await getUserPermissionAPI({ role: row.code });
+    permissionKeys.value = (Array.isArray(result) ? result : result.data || []).map(String);
+    drawerOpen.value = true;
+    treeSwitchReset();
+    await nextTick();
+    treeRef.value?.expandAll?.(true);
+  } catch (error: any) {
+    arcoMessage("error", error?.response?.data?.detail || "读取角色权限失败");
+  }
 };
-
-const drawerOk = () => {
-  drawerOpen.value = false;
-  treeSwitchReset();
-  arcoMessage("success", "模拟提交成功");
-  getRole();
+const drawerOk = async () => {
+  if (!activeRole.value) return;
+  try {
+    await updateRolePermissionsAPI(activeRole.value.id, permissionKeys.value.map(String));
+    arcoMessage("success", "角色权限已保存");
+    drawerOpen.value = false;
+    treeSwitchReset();
+    await getRole();
+  } catch (error: any) {
+    arcoMessage("error", error?.response?.data?.detail || "保存角色权限失败");
+  }
 };
-const drawerCancel = () => {
-  drawerOpen.value = false;
-  treeSwitchReset();
-};
-
-// 语言转化
-const translation = (tree: any) => {
-  tree.forEach((item: any) => {
-    if (item.children) translation(item.children);
-    if (item.meta.title) {
-      item.i18n = proxy.$t(`menu.${item.meta.title}`);
-    }
-  });
-};
+const drawerCancel = () => { drawerOpen.value = false; treeSwitchReset(); activeRole.value = null; };
 
 getRole();
 getMenuList();
 </script>
 
 <style lang="scss" scoped>
-.text-right-gap {
-  margin-right: $margin;
-}
+.text-right-gap { margin-right: $margin; }
 </style>
