@@ -195,8 +195,9 @@ class ApplicationLifecycle:
         await self.scanner_manager.reconcile_sources(
             account_id,
             sources,
-            lambda source, refresh_event: self._run_source(
-                account_id, account_name, client, source, refresh_event
+            lambda source: self._run_source(
+                account_id, account_name, client, source,
+                self.scanner_manager.refresh_events[source["id"]],
             ),
         )
 
