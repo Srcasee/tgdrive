@@ -134,6 +134,28 @@ export default {
     ["common-layouts"]: "common layouts",
     ["data-screen"]: "data screen",
     ["thin-preview"]: "thin preview",
-    ["test"]: "test"
+    ["test"]: "test",
+    ["tgdrive-dashboard"]: "TGDrive Overview",
+    ["tgdrive-accounts"]: "Accounts",
+    ["tgdrive-dialogs"]: "Groups / Channels",
+    ["tgdrive-resources"]: "Resources",
+    ["tgdrive-categories"]: "Resource Categories",
+    ["tgdrive-downloads"]: "Download Records"
+  },
+  tgdrive: {
+    accounts: "Telegram Accounts",
+    enabledSources: "Enabled Sources",
+    categories: "Resource Categories",
+    active: "In Progress",
+    downloads: "Download Records",
+    completed: "Completed",
+    failed: "Download Failed",
+    dialogs: "Groups / Channels",
+    refresh: "Refresh",
+    noAccounts: "No enabled accounts",
+    group: "Group",
+    channel: "Channel",
+    categoriesDisabled: "Manual categories are disabled",
+    categoriesDisabledHint: "Creating, editing, deleting, and manually assigning categories are temporarily disabled."
   }
 };
