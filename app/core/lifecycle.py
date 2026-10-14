@@ -39,7 +39,7 @@ class ApplicationLifecycle:
 
         self.dialog_discovery = DialogDiscoveryService()
         self.scanner_manager = ScannerManager()
-        register_source_stopper(self.scanner_manager.stop_source)
+        register_source_stopper(self.scanner_manager.stop_source, self.scanner_manager.resume_source)
         self.ingestion_service = IngestionService(
             self.source_repository,
             TelegramFileRepository(),
