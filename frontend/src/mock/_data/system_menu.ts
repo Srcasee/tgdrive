@@ -228,32 +228,32 @@ export const systemMenu = [
     children: null
   },
   {
-    id: "19", parentId: "0", path: "/tgdrive/dashboard", name: "tgdrive-dashboard", component: "tgdrive/dashboard/index",
+    id: "19", parentId: "0", path: "/dashboard", name: "tgdrive-dashboard", component: "dashboard/index",
     meta: { title: "TGDrive 概览", hide: false, disable: false, keepAlive: true, affix: true, link: "", iframe: false, isFull: false, roles: ["admin", "common"], svgIcon: "home", sort: 1, type: 2 },
     children: null
   },
   {
-    id: "20", parentId: "0", path: "/tgdrive/telegram/accounts", name: "tgdrive-accounts", component: "tgdrive/telegram/accounts",
+    id: "20", parentId: "0", path: "/telegram/accounts", name: "tgdrive-accounts", component: "telegram/accounts",
     meta: { title: "账号管理", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], svgIcon: "user", sort: 2, type: 2 },
     children: null
   },
   {
-    id: "21", parentId: "0", path: "/tgdrive/telegram/dialogs", name: "tgdrive-dialogs", component: "tgdrive/telegram/dialogs",
+    id: "21", parentId: "0", path: "/telegram/dialogs", name: "tgdrive-dialogs", component: "telegram/dialogs",
     meta: { title: "群组/频道管理", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], svgIcon: "common", sort: 3, type: 2 },
     children: null
   },
   {
-    id: "23", parentId: "0", path: "/tgdrive/resources/files", name: "tgdrive-resources", component: "tgdrive/resources/files",
+    id: "23", parentId: "0", path: "/resources/files", name: "tgdrive-resources", component: "resources/files",
     meta: { title: "资源文件", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], svgIcon: "folder-open", sort: 4, type: 2 },
     children: null
   },
   {
-    id: "24", parentId: "0", path: "/tgdrive/resources/categories", name: "tgdrive-categories", component: "tgdrive/resources/categories",
+    id: "24", parentId: "0", path: "/resources/categories", name: "tgdrive-categories", component: "resources/categories",
     meta: { title: "资源分类", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], svgIcon: "classify", sort: 5, type: 2 },
     children: null
   },
   {
-    id: "25", parentId: "0", path: "/tgdrive/downloads", name: "tgdrive-downloads", component: "tgdrive/downloads/index",
+    id: "25", parentId: "0", path: "/downloads", name: "tgdrive-downloads", component: "downloads/index",
     meta: { title: "下载记录", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], svgIcon: "data-queries", sort: 6, type: 2 },
     children: null
   },
