@@ -55,9 +55,11 @@ import { useDevicesSize } from "@/hooks/useDevicesSize";
 import { useLayoutModel } from "@/hooks/useLayoutModel";
 import { getUserInfoAPI, updateUserAvatarAPI } from "@/api/modules/user";
 import { useRouteConfigStore } from "@/store/modules/route-config";
+import { useUserInfoStore } from "@/store/modules/user-info";
 
 const proxy = useGlobalProperties();
 const routerStore = useRouteConfigStore();
+const userStore = useUserInfoStore();
 const { isMobile } = useDevicesSize();
 const { descriptionsColumn } = useLayoutModel();
 const loading = ref(false);
@@ -120,6 +122,7 @@ const onAvatarSelected = async (event: Event) => {
     uploadingAvatar.value = true;
     const result = await updateUserAvatarAPI(file);
     userInfo.value = { ...userInfo.value, ...result.data };
+    userStore.account.user = { ...userStore.account.user, ...result.data };
     proxy.$message.success("头像更新成功");
   } catch (error: any) {
     proxy.$message.error(error?.response?.data?.detail || "头像上传失败，请重试");
