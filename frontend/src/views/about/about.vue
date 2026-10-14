@@ -28,7 +28,7 @@
 import packageJson from "../../../package.json";
 import { useLayoutModel } from "@/hooks/useLayoutModel";
 
-const { descriptionsLayout, descriptionsColumn } = useLayoutModel();
+const { descriptionsColumn } = useLayoutModel();
 
 const projectInfo: any = [
   {
@@ -43,20 +43,6 @@ const projectInfo: any = [
   },
 ];
 
-const dependencies = ref<any>([]);
-const devDependencies = ref<any>([]);
-
-const init = () => {
-  dependencies.value.length = 0;
-  devDependencies.value.length = 0;
-  Object.entries(packageJson.dependencies).forEach(item => {
-    dependencies.value.push({ label: item[0], value: item[1] });
-  });
-  Object.entries(packageJson.devDependencies).forEach(item => {
-    devDependencies.value.push({ label: item[0], value: item[1] });
-  });
-};
-init();
 </script>
 
 <style lang="scss" scoped>
