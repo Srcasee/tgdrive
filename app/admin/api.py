@@ -1,6 +1,6 @@
 import json
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from auth.dependencies import require_admin
@@ -35,6 +35,25 @@ def delete_topic_share(share_id: int, _: Principal = Depends(require_admin)):
 def delete_share(share_id: int, _: Principal = Depends(require_admin)):
     if not share_repository.delete(share_id): raise HTTPException(status_code=404, detail="share link not found")
     return {"status":"ok"}
+
+
+class RefreshScansInput(BaseModel):
+    source_id: int | None = Field(default=None, ge=1)
+
+
+@router.post("/scans/refresh")
+def refresh_scans(
+    data: RefreshScansInput,
+    request: Request,
+    _: Principal = Depends(require_admin),
+):
+    lifecycle = getattr(request.app.state, "lifecycle", None)
+    if lifecycle is None:
+        raise HTTPException(status_code=503, detail="扫描服务尚未启动")
+    queued = lifecycle.request_scan_refresh(data.source_id)
+    if data.source_id is not None and queued == 0:
+        raise HTTPException(status_code=404, detail="扫描源不存在或未运行")
+    return {"status": "queued", "queued": queued, "source_id": data.source_id}
 
 
 class BulkDeleteDownloadsInput(BaseModel):
