@@ -58,7 +58,7 @@
     <!-- 我的 -->
     <a-dropdown trigger="hover">
       <div class="my_setting" id="system-my-setting">
-        <a-image width="32" height="32" fit="cover" :src="account.user.avatar || myImage" class="my_image" />
+        <a-image width="32" height="32" fit="cover" :src="account.user.avatar_url || account.user.avatar || myImage" class="my_image" />
         <span class="user-nickname" v-if="!isMobile">{{ account.user.nickName }}</span>
         <div class="icon_down">
           <icon-down style="stroke-width: 3" />
@@ -70,20 +70,6 @@
           <template #default>
             <s-svg-icon :name="'user'" :size="18" />
             <span class="margin-left-text">{{ $t(`system.personal-information`) }}</span>
-          </template>
-        </a-doption>
-        <!-- 修改密码 -->
-        <a-doption @click="onPerson(2)">
-          <template #default>
-            <s-svg-icon :name="'lock-pwd'" :size="18" />
-            <span class="margin-left-text">{{ $t(`system.change-password`) }}</span>
-          </template>
-        </a-doption>
-        <!-- 项目地址 -->
-        <a-doption @click="onProject">
-          <template #default>
-            <s-svg-icon :name="'gitee'" :size="18" />
-            <span class="margin-left-text">{{ $t(`system.project-address`) }}</span>
           </template>
         </a-doption>
         <a-divider margin="0" />
@@ -176,11 +162,6 @@ const onPerson = (type: number) => {
       type
     }
   });
-};
-
-// 项目地址
-const onProject = () => {
-  window.open("https://github.com/WangFan-io/SnowAdmin", "_blank");
 };
 
 // 退出登录
