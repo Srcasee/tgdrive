@@ -133,12 +133,16 @@ export const getDivisionAPI = () => {
 };
 
 // 获取角色数据
-export const getRoleAPI = () => {
-  return axios({
-    url: "/mock/system/getRole",
-    method: "get"
-  });
-};
+export const getRoleAPI = () => axios({ url: "/admin/roles", method: "get" });
+
+export const createRoleAPI = (data: any) => axios({ url: "/admin/roles", method: "post", data });
+
+export const updateRoleAPI = (id: number, data: any) => axios({ url: `/admin/roles/${id}`, method: "put", data });
+
+export const deleteRoleAPI = (id: number) => axios({ url: `/admin/roles/${id}`, method: "delete" });
+
+export const updateRolePermissionsAPI = (id: number, permissions: string[]) =>
+  axios({ url: `/admin/roles/${id}/permissions`, method: "put", data: { permissions } });
 
 // 获取账户数据
 export const getAccountAPI = () => {
@@ -158,10 +162,5 @@ export const getMenuListAPI = () => {
 };
 
 // 根据角色获取权限数据
-export const getUserPermissionAPI = (params: { role: string }) => {
-  return axios({
-    url: "/mock/menu/getUserPermission",
-    method: "get",
-    params
-  });
-};
+export const getUserPermissionAPI = (params: { role: string }) =>
+  axios({ url: `/admin/roles/by-code/${encodeURIComponent(params.role)}/permissions`, method: "get" });
