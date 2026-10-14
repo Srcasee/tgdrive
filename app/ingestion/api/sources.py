@@ -6,7 +6,7 @@ from auth.models import Principal
 from repositories.accounts import AccountRepository
 from repositories.dialogs import DialogRepository
 from repositories.sources import SourceRepository
-from telegram.runtime_events import notify_source_change, stop_source_scan
+from telegram.runtime_events import notify_source_change, resume_source_scan, stop_source_scan
 
 router = APIRouter()
 
@@ -61,7 +61,13 @@ async def delete_source(source_id: int, _: Principal = Depends(require_admin)):
 
     # Stop and await the running scan before deleting its persisted data.
     await stop_source_scan(source_id)
-    source = source_repository.delete(source_id)
+    try:
+        source = source_repository.delete(source_id)
+    except Exception:
+        # If the database transaction fails, let reconciliation restore the task.
+        await resume_source_scan(source_id)
+        notify_source_change()
+        raise
     if source is None:
         raise HTTPException(status_code=404, detail="source not found")
 
