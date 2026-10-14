@@ -245,5 +245,12 @@ def init_database():
                 """)
                 cursor.execute("INSERT INTO schema_migrations(version) VALUES (15)")
 
+            if 16 not in applied:
+                cursor.execute("""
+                    ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at BIGINT;
+                    ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_ip TEXT;
+                """)
+                cursor.execute("INSERT INTO schema_migrations(version) VALUES (16)")
+
             conn.commit()
             print("[DB] PostgreSQL database initialized", flush=True)
