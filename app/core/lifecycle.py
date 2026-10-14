@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime, timedelta
 
 from auth.repository import UserRepository
 from auth.security import hash_password
@@ -194,12 +195,25 @@ class ApplicationLifecycle:
         await self.scanner_manager.reconcile_sources(
             account_id,
             sources,
-            lambda source: self._run_source(
-                account_id, account_name, client, source
+            lambda source, refresh_event: self._run_source(
+                account_id, account_name, client, source, refresh_event
             ),
         )
 
-    async def _run_source(self, account_id, account_name, client, source):
+    @staticmethod
+    def _seconds_until_daily_scan():
+        # Use the host's local timezone; the daily full scan starts at 00:10.
+        now = datetime.now().astimezone()
+        next_scan = now.replace(hour=0, minute=10, second=0, microsecond=0)
+        if next_scan <= now:
+            next_scan += timedelta(days=1)
+        return max((next_scan - now).total_seconds(), 1)
+
+    def request_scan_refresh(self, source_id=None):
+        """Queue a background full refresh for one source or all active sources."""
+        return self.scanner_manager.request_refresh(source_id)
+
+    async def _run_source(self, account_id, account_name, client, source, refresh_event):
         print(
             f"[SCAN] source scanner started: {source['name']} ({source['telegram_chat_id']})",
             flush=True,
@@ -220,7 +234,13 @@ class ApplicationLifecycle:
                         flush=True,
                     )
 
-                await asyncio.sleep(source.get("scan_interval") or 300)
+                try:
+                    await asyncio.wait_for(refresh_event.wait(), timeout=self._seconds_until_daily_scan())
+                    # Clear before scanning; refreshes requested during a scan stay queued.
+                    refresh_event.clear()
+                    print(f"[SCAN] event-triggered refresh: {source['name']}", flush=True)
+                except asyncio.TimeoutError:
+                    print(f"[SCAN] scheduled daily refresh: {source['name']}", flush=True)
         finally:
             await asyncio.to_thread(self.source_repository.mark_idle, source["id"])
 
