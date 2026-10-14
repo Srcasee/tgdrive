@@ -253,11 +253,32 @@ const getMenuList = async () => {
   translation(data);
   permissionTree.value = data;
 };
+const defaultPermissionsForRole = (nodes: any[], roleCode: string): string[] => {
+  const keys: string[] = [];
+  const visit = (items: any[]): boolean => {
+    let hasAllowedDescendant = false;
+    items.forEach((item: any) => {
+      if (item?.meta?.type === 3) return;
+      const childAllowed = item.children?.length ? visit(item.children) : false;
+      const roleAllowed = !Array.isArray(item.meta?.roles) || item.meta.roles.includes(roleCode);
+      if (roleAllowed || childAllowed) {
+        keys.push(String(item.id));
+        hasAllowedDescendant = true;
+      }
+    });
+    return hasAllowedDescendant;
+  };
+  visit(nodes);
+  return [...new Set(keys)];
+};
 const onPrivileges = async (row: any) => {
   try {
     activeRole.value = row;
     const result: any = await getUserPermissionAPI({ role: row.code });
-    permissionKeys.value = (Array.isArray(result) ? result : result.data || []).map(String);
+    const permissions = Array.isArray(result) ? result : result?.data;
+    permissionKeys.value = Array.isArray(permissions)
+      ? permissions.map(String)
+      : defaultPermissionsForRole(permissionTree.value, row.code);
     drawerOpen.value = true;
     treeSwitchReset();
     await nextTick();
