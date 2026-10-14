@@ -9,7 +9,7 @@ from pydantic import BaseModel
 
 from auth.dependencies import require_user
 from auth.models import Principal
-from common.response import api_error
+from core.response import api_error
 from download.api import _content_disposition, _resource, _stream_response
 from repositories.shares import ShareRepository
 from catalog.repository import CatalogRepository
