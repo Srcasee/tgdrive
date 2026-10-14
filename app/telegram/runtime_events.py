@@ -5,16 +5,23 @@ _runtime_event = None
 _source_change_requested = False
 _dialog_refresh_requested = False
 _source_stopper = None
+_source_resumer = None
 
 
-def register_source_stopper(callback):
-    global _source_stopper
-    _source_stopper = callback
+def register_source_stopper(stop_callback, resume_callback):
+    global _source_stopper, _source_resumer
+    _source_stopper = stop_callback
+    _source_resumer = resume_callback
 
 
 async def stop_source_scan(source_id):
     if _source_stopper is not None:
         await _source_stopper(source_id)
+
+
+async def resume_source_scan(source_id):
+    if _source_resumer is not None:
+        _source_resumer(source_id)
 
 
 def initialize_runtime_events():
