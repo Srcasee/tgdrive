@@ -37,6 +37,11 @@ class ScannerManager:
             refresh_event = self.refresh_events.setdefault(source_id, asyncio.Event())
             self.tasks[key] = asyncio.create_task(task_factory(source))
 
+    async def stop_source(self, source_id):
+        """Stop and await any running task for a source before its data is removed."""
+        keys = [key for key in self.tasks if key[1] == source_id]
+        await self._cancel_tasks(keys)
+
     def request_refresh(self, source_id=None):
         """Signal active source tasks to run a full scan in the background."""
         requested = 0
