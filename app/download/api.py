@@ -5,7 +5,7 @@ from fastapi.responses import StreamingResponse
 
 from auth.dependencies import require_user
 from auth.models import Principal
-from common.response import api_error
+from core.response import api_error
 from download.range import InvalidRange, parse_single_range
 from download.source_selector import TelegramSourceSelector
 from download.service import DownloadService
