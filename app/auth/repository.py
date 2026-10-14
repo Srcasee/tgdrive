@@ -11,6 +11,15 @@ class UserRepository:
                 )
                 return cursor.fetchone()
 
+    def get_credentials_by_id(self, user_id):
+        with connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "SELECT id, username, password_hash, role, enabled, last_login_at, last_login_ip FROM users WHERE id=%s",
+                    (user_id,),
+                )
+                return cursor.fetchone()
+
     def get_by_id(self, user_id):
         with connection() as conn:
             with conn.cursor() as cursor:
