@@ -14,7 +14,7 @@ from repositories.telegram_files import TelegramFileRepository
 from telegram.account_lock import account_lock
 from telegram.client import get_clients, refresh_clients
 from telegram.dialog_discovery import DialogDiscoveryService
-from telegram.runtime_events import initialize_runtime_events, wait_for_runtime_event
+from telegram.runtime_events import initialize_runtime_events, register_source_stopper, wait_for_runtime_event
 from ingestion.service import IngestionService
 from repositories.downloads import DownloadRepository
 from ingestion.source_scan import SourceScanCoordinator
@@ -39,6 +39,7 @@ class ApplicationLifecycle:
 
         self.dialog_discovery = DialogDiscoveryService()
         self.scanner_manager = ScannerManager()
+        register_source_stopper(self.scanner_manager.stop_source)
         self.ingestion_service = IngestionService(
             self.source_repository,
             TelegramFileRepository(),
@@ -216,36 +217,43 @@ class ApplicationLifecycle:
 
     async def _run_source(self, account_id, account_name, client, source, refresh_event):
         next_daily_scan = self._next_daily_scan_at()
+        # New sources are marked pending and get one immediate initial scan.
+        # Re-enabled/existing sources only wait for a manual request or 00:10.
+        should_scan = source.get("scan_status") == "pending"
         print(
             f"[SCAN] source scanner started: {source['name']} ({source['telegram_chat_id']})",
             flush=True,
         )
         try:
             while True:
-                try:
-                    count = await self.source_scan_coordinator.scan_source(client, account_id, source)
-                    print(
-                        f"[SCAN] source finished {source['name']} ({source['telegram_chat_id']}): {count} files",
-                        flush=True,
-                    )
-                except asyncio.CancelledError:
-                    raise
-                except Exception as exc:
-                    print(
-                        f"[SCAN] source error {source['name']} ({source['telegram_chat_id']}): {exc!r}",
-                        flush=True,
-                    )
+                if should_scan:
+                    should_scan = False
+                    try:
+                        count = await self.source_scan_coordinator.scan_source(client, account_id, source)
+                        print(
+                            f"[SCAN] source finished {source['name']} ({source['telegram_chat_id']}): {count} files",
+                            flush=True,
+                        )
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception as exc:
+                        print(
+                            f"[SCAN] source error {source['name']} ({source['telegram_chat_id']}): {exc!r}",
+                            flush=True,
+                        )
 
                 timeout = max((next_daily_scan - datetime.now().astimezone()).total_seconds(), 0)
                 try:
                     await asyncio.wait_for(refresh_event.wait(), timeout=timeout)
-                    # Clear before scanning; refreshes requested during a scan stay queued.
+                    # Clear before the next scan; refreshes requested during a scan stay queued.
                     refresh_event.clear()
+                    should_scan = True
                     print(f"[SCAN] event-triggered refresh: {source['name']}", flush=True)
                 except asyncio.TimeoutError:
                     print(f"[SCAN] scheduled daily refresh: {source['name']}", flush=True)
                     while next_daily_scan <= datetime.now().astimezone():
                         next_daily_scan += timedelta(days=1)
+                    should_scan = True
         finally:
             await asyncio.to_thread(self.source_repository.mark_idle, source["id"])
 
