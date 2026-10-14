@@ -134,6 +134,28 @@ export default {
     ["common-layouts"]: "常用布局",
     ["data-screen"]: "数据大屏",
     ["thin-preview"]: "极简版预览",
-    ["test"]: "测试"
+    ["test"]: "测试",
+    ["tgdrive-dashboard"]: "TGDrive 概览",
+    ["tgdrive-accounts"]: "账号管理",
+    ["tgdrive-dialogs"]: "群组/频道管理",
+    ["tgdrive-resources"]: "资源文件",
+    ["tgdrive-categories"]: "资源分类",
+    ["tgdrive-downloads"]: "下载记录"
+  },
+  tgdrive: {
+    accounts: "Telegram 账号",
+    enabledSources: "启用来源",
+    categories: "资源分类",
+    active: "进行中",
+    downloads: "下载记录",
+    completed: "已完成",
+    failed: "下载失败",
+    dialogs: "群组/频道管理",
+    refresh: "刷新",
+    noAccounts: "暂无已启用账号",
+    group: "群组",
+    channel: "频道",
+    categoriesDisabled: "人工分类功能已禁用",
+    categoriesDisabledHint: "分类的新增、修改、删除和资源手动归类暂时关闭。"
   }
 };
