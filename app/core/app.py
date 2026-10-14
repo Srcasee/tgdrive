@@ -36,6 +36,8 @@ def create_app():
     app.include_router(share_router)
     app.include_router(telegram_router)
     app.include_router(admin_router)
+    # Keep the documented /api/admin URLs working while the frontend proxy uses /admin.
+    app.include_router(admin_router, prefix="/api")
 
     @app.get("/", include_in_schema=False)
     async def home():
