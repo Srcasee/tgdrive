@@ -87,7 +87,7 @@ export default {
     ["throttle"]: "节流",
     ["test-directive"]: "测试指令",
     ["personal"]: "个人中心",
-    ["userinfo"]: "用户信息",
+    ["basic-settings"]: "基本设置",
     ["user-settings"]: "用户设置",
     ["system"]: "系统管理",
     ["account"]: "账号管理",
