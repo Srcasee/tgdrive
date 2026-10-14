@@ -26,3 +26,10 @@ export const updateUserProfileAPI = async (data: { username: string; current_pas
   const response = await axios.put("/auth/profile", data, { withCredentials: true });
   return { data: response.data };
 };
+
+export const updateUserAvatarAPI = async (file: File) => {
+  const formData = new FormData();
+  formData.append("file", file);
+  const response = await axios.post("/auth/avatar", formData, { withCredentials: true });
+  return { data: response.data };
+};
