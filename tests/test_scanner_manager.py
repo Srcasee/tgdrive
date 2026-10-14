@@ -89,6 +89,11 @@ def test_stop_source_cancels_and_awaits_only_the_requested_source():
         assert stopped.is_set()
         assert (10, 1) not in manager.tasks
         assert (10, 2) in manager.tasks
+
+        # A stale reconciliation snapshot must not restart a source being deleted.
+        await manager.reconcile_sources(10, [{"id": 1}, {"id": 2}], runner)
+        assert (10, 1) not in manager.tasks
+        assert (10, 2) in manager.tasks
         await manager.stop_all()
 
     asyncio.run(run())
