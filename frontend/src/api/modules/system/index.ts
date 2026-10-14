@@ -113,7 +113,21 @@ export const getRoutersAPI = () => {
       userRoles
     );
 
-  return Promise.resolve({ data: treeSort(filterTree(deepClone(menuData))) });
+  const fallback = () => ({ data: treeSort(filterTree(deepClone(menuData))) });
+  return axios({ url: "/auth/permissions", method: "get" })
+    .then((permissions: any) => {
+      if (!Array.isArray(permissions)) return fallback();
+      const allowed = new Set(permissions.map((id: any) => String(id)));
+      const applyPermissions = (nodes: any[]): any[] => nodes
+        .filter(node => node?.meta?.type !== 3)
+        .map(node => ({
+          ...node,
+          children: node.children?.length ? applyPermissions(node.children) : null
+        }))
+        .filter(node => allowed.has(String(node.id)) || Boolean(node.children?.length));
+      return { data: treeSort(applyPermissions(deepClone(menuData))) };
+    })
+    .catch(() => fallback());
 };
 
 // 获取字典数据
