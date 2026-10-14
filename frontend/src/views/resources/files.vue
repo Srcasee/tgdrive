@@ -159,7 +159,6 @@ type TreeNode = {
 const catalogLayout = ref<HTMLElement | null>(null);
 const treeWidth = ref(280);
 const resizing = ref(false);
-const resourceRefreshTimer = ref<number | undefined>();
 
 const resizeTree = (event: PointerEvent) => {
   if (!resizing.value || !catalogLayout.value) return;
@@ -184,10 +183,6 @@ const startResize = (event: PointerEvent) => {
 };
 onBeforeUnmount(() => {
   stopResize();
-  if (resourceRefreshTimer.value !== undefined) {
-    window.clearInterval(resourceRefreshTimer.value);
-    resourceRefreshTimer.value = undefined;
-  }
 });
 
 const rows = ref<any[]>([]);
@@ -660,12 +655,6 @@ onBeforeMount(async () => {
   persistPageState();
   await load();
 
-  // Keep the resource list and source tree in sync with background Source scans.
-  resourceRefreshTimer.value = window.setInterval(() => {
-    if (document.hidden) return;
-    if (!loading.value) void load().catch(() => {});
-    if (!treeLoading.value) void loadTree().catch(() => {});
-  }, 10000);
 });
 </script>
 
