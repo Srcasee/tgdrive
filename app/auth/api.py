@@ -11,6 +11,7 @@ from auth.models import Principal
 from auth.repository import UserRepository
 from auth.security import create_token, hash_password, verify_password
 from config import settings
+from database_pool import connection
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 user_repository = UserRepository()
@@ -135,6 +136,15 @@ def get_avatar(principal: Principal = Depends(current_principal)):
         if avatar_path.is_file():
             return FileResponse(avatar_path, media_type=media_type, headers={"Cache-Control": "no-cache"})
     raise HTTPException(status_code=404, detail="avatar not found")
+
+
+@router.get("/permissions")
+def get_my_permissions(principal: Principal = Depends(current_principal)):
+    with connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute("SELECT permissions FROM roles WHERE code=%s", (principal.role,))
+            row = cursor.fetchone()
+    return row["permissions"] if row else None
 
 
 @router.post("/logout")
