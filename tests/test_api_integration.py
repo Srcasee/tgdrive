@@ -277,7 +277,9 @@ def test_share_link_creation_and_admin_revoke(monkeypatch):
     landing = client.get(f"/share/{token}")
     assert landing.status_code == 200
     assert "video.mp4" in landing.text
-    assert "100 字节" in landing.text
+    assert "0.00 MB" in landing.text
+    assert "<dd>mp4</dd>" in landing.text
+    assert "video/mp4" not in landing.text
     assert f"/share/{token}/download" in landing.text
     assert client.get("/share/unknown-token/download").status_code == 404
     second = client.post("/resources/1/share")
