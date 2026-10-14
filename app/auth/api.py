@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 from auth.dependencies import current_principal
 from auth.models import Principal
 from auth.repository import UserRepository
-from auth.security import create_token, hash_password, verify_password
+from auth.security import create_token, generate_totp_secret, hash_password, totp_provisioning_uri, verify_password, verify_totp
 from config import settings
 from database_pool import connection
 
@@ -27,7 +27,18 @@ MAX_AVATAR_SIZE = 2 * 1024 * 1024
 class LoginRequest(BaseModel):
     username: str
     password: str
+    totp_code: str | None = Field(default=None, pattern=r"^\d{6}$")
 
+
+class TotpSetupRequest(BaseModel):
+    current_password: str
+
+class TotpCodeRequest(BaseModel):
+    code: str = Field(pattern=r"^\d{6}$")
+
+class TotpDisableRequest(BaseModel):
+    current_password: str
+    code: str | None = Field(default=None, pattern=r"^\d{6}$")
 
 class ProfileUpdateRequest(BaseModel):
     username: str = Field(min_length=3, max_length=64)
@@ -40,6 +51,9 @@ def login(data: LoginRequest, request: Request, response: Response):
     user = user_repository.get_by_username(data.username)
     if not user or not user["enabled"] or user.get("role_enabled", 1) != 1 or not verify_password(data.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="invalid credentials")
+    if user.get("totp_enabled"):
+        if not data.totp_code or not verify_totp(user.get("totp_secret") or "", data.totp_code):
+            raise HTTPException(status_code=401, detail="动态口令无效或缺失")
     login_at = int(time.time())
     login_ip = request.client.host if request.client else None
     user_repository.record_login(user["id"], login_at, login_ip)
@@ -137,6 +151,51 @@ def get_avatar(principal: Principal = Depends(current_principal)):
             return FileResponse(avatar_path, media_type=media_type, headers={"Cache-Control": "no-cache"})
     raise HTTPException(status_code=404, detail="avatar not found")
 
+
+@router.get("/totp")
+def get_totp_status(principal: Principal = Depends(current_principal)):
+    user = user_repository.get_by_id(int(principal.subject))
+    if not user:
+        raise HTTPException(status_code=401, detail="user is missing")
+    return {"enabled": bool(user.get("totp_enabled"))}
+
+
+@router.post("/totp/setup")
+def setup_totp(data: TotpSetupRequest, principal: Principal = Depends(current_principal)):
+    user_id = int(principal.subject)
+    user = user_repository.get_credentials_by_id(user_id)
+    if not user or not verify_password(data.current_password, user["password_hash"]):
+        raise HTTPException(status_code=400, detail="当前密码不正确")
+    if user.get("totp_enabled"):
+        raise HTTPException(status_code=409, detail="动态口令已启用，请先关闭后重新设置")
+    secret = generate_totp_secret()
+    user_repository.update_totp_secret(user_id, secret)
+    return {"secret": secret, "otpauth_url": totp_provisioning_uri(secret, user["username"])}
+
+
+@router.post("/totp/enable")
+def enable_totp(data: TotpCodeRequest, principal: Principal = Depends(current_principal)):
+    user_id = int(principal.subject)
+    user = user_repository.get_credentials_by_id(user_id)
+    secret = (user or {}).get("totp_secret")
+    if not secret:
+        raise HTTPException(status_code=400, detail="请先获取动态口令密钥")
+    if not verify_totp(secret, data.code):
+        raise HTTPException(status_code=400, detail="动态口令验证失败")
+    user_repository.set_totp_enabled(user_id, True)
+    return {"enabled": True}
+
+
+@router.post("/totp/disable")
+def disable_totp(data: TotpDisableRequest, principal: Principal = Depends(current_principal)):
+    user_id = int(principal.subject)
+    user = user_repository.get_credentials_by_id(user_id)
+    if not user or not verify_password(data.current_password, user["password_hash"]):
+        raise HTTPException(status_code=400, detail="当前密码不正确")
+    if user.get("totp_enabled") and not verify_totp(user.get("totp_secret") or "", data.code or ""):
+        raise HTTPException(status_code=400, detail="动态口令验证失败")
+    user_repository.set_totp_enabled(user_id, False)
+    return {"enabled": False}
 
 @router.get("/permissions")
 def get_my_permissions(principal: Principal = Depends(current_principal)):
