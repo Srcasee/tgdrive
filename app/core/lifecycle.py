@@ -201,19 +201,20 @@ class ApplicationLifecycle:
         )
 
     @staticmethod
-    def _seconds_until_daily_scan():
-        # Use the host's local timezone; the daily full scan starts at 00:10.
+    def _next_daily_scan_at():
+        # Use the host's local timezone; the daily full scan is due at 00:10.
         now = datetime.now().astimezone()
         next_scan = now.replace(hour=0, minute=10, second=0, microsecond=0)
         if next_scan <= now:
             next_scan += timedelta(days=1)
-        return max((next_scan - now).total_seconds(), 1)
+        return next_scan
 
     def request_scan_refresh(self, source_id=None):
         """Queue a background full refresh for one source or all active sources."""
         return self.scanner_manager.request_refresh(source_id)
 
     async def _run_source(self, account_id, account_name, client, source, refresh_event):
+        next_daily_scan = self._next_daily_scan_at()
         print(
             f"[SCAN] source scanner started: {source['name']} ({source['telegram_chat_id']})",
             flush=True,
@@ -234,13 +235,16 @@ class ApplicationLifecycle:
                         flush=True,
                     )
 
+                timeout = max((next_daily_scan - datetime.now().astimezone()).total_seconds(), 0)
                 try:
-                    await asyncio.wait_for(refresh_event.wait(), timeout=self._seconds_until_daily_scan())
+                    await asyncio.wait_for(refresh_event.wait(), timeout=timeout)
                     # Clear before scanning; refreshes requested during a scan stay queued.
                     refresh_event.clear()
                     print(f"[SCAN] event-triggered refresh: {source['name']}", flush=True)
                 except asyncio.TimeoutError:
                     print(f"[SCAN] scheduled daily refresh: {source['name']}", flush=True)
+                    while next_daily_scan <= datetime.now().astimezone():
+                        next_daily_scan += timedelta(days=1)
         finally:
             await asyncio.to_thread(self.source_repository.mark_idle, source["id"])
 
