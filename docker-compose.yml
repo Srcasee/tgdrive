@@ -49,7 +49,7 @@ services:
         max-file: "3"
 
   telegram-login:
-    image: tgdrive:local
+    image: tgdrive:laster
     build:
       context: .
       dockerfile: Dockerfile
