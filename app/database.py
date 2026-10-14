@@ -282,5 +282,13 @@ def init_database():
                 """)
                 cursor.execute("INSERT INTO schema_migrations(version) VALUES (18)")
 
+            if 19 not in applied:
+                cursor.execute("""
+                    ALTER TABLE roles ALTER COLUMN permissions DROP NOT NULL;
+                    ALTER TABLE roles ALTER COLUMN permissions DROP DEFAULT;
+                    UPDATE roles SET permissions = NULL WHERE permissions = '[]'::jsonb;
+                """)
+                cursor.execute("INSERT INTO schema_migrations(version) VALUES (19)")
+
             conn.commit()
             print("[DB] PostgreSQL database initialized", flush=True)
