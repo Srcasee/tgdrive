@@ -7,6 +7,7 @@ class ScannerManager:
     def __init__(self):
         self.tasks = {}
         self.refresh_events = {}
+        self.stopping_sources = set()
 
     async def stop_accounts_except(self, enabled_account_ids):
         enabled_account_ids = set(enabled_account_ids)
@@ -18,7 +19,10 @@ class ScannerManager:
 
     async def reconcile_sources(self, account_id, sources, task_factory):
         """Keep exactly one live task for each enabled source in an account."""
-        sources_by_id = {source["id"]: source for source in sources}
+        sources_by_id = {
+            source["id"]: source for source in sources
+            if source["id"] not in self.stopping_sources
+        }
         keys_to_stop = [
             key for key in self.tasks
             if key[0] == account_id and key[1] not in sources_by_id
@@ -38,9 +42,14 @@ class ScannerManager:
             self.tasks[key] = asyncio.create_task(task_factory(source))
 
     async def stop_source(self, source_id):
-        """Stop and await any running task for a source before its data is removed."""
+        """Block reconciliation and await a source task before deleting its data."""
+        self.stopping_sources.add(source_id)
         keys = [key for key in self.tasks if key[1] == source_id]
         await self._cancel_tasks(keys)
+
+    def resume_source(self, source_id):
+        """Allow reconciliation to recreate a source if deletion fails."""
+        self.stopping_sources.discard(source_id)
 
     def request_refresh(self, source_id=None):
         """Signal active source tasks to run a full scan in the background."""
