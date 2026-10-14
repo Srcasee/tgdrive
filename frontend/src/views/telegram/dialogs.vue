@@ -1,7 +1,7 @@
 <template>
   <div class="snow-page">
     <a-card :bordered="false">
-      <template #title>群组/频道管理</template>
+      <template #title>群组/频道</template>
       <template #extra>
         <a-button type="primary" :loading="refreshing" @click="refresh">
           刷新
