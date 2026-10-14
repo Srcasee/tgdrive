@@ -134,7 +134,7 @@ def list_roles(_: Principal = Depends(require_admin)):
             return [_role_row(row) for row in cursor.fetchall()]
 
 
-@router.post("/roles", status_code=201)
+@router.post("/roles")
 def create_role(data: RoleInput, _: Principal = Depends(require_admin)):
     try:
         with transaction() as conn:
