@@ -185,11 +185,11 @@ export const systemMenu = [
   {
     id: "1007",
     parentId: "10",
-    path: "/system/userinfo",
-    name: "userinfo",
-    component: "system/userinfo/userinfo",
+    path: "/system/basic-settings",
+    name: "basic-settings",
+    component: "system/basic-settings/basic-settings",
     meta: {
-      title: "userinfo",
+      title: "basic-settings",
       hide: false,
       disable: false,
       keepAlive: true,
