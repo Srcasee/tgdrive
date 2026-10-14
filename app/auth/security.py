@@ -4,8 +4,39 @@ import hmac
 import json
 import secrets
 import time
+import struct
+import urllib.parse
 
 from config import settings
+
+
+
+def generate_totp_secret() -> str:
+    return base64.b32encode(secrets.token_bytes(20)).decode("ascii").rstrip("=")
+
+
+def verify_totp(secret: str, code: str, now: int | None = None, window: int = 1) -> bool:
+    if not secret or not isinstance(code, str) or not code.isdigit() or len(code) != 6:
+        return False
+    try:
+        key = base64.b32decode(secret + "=" * (-len(secret) % 8), casefold=True)
+    except (ValueError, TypeError):
+        return False
+    counter = int((time.time() if now is None else now) // 30)
+    for offset in range(-window, window + 1):
+        if counter + offset < 0:
+            continue
+        digest = hmac.new(key, struct.pack(">Q", counter + offset), hashlib.sha1).digest()
+        index = digest[-1] & 0x0F
+        value = (struct.unpack(">I", digest[index:index + 4])[0] & 0x7FFFFFFF) % 1_000_000
+        if hmac.compare_digest(f"{value:06d}", code):
+            return True
+    return False
+
+
+def totp_provisioning_uri(secret: str, username: str, issuer: str = "TGDrive") -> str:
+    label = urllib.parse.quote(f"{issuer}:{username}", safe="")
+    return f"otpauth://totp/{label}?secret={secret}&issuer={urllib.parse.quote(issuer)}&algorithm=SHA1&digits=6&period=30"
 
 
 class InvalidToken(Exception):
