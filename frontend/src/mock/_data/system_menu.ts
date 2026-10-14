@@ -62,7 +62,7 @@ export const systemMenu = [
       iframe: false,
       isFull: false,
       roles: ["admin"],
-      svgIcon: "classify",
+      svgIcon: "more",
       sort: 90,
       type: 1
     },
@@ -239,7 +239,7 @@ export const systemMenu = [
   },
   {
     id: "21", parentId: "0", path: "/telegram/dialogs", name: "tgdrive-dialogs", component: "telegram/dialogs",
-    meta: { title: "群组/频道管理", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], svgIcon: "common", sort: 3, type: 2 },
+    meta: { title: "群组/频道管理", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], svgIcon: "switch", sort: 3, type: 2 },
     children: null
   },
   {
