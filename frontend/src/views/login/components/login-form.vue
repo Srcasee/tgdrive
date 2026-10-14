@@ -48,8 +48,8 @@ let userStores = useUserInfoStore();
 const routeStore = useRouteConfigStore();
 const router = useRouter();
 const form = ref({
-  username: "admin",
-  password: "123456",
+  username: "",
+  password: "",
   verifyCode: null,
   remember: false
 });
