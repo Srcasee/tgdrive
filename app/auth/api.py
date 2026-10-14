@@ -38,7 +38,7 @@ class ProfileUpdateRequest(BaseModel):
 @router.post("/login")
 def login(data: LoginRequest, request: Request, response: Response):
     user = user_repository.get_by_username(data.username)
-    if not user or not user["enabled"] or not verify_password(data.password, user["password_hash"]):
+    if not user or not user["enabled"] or user.get("role_enabled", 1) != 1 or not verify_password(data.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="invalid credentials")
     login_at = int(time.time())
     login_ip = request.client.host if request.client else None
