@@ -1,179 +1,74 @@
 <template>
   <div class="snow-page">
-    <a-spin :loading="loading" class="container" tip="loading...">
+    <a-spin :loading="loading" tip="loading...">
       <a-card :bordered="false">
-        <a-row align="center">
-          <a-col :span="isMobile ? 24 : 2">
-            <div :class="{ center: isMobile }">
-              <a-avatar :size="100" @click="toast" trigger-type="mask">
-                <img alt="avatar" :src="userInfo.avatar" />
-                <template #trigger-icon>
-                  <IconEdit />
-                </template>
-              </a-avatar>
-            </div>
-          </a-col>
-          <a-col :span="isMobile ? 24 : 22">
-            <a-space direction="vertical" size="large">
-              <a-descriptions :data="detail" :column="descriptionsColumn(1, 4)" title="用户资料" :align="{ label: 'right' }">
-                <template #value="{ value, data }">
-                  <span v-if="data.key === 'roles'">
-                    {{ Array.isArray(value) && value.map((curr: any) => curr.name).join(",") }}
-                  </span>
-                  <span v-else-if="data.key == 'status'">
-                    {{ value === 1 ? "启用" : "禁用" }}
-                  </span>
-                  <span v-else-if="data.key == 'sex'">
-                    {{ value === 1 ? "男" : "女" }}
-                  </span>
-                  <span v-else>{{ value }}</span>
-                </template>
-              </a-descriptions>
-            </a-space>
-          </a-col>
-        </a-row>
+        <a-descriptions
+          title="用户资料"
+          :data="profileDetails"
+          :column="descriptionsColumn(1, 3)"
+          :align="{ label: 'right' }"
+        />
       </a-card>
       <a-card class="margin-top" :bordered="false">
-        <a-row align="center">
-          <a-col :span="24">
-            <a-tabs :type="type" :size="size" :active-key="activeTabs" @change="onChangeTab">
-              <a-tab-pane key="1" title="基本信息">
-                <BasicInfo v-model="userInfo" @refresh="refresh" />
-              </a-tab-pane>
-              <a-tab-pane key="2" title="安全设置">
-                <SecuritySettings v-model="userInfo" @refresh="refresh" />
-              </a-tab-pane>
-            </a-tabs>
-          </a-col>
-        </a-row>
+        <SecuritySettings v-model="userInfo" @refresh="refresh" />
       </a-card>
     </a-spin>
   </div>
 </template>
 
 <script setup lang="ts">
-import BasicInfo from "@/views/system/userinfo/components/basic-info.vue";
 import SecuritySettings from "@/views/system/userinfo/components/security-settings.vue";
-import useGlobalProperties from "@/hooks/useGlobalProperties";
-import { useDevicesSize } from "@/hooks/useDevicesSize";
 import { useLayoutModel } from "@/hooks/useLayoutModel";
-import { getUserInfoAPI } from "@/api/modules/user/index";
+import { getUserInfoAPI } from "@/api/modules/user";
 import { useRouteConfigStore } from "@/store/modules/route-config";
 
-const route = useRoute();
-const proxy = useGlobalProperties();
 const routerStore = useRouteConfigStore();
-const { isMobile } = useDevicesSize();
 const { descriptionsColumn } = useLayoutModel();
-interface Detail {
-  key: string;
-  label: string;
-  value: string;
-}
+const loading = ref(false);
+const userInfo = ref<any>({});
 
-const type = ref("rounded");
-const size = ref("medium");
-const activeTabs = ref(route.query.type || "1");
-
-const onChangeTab = (e: string) => {
-  activeTabs.value = e;
+const formatLoginTime = (value?: number | string | null) => {
+  if (!value) return "-";
+  const timestamp = Number(value);
+  const date = new Date(timestamp < 1e12 ? timestamp * 1000 : timestamp);
+  return Number.isNaN(date.getTime()) ? "-" : date.toLocaleString();
 };
 
-const detail = ref<Detail[]>([
+const profileDetails = computed(() => [
   {
-    key: "userName",
-    label: "用户名：",
-    value: "-"
+    label: "当前登录角色",
+    value: userInfo.value.role === "admin" ? "管理员" : userInfo.value.role === "user" ? "普通用户" : "-"
   },
   {
-    key: "nickName",
-    label: "用户昵称：",
-    value: "-"
+    label: "登录时间",
+    value: formatLoginTime(userInfo.value.last_login_at)
   },
   {
-    key: "sex",
-    label: "性别：",
-    value: "-"
-  },
-  {
-    key: "roles",
-    label: "角色：",
-    value: "-"
-  },
-  {
-    key: "status",
-    label: "状态：",
-    value: "-"
-  },
-  {
-    key: "email",
-    label: "邮箱：",
-    value: "-"
-  },
-  {
-    key: "phone",
-    label: "手机号：",
-    value: "-"
-  },
-  {
-    key: "deptName",
-    label: "部门：",
-    value: "-"
-  },
-  {
-    key: "createTime",
-    label: "注册时间：",
-    value: "-"
-  },
-  {
-    key: "description",
-    label: "描述：",
-    value: "-"
+    label: "登录 IP",
+    value: userInfo.value.last_login_ip || "-"
   }
 ]);
 
-const toast = () => {
-  proxy.$message.info("修改头像");
-};
-
-const refresh = () => {
-  getUserInfo();
-};
-
-const loading = ref<boolean>(false);
-const userInfo = ref<any>({});
 const getUserInfo = async () => {
   try {
     loading.value = true;
-    let params = {
-      id: route.query.id ? route.query.id : ""
-    };
-    let data = await getUserInfoAPI(params);
-    userInfo.value = data.data.user;
-    detail.value.forEach((item: Detail) => {
-      if (userInfo.value.hasOwnProperty(item.key)) {
-        item.value = userInfo.value[item.key];
-      }
-    });
+    const result = await getUserInfoAPI();
+    userInfo.value = result.data.user || {};
   } finally {
     loading.value = false;
   }
 };
 
-getUserInfo();
-routerStore.setTabsTitle(`用户${route.query.userName ? " - " + route.query.userName : "信息"}`);
+const refresh = () => {
+  void getUserInfo();
+};
+
+void getUserInfo();
+routerStore.setTabsTitle("用户信息");
 </script>
 
 <style lang="scss" scoped>
-.container {
-  display: flex;
-  flex-direction: column;
-}
 .margin-top {
   margin-top: $padding;
-}
-.center {
-  display: flex;
-  justify-content: center;
 }
 </style>
