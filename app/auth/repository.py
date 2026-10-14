@@ -6,7 +6,7 @@ class UserRepository:
         with connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
-                    "SELECT u.id, u.username, u.password_hash, u.role, u.enabled, COALESCE(r.status, 1) AS role_enabled FROM users u LEFT JOIN roles r ON r.code=u.role WHERE u.username=%s",
+                    "SELECT u.id, u.username, u.password_hash, u.role, u.enabled, u.totp_secret, u.totp_enabled, COALESCE(r.status, 1) AS role_enabled FROM users u LEFT JOIN roles r ON r.code=u.role WHERE u.username=%s",
                     (username,),
                 )
                 return cursor.fetchone()
@@ -15,7 +15,7 @@ class UserRepository:
         with connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
-                    "SELECT id, username, password_hash, role, enabled, last_login_at, last_login_ip, avatar_url FROM users WHERE id=%s",
+                    "SELECT id, username, password_hash, role, enabled, last_login_at, last_login_ip, avatar_url, totp_secret, totp_enabled FROM users WHERE id=%s",
                     (user_id,),
                 )
                 return cursor.fetchone()
@@ -24,7 +24,7 @@ class UserRepository:
         with connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
-                    "SELECT u.id, u.username, u.role, u.enabled, u.last_login_at, u.last_login_ip, u.avatar_url, COALESCE(r.status, 1) AS role_enabled FROM users u LEFT JOIN roles r ON r.code=u.role WHERE u.id=%s",
+                    "SELECT u.id, u.username, u.role, u.enabled, u.last_login_at, u.last_login_ip, u.avatar_url, u.totp_enabled, COALESCE(r.status, 1) AS role_enabled FROM users u LEFT JOIN roles r ON r.code=u.role WHERE u.id=%s",
                     (user_id,),
                 )
                 return cursor.fetchone()
@@ -59,6 +59,24 @@ class UserRepository:
                 cursor.execute(
                     "UPDATE users SET avatar_url=%s WHERE id=%s RETURNING id, username, role, enabled, last_login_at, last_login_ip, avatar_url",
                     (avatar_url, user_id),
+                )
+                return cursor.fetchone()
+
+    def update_totp_secret(self, user_id, secret):
+        with transaction() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "UPDATE users SET totp_secret=%s, totp_enabled=FALSE WHERE id=%s RETURNING id",
+                    (secret, user_id),
+                )
+                return cursor.fetchone()
+
+    def set_totp_enabled(self, user_id, enabled):
+        with transaction() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "UPDATE users SET totp_enabled=%s, totp_secret=CASE WHEN %s THEN totp_secret ELSE NULL END WHERE id=%s RETURNING id",
+                    (enabled, enabled, user_id),
                 )
                 return cursor.fetchone()
 
