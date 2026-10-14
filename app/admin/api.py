@@ -11,7 +11,7 @@ from repositories.categories import CategoryRepository
 from repositories.shares import ShareRepository
 from database_pool import transaction
 
-router = APIRouter(prefix="/api/admin", tags=["admin"])
+router = APIRouter(prefix="/admin", tags=["admin"])
 category_repository = CategoryRepository()
 catalog_repository = CatalogRepository()
 share_repository = ShareRepository()
