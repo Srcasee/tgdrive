@@ -15,7 +15,7 @@ def current_principal(tgdrive_session: str | None = Cookie(default=None)) -> Pri
     except InvalidToken:
         raise HTTPException(status_code=401, detail="invalid or expired session")
     user = user_repository.get_by_id(int(payload["sub"]))
-    if not user or not user["enabled"]:
+    if not user or not user["enabled"] or user.get("role_enabled", 1) != 1:
         raise HTTPException(status_code=401, detail="user is disabled or missing")
     return Principal(subject=str(user["id"]), role=user["role"])
 
