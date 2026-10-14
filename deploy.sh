@@ -14,17 +14,16 @@ command -v docker >/dev/null 2>&1 || { echo "[DEPLOY] docker is required" >&2; e
 docker compose version >/dev/null 2>&1 || { echo "[DEPLOY] docker compose plugin is required" >&2; exit 1; }
 
 echo "[DEPLOY] step 2/7: building Core"
-if docker buildx version >/dev/null 2>&1; then
-    echo "[DEPLOY] building Core image without a CPU quota"
-    BUILDX_NO_DEFAULT_ATTESTATIONS=1 docker buildx build \
-        --load \
-        --provenance=false \
-        -t tgdrive:laster \
-        -f Dockerfile .
-else
-    echo "[DEPLOY] Buildx unavailable; using Compose build without a CPU quota"
-    docker compose build tgdrive
-fi
+docker buildx version >/dev/null 2>&1 || {
+    echo "[DEPLOY] Docker Buildx is required to build Core independently of Compose and .env" >&2
+    exit 1
+}
+echo "[DEPLOY] building Core image without a CPU quota"
+BUILDX_NO_DEFAULT_ATTESTATIONS=1 docker buildx build \
+    --load \
+    --provenance=false \
+    -t tgdrive:laster \
+    -f Dockerfile .
 
 echo "[DEPLOY] step 3/7: preparing persistent directories"
 mkdir -p data/accounts data/postgres
