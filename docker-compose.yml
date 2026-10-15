@@ -54,15 +54,12 @@ services:
       - .env
     environment:
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env}
-    cpus: ${TG_LOGIN_CPUS:-1.0}
-    mem_limit: ${TG_LOGIN_MEMORY:-512m}
     networks:
       - telegram-net
     profiles:
       - login
 
   proxy:
-    # 南京大学中转拉镜像
     image: ghcr.nju.edu.cn/sagernet/sing-box:v1.14.2
     pull_policy: missing
     restart: unless-stopped
