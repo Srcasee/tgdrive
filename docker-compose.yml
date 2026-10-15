@@ -72,5 +72,5 @@ services:
       - run
       - -c
       - /etc/sing-box/config.json
-    networks:
-      - telegram-net
+  networks:
+    - telegram-net
