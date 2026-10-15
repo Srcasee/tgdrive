@@ -1,7 +1,7 @@
 <template>
   <div :class="layoutType == 'layoutHead' ? 'logo_head no-border' : 'logo_head'">
     <div class="logo_box" :class="(collapsed || layoutType == 'layoutHead') && 'padding-unset'">
-      <s-svg-icon name="snow" :size="30" />
+      <img class="brand-logo" :src="logoUrl" alt="TGDrive logo" />
       <span :class="isDark ? 'logo_title dark' : 'logo_title'" v-if="isTitle">{{ title }}</span>
     </div>
   </div>
@@ -9,6 +9,7 @@
 
 <script setup lang="ts">
 import { storeToRefs } from "pinia";
+import logoUrl from "@/assets/logo/logo.svg";
 import { useThemeConfig } from "@/store/modules/theme-config";
 const themeStore = useThemeConfig();
 const { collapsed, asideDark, layoutType } = storeToRefs(themeStore);
@@ -57,6 +58,13 @@ const isTitle = computed(() => {
   .padding-unset {
     justify-content: space-around;
     padding: unset;
+  }
+  .brand-logo {
+    display: block;
+    flex: 0 0 auto;
+    width: 30px;
+    height: 30px;
+    object-fit: contain;
   }
   .logo_title {
     box-sizing: border-box;
