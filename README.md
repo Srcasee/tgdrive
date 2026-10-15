@@ -58,9 +58,9 @@ chmod +x deploy.sh
    ↓
 PostgreSQL + Core healthy
    ↓
-If Telegram needs proxy: enable TG_PROXY_ENABLED and TG_PROXY_* in .env
+If Telegram needs proxy: enable TG_PROXY_ENABLED=true
    ↓
-docker compose --profile proxy up -d --build (pulls the published proxy image)
+docker compose --profile proxy up -d --build
    ↓
 Telegram login
 ./login-account.sh <account-name> <phone>
