@@ -7,13 +7,27 @@
       "type": "socks",
       "tag": "socks-in",
       "listen": "0.0.0.0",
-      "listen_port": ${TG_PROXY_PORT}
+      "listen_port": 0
     }
   ],
   "outbounds": [
     {
-      "type": "${TG_PROXY_OUTBOUND_TYPE}",
-      "tag": "proxy-out"
+      "type": "vless",
+      "tag": "proxy-out",
+      "server": "",
+      "server_port": 0,
+      "uuid": "",
+      "tls": {
+        "enabled": true,
+        "server_name": ""
+      },
+      "transport": {
+        "type": "ws",
+        "path": "",
+        "headers": {
+          "Host": ""
+        }
+      }
     }
   ],
   "route": {
