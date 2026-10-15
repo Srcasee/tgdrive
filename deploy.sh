@@ -98,6 +98,9 @@ AUTH_TOKEN_TTL=86400
 ADMIN_USERNAME=$ADMIN_USER
 ADMIN_PASSWORD=$ADMIN_PASS
 PORT=8000
+
+# Maximum simultaneous download streams per Core process
+TGDRIVE_MAX_CONCURRENT_DOWNLOADS=16
 EOF
     chmod 600 .env
     echo "[DEPLOY] .env created (Telegram phone/account and proxy were NOT configured)"
