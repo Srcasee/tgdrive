@@ -91,6 +91,7 @@ import { useThemeConfig } from "@/store/modules/theme-config";
 import { useThemeMethods } from "@/hooks/useThemeMethods";
 import { useDevicesSize } from "@/hooks/useDevicesSize";
 import { useRouteConfigStore } from "@/store/modules/route-config";
+import defaultAvatar from "@/assets/cat.png";
 
 const i18n = useI18n();
 const router = useRouter();
