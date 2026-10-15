@@ -19,6 +19,11 @@ source_selector = TelegramSourceSelector(telegram_file_repository)
 download_service = DownloadService(resource_repository=resource_repository)
 
 
+@router.get("/download-config")
+def get_download_config(_: Principal = Depends(require_user)):
+    return {"max_concurrent_downloads": download_service.max_concurrent}
+
+
 def _parse_range_or_416(value, size):
     try:
         return parse_single_range(value, size)
