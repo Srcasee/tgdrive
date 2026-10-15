@@ -58,7 +58,7 @@ chmod +x deploy.sh
    ↓
 PostgreSQL + Core healthy
    ↓
-If Telegram needs proxy: enable TG_PROXY_ENABLED=true
+If Telegram needs proxy: enable TG_PROXY_ENABLED=true and config.json.example > config.json
    ↓
 docker compose --profile proxy up -d --build
    ↓
