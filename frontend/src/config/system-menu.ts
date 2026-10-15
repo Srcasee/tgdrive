@@ -48,7 +48,7 @@ export const systemMenu = [
 
   {
     id: "01", parentId: "0", path: "/dashboard", name: "tgdrive-dashboard", component: "dashboard/index",
-    meta: { title: "主页", hide: false, disable: false, keepAlive: true, affix: true, link: "", iframe: false, isFull: false, roles: ["admin", "common"], svgIcon: "home", sort: 1, type: 2 },
+    meta: { title: "首页", hide: false, disable: false, keepAlive: true, affix: true, link: "", iframe: false, isFull: false, roles: ["admin", "common"], svgIcon: "home", sort: 1, type: 2 },
     children: null
   },
   {
@@ -119,87 +119,34 @@ export const systemMenu = [
     meta: { title: "about", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin", "common"], svgIcon: "about", sort: 92, type: 2 },
     children: null
   },
-
+  
 ];
 
 // 权限数据
 export const permissionData = [
   {
-    id: "130101",
-    parentId: "1301",
-    meta: {
-      title: "新增按钮",
-      hide: false,
-      disable: false,
-      roles: ["admin"],
-      permission: "sys:btn:add",
-      sort: 1,
-      type: 3
+    id: "130101", parentId: "1301",
+    meta: { title: "新增按钮", hide: false, disable: false, roles: ["admin"], permission: "sys:btn:add", sort: 1, type: 3 }
+  },
+  {
+    id: "130102", parentId: "1301",
+    meta: { title: "编辑按钮", hide: false, disable: false, roles: ["admin"], permission: "sys:btn:edit", sort: 2, type: 3 }
+  },
+  {
+    id: "130103", parentId: "1301",
+    meta: { title: "删除按钮", hide: false, disable: false, roles: ["admin"], permission: "sys:btn:delete", sort: 3, type: 3 }
+  },
+  {
+    id: "130201", parentId: "1301",
+    meta: { title: "新增按钮-2", hide: false, disable: false, roles: ["admin", "common"], permission: "common:btn:add", sort: 1, type: 3 }
+  },
+  {
+    id: "130202", parentId: "1301",
+    meta: { title: "编辑按钮-2", hide: false, disable: false, roles: ["admin", "common"], permission: "common:btn:edit", sort: 2, type: 3
     }
   },
   {
-    id: "130102",
-    parentId: "1301",
-    meta: {
-      title: "编辑按钮",
-      hide: false,
-      disable: false,
-      roles: ["admin"],
-      permission: "sys:btn:edit",
-      sort: 2,
-      type: 3
-    }
-  },
-  {
-    id: "130103",
-    parentId: "1301",
-    meta: {
-      title: "删除按钮",
-      hide: false,
-      disable: false,
-      roles: ["admin"],
-      permission: "sys:btn:delete",
-      sort: 3,
-      type: 3
-    }
-  },
-  {
-    id: "130201",
-    parentId: "1301",
-    meta: {
-      title: "新增按钮-2",
-      hide: false,
-      disable: false,
-      roles: ["admin", "common"],
-      permission: "common:btn:add",
-      sort: 1,
-      type: 3
-    }
-  },
-  {
-    id: "130202",
-    parentId: "1301",
-    meta: {
-      title: "编辑按钮-2",
-      hide: false,
-      disable: false,
-      roles: ["admin", "common"],
-      permission: "common:btn:edit",
-      sort: 2,
-      type: 3
-    }
-  },
-  {
-    id: "130203",
-    parentId: "1301",
-    meta: {
-      title: "删除按钮-2",
-      hide: false,
-      disable: false,
-      roles: ["admin", "common"],
-      permission: "common:btn:delete",
-      sort: 3,
-      type: 3
-    }
+    id: "130203", parentId: "1301",
+    meta: { title: "删除按钮-2", hide: false, disable: false, roles: ["admin", "common"], permission: "common:btn:delete", sort: 3, type: 3 }
   }
 ];
