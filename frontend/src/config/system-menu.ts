@@ -48,7 +48,7 @@ export const systemMenu = [
 
   {
     id: "01", parentId: "0", path: "/dashboard", name: "tgdrive-dashboard", component: "dashboard/index",
-    meta: { title: "TGDrive 概览", hide: false, disable: false, keepAlive: true, affix: true, link: "", iframe: false, isFull: false, roles: ["admin", "common"], svgIcon: "home", sort: 1, type: 2 },
+    meta: { title: "主页", hide: false, disable: false, keepAlive: true, affix: true, link: "", iframe: false, isFull: false, roles: ["admin", "common"], svgIcon: "home", sort: 1, type: 2 },
     children: null
   },
   {
