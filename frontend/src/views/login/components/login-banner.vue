@@ -1,7 +1,7 @@
 <template>
   <div class="banner_box">
     <div class="banner_title">
-      <s-svg-icon name="logo" size="25" />
+      <img class="login-logo" :src="logoUrl" alt="TGDrive logo" />
       {{ title }}
     </div>
     <div class="banner_img">
@@ -10,6 +10,7 @@
   </div>
 </template>
 <script setup lang="ts">
+import logoUrl from "@/assets/logo/logo.svg";
 // 全局title
 const title = import.meta.env.VITE_GLOB_APP_TITLE;
 </script>
@@ -24,6 +25,12 @@ const title = import.meta.env.VITE_GLOB_APP_TITLE;
   height: 100%;
   padding: 30px;
   .banner_title {
+    .login-logo {
+      display: block;
+      width: 25px;
+      height: 25px;
+      object-fit: contain;
+    }
     position: absolute;
     display: flex;
     column-gap: $margin-text;
