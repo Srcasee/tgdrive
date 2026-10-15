@@ -1,0 +1,22 @@
+{
+  "log": {
+    "level": "info"
+  },
+  "inbounds": [
+    {
+      "type": "socks",
+      "tag": "socks-in",
+      "listen": "0.0.0.0",
+      "listen_port": ${TG_PROXY_PORT}
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "${TG_PROXY_OUTBOUND_TYPE}",
+      "tag": "proxy-out"
+    }
+  ],
+  "route": {
+    "final": "proxy-out"
+  }
+}
