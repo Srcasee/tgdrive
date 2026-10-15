@@ -39,7 +39,6 @@ services:
       - "8080:8000"
     networks:
       - telegram-net
-      - proxy-net
     logging:
       driver: json-file
       options:
@@ -73,10 +72,4 @@ services:
       - -c
       - /etc/sing-box/config.json
     networks:
-      - proxy-net
-
-networks:
-  telegram-net:
-    driver: bridge
-  proxy-net:
-    driver: bridge
+      - telegram-net
