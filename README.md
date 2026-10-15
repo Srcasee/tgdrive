@@ -101,7 +101,7 @@ Direct Telegram connectivity is the default. **Proxy is optional and must be ena
 docker compose --profile proxy up -d --build
 ```
 
-The `proxy` profile uses `ghcr.io/srcasee/tgdrive-proxy:latest` and pulls it when invoked. Core does not mount or scan `plugins/proxy`; the same command remains the optional proxy startup path. The Core image is built locally; the optional proxy image is still pulled from GHCR. Set the `tgdrive-proxy` GHCR package to **Public** if the host should pull it without `docker login`. Wait for the `proxy` health check to pass before starting a Telegram login.
+The `proxy` profile uses `: ghcr.nju.edu.cn/sagernet/sing-box:v1.14.2` and pulls it when invoked. the same command remains the optional proxy startup path. The Core image is built locally; the optional proxy image is still pulled from GHCR. Set the `tgdrive-proxy` GHCR package to **Public** if the host should pull it without `docker login`. Wait for the `proxy` health check to pass before starting a Telegram login.
 
 The proxy service is published as a separate GHCR image. Its image contains the pinned sing-box binary, so the deployment host does not build the proxy image or download sing-box during deployment.
 
@@ -290,7 +290,7 @@ GitHub Actions validates PostgreSQL integration, supported Python versions, the 
 - Fresh-server bootstrap: **PASS**.
 - Optional proxy deployment path: **PASS** in the previously validated deployment flow.
 - Telegram account login/session reuse: **PASS**.
-- Multiple account sessions: **PASS** (`default` and `Asada` were verified).
+- Multiple account sessions: **PASS** .
 - Automatic dialog discovery/cache after account authorization: **PASS**.
 - Resource-dialog filtering: **IMPLEMENTED**; only selectable resource groups/channels are persisted for admin selection.
 - Source enable/disable/delete lifecycle: **IMPLEMENTED**.
@@ -299,7 +299,7 @@ GitHub Actions validates PostgreSQL integration, supported Python versions, the 
 - Resource catalog/search/category filtering: **PASS**.
 - Category create/delete: **PASS**.
 - Share-link lifecycle and shared download: **PASS**.
-- Basic Resource download: **FUNCTIONAL**, but throughput is currently too slow and is the next optimization target.
+- Basic Resource download: **FUNCTIONAL**, but throughput depends on network bandwidth.
 
 ### Admin management status
 
