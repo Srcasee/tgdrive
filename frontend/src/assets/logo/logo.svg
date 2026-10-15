@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1014" height="705" viewBox="0 0 354 247">
+<title>Geometric interlocking logo</title>
+<desc>Clean, flat vector reconstruction based on the original logo. Transparent background.</desc>
+<polygon points="8,125 75,8 108,66 42,184" fill="#1C74D6"/>
+<polygon points="75,8 143,8 176,66 108,66" fill="#2830D0"/>
+<polygon points="108,66 176,66 110,184 143,242 75,242 42,184" fill="#00FBE2"/>
+<polygon points="143,125 176,184 143,242 110,184" fill="#2830D0"/>
+<polygon points="211,8 244,66 211,125 178,66" fill="#2830D0"/>
+<polygon points="211,8 279,8 312,66 245,184 178,184 211,125 244,66" fill="#00FBE2"/>
+<polygon points="245,184 279,242 211,242 178,184" fill="#2830D0"/>
+<polygon points="312,66 346,125 279,242 245,184" fill="#1C74D6"/>
+</svg>
