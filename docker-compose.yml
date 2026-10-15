@@ -73,4 +73,10 @@ services:
       - -c
       - /etc/sing-box/config.json
     networks:
-      - telegram-net
+      telegram-net:
+        aliases:
+          - proxy
+
+networks:
+  telegram-net:
+    driver: bridge
