@@ -1,6 +1,8 @@
 {
   "log": {
-    "level": "info"
+    "level": "info",
+    "output": "/var/log/proxy/sing-box.log",
+    "timestamp": true
   },
   "inbounds": [
     {
