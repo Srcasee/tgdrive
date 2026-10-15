@@ -63,7 +63,7 @@ export const systemMenu = [
   },
   {
     id: "04", parentId: "0", path: "/resources/files", name: "tgdrive-resources", component: "resources/files",
-    meta: { title: "资源文件", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], svgIcon: "folder-menu", sort: 4, type: 2 },
+    meta: { title: "资源文件", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin", "common"], svgIcon: "folder-menu", sort: 4, type: 2 },
     children: null
   },
   {
@@ -109,13 +109,13 @@ export const systemMenu = [
     children: null
   },
   {
-    id: "0803", parentId: "10", path: "/system/basic-settings", name: "basic-settings", component: "system/basic-settings/basic-settings",
+    id: "0803", parentId: "08", path: "/system/basic-settings", name: "basic-settings", component: "system/basic-settings/basic-settings",
     meta: { title: "basic-settings", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin", "common"], svgIcon: "set", sort: 3, type: 2 },
     children: null
   },
 
   {
-    id: "18", parentId: "0", path: "/about", name: "about", component: "about/about",
+    id: "09", parentId: "0", path: "/about", name: "about", component: "about/about",
     meta: { title: "about", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin", "common"], svgIcon: "about", sort: 92, type: 2 },
     children: null
   },
