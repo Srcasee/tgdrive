@@ -1,7 +1,7 @@
 <template>
   <div class="banner_box">
     <div class="banner_title">
-      <s-svg-icon name="snow" size="25" />
+      <s-svg-icon name="logo" size="25" />
       {{ title }}
     </div>
     <div class="banner_img">
