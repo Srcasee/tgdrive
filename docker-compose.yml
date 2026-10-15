@@ -67,6 +67,7 @@ services:
       - proxy
     volumes:
       - ./config.json:/etc/sing-box/config.json:ro
+      - ./logs:/var/log/proxy
     command:
       - run
       - -c
