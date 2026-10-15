@@ -47,216 +47,79 @@ export const systemMenu = [
   // layout-二级路由(主要渲染页面)
 
   {
-    id: "06",
-    parentId: "0",
-    path: "/component",
-    name: "component",
-    redirect: "/component/player",
-    meta: {
-      title: "component",
-      hide: false,
-      disable: false,
-      keepAlive: true,
-      affix: false,
-      link: "",
-      iframe: false,
-      isFull: false,
-      roles: ["admin"],
-      svgIcon: "more",
-      sort: 90,
-      type: 1
-    },
-    children: null
-  },
-  {
-    id: "0601",
-    parentId: "06",
-    path: "/component/player",
-    name: "player",
-    component: "component/player/player",
-    meta: {
-      title: "player",
-      hide: false,
-      disable: false,
-      keepAlive: true,
-      affix: false,
-      link: "",
-      iframe: false,
-      isFull: false,
-      roles: ["admin"],
-      svgIcon: "video",
-      sort: 1,
-      type: 2
-    },
-    children: null
-  },
-
-  {
-    id: "0608",
-    parentId: "06",
-    path: "/component/fingerprintjs2",
-    name: "fingerprintjs2",
-    component: "component/fingerprintjs2/fingerprintjs2",
-    meta: {
-      title: "fingerprintjs2",
-      hide: false,
-      disable: false,
-      keepAlive: true,
-      affix: false,
-      link: "",
-      iframe: false,
-      isFull: false,
-      roles: ["admin"],
-      svgIcon: "data-setting",
-      sort: 2,
-      type: 2
-    },
-    children: null
-  },
-
-  {
-    id: "10",
-    parentId: "0",
-    path: "/system",
-    name: "system",
-    redirect: "/system/role",
-    meta: {
-      title: "system",
-      hide: false,
-      disable: false,
-      keepAlive: true,
-      affix: false,
-      link: "",
-      iframe: false,
-      isFull: false,
-      roles: ["admin", "common"],
-      svgIcon: "set",
-      sort: 91,
-      type: 1
-    },
-    children: null
-  },
-
-  {
-    id: "1002",
-    parentId: "10",
-    path: "/system/role",
-    name: "role",
-    component: "system/role/role",
-    meta: {
-      title: "role",
-      hide: false,
-      disable: false,
-      keepAlive: true,
-      affix: false,
-      link: "",
-      iframe: false,
-      isFull: false,
-      roles: ["admin"],
-      svgIcon: "user",
-      sort: 1,
-      type: 2
-    },
-    children: null
-  },
-  {
-    id: "1003",
-    parentId: "10",
-    path: "/system/menu",
-    name: "menu",
-    component: "system/menu/menu",
-    meta: {
-      title: "menu",
-      hide: false,
-      disable: false,
-      keepAlive: true,
-      affix: false,
-      link: "",
-      iframe: false,
-      isFull: false,
-      roles: ["admin"],
-      svgIcon: "functions",
-      sort: 2,
-      type: 2
-    },
-    children: null
-  },
-
-  {
-    id: "1007",
-    parentId: "10",
-    path: "/system/basic-settings",
-    name: "basic-settings",
-    component: "system/basic-settings/basic-settings",
-    meta: {
-      title: "basic-settings",
-      hide: false,
-      disable: false,
-      keepAlive: true,
-      affix: false,
-      link: "",
-      iframe: false,
-      isFull: false,
-      roles: ["admin", "common"],
-      svgIcon: "set",
-      sort: 3,
-      type: 2
-    },
-    children: null
-  },
-
-  {
-    id: "18",
-    parentId: "0",
-    path: "/about",
-    name: "about",
-    component: "about/about",
-    meta: {
-      title: "about",
-      hide: false,
-      disable: false,
-      keepAlive: true,
-      affix: false,
-      link: "",
-      iframe: false,
-      isFull: false,
-      roles: ["admin", "common"],
-      svgIcon: "about",
-      sort: 92,
-      type: 2
-    },
-    children: null
-  },
-  {
-    id: "19", parentId: "0", path: "/dashboard", name: "tgdrive-dashboard", component: "dashboard/index",
+    id: "01", parentId: "0", path: "/dashboard", name: "tgdrive-dashboard", component: "dashboard/index",
     meta: { title: "TGDrive 概览", hide: false, disable: false, keepAlive: true, affix: true, link: "", iframe: false, isFull: false, roles: ["admin", "common"], svgIcon: "home", sort: 1, type: 2 },
     children: null
   },
   {
-    id: "20", parentId: "0", path: "/telegram/accounts", name: "tgdrive-accounts", component: "telegram/accounts",
+    id: "02", parentId: "0", path: "/telegram/accounts", name: "tgdrive-accounts", component: "telegram/accounts",
     meta: { title: "账号管理", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], svgIcon: "user", sort: 2, type: 2 },
     children: null
   },
   {
-    id: "21", parentId: "0", path: "/telegram/dialogs", name: "tgdrive-dialogs", component: "telegram/dialogs",
+    id: "03", parentId: "0", path: "/telegram/dialogs", name: "tgdrive-dialogs", component: "telegram/dialogs",
     meta: { title: "群组/频道", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], svgIcon: "switch", sort: 3, type: 2 },
     children: null
   },
   {
-    id: "23", parentId: "0", path: "/resources/files", name: "tgdrive-resources", component: "resources/files",
+    id: "04", parentId: "0", path: "/resources/files", name: "tgdrive-resources", component: "resources/files",
     meta: { title: "资源文件", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], svgIcon: "folder-menu", sort: 4, type: 2 },
     children: null
   },
   {
-    id: "24", parentId: "0", path: "/resources/categories", name: "tgdrive-categories", component: "resources/categories",
+    id: "05", parentId: "0", path: "/resources/categories", name: "tgdrive-categories", component: "resources/categories",
     meta: { title: "资源分类", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], svgIcon: "classify", sort: 5, type: 2 },
     children: null
   },
   {
-    id: "25", parentId: "0", path: "/downloads", name: "tgdrive-downloads", component: "downloads/index",
+    id: "06", parentId: "0", path: "/downloads", name: "tgdrive-downloads", component: "downloads/index",
     meta: { title: "下载记录", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], svgIcon: "data-queries", sort: 6, type: 2 },
     children: null
   },
+  
+  {
+    id: "07", parentId: "0", path: "/component", name: "component", redirect: "/component/player",
+    meta: { title: "component", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], svgIcon: "more", sort: 7, type: 1 },
+    children: null
+  },
+  {
+    id: "0701", parentId: "07", path: "/component/player", name: "player", component: "component/player/player",
+    meta: { title: "player", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], svgIcon: "video", sort: 1, type: 2 },
+    children: null
+  },
+  {
+    id: "0702", parentId: "07", path: "/component/fingerprintjs2", name: "fingerprintjs2", component: "component/fingerprintjs2/fingerprintjs2",
+    meta: { title: "fingerprintjs2", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], svgIcon: "data-setting", sort: 2, type: 2 },
+    children: null
+  },
+
+  {
+    id: "08", parentId: "0", path: "/system", name: "system", redirect: "/system/role",
+    meta: { title: "system", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin", "common"], svgIcon: "set", sort: 8, type: 1 },
+    children: null
+  },
+  {
+    id: "0801", parentId: "08", path: "/system/role", name: "role", component: "system/role/role",
+    meta: { title: "role", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], svgIcon: "user", sort: 1, type: 2 },
+    children: null
+  },
+  {
+    id: "0802", parentId: "08", path: "/system/menu", name: "menu", component: "system/menu/menu",
+    meta: { title: "menu", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], svgIcon: "functions", sort: 2, type: 2 },
+    children: null
+  },
+  {
+    id: "0803", parentId: "10", path: "/system/basic-settings", name: "basic-settings", component: "system/basic-settings/basic-settings",
+    meta: { title: "basic-settings", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin", "common"], svgIcon: "set", sort: 3, type: 2 },
+    children: null
+  },
+
+  {
+    id: "18", parentId: "0", path: "/about", name: "about", component: "about/about",
+    meta: { title: "about", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin", "common"], svgIcon: "about", sort: 92, type: 2 },
+    children: null
+  },
+
 ];
 
 // 权限数据
