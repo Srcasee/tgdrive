@@ -66,11 +66,9 @@ services:
     profiles:
       - proxy
     volumes:
-      - ./data/sing-box:/etc/sing-box
-    env_file:
-      - .env
+      - ./:/etc/sing-box
     command:
-        - c
+        - -c
         - /etc/sing-box/config.json
         - run
     networks:
