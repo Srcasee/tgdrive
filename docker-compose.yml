@@ -18,9 +18,6 @@ services:
 
   tgdrive:
     image: tgdrive:laster
-    build:
-      context: .
-      dockerfile: Dockerfile
     restart: unless-stopped
     working_dir: /app
     volumes:
@@ -50,9 +47,6 @@ services:
 
   telegram-login:
     image: tgdrive:laster
-    build:
-      context: .
-      dockerfile: Dockerfile
     working_dir: /app
     volumes:
       - ./data:/data
@@ -68,8 +62,9 @@ services:
       - login
 
   proxy:
-    image: ${TGDRIVE_PROXY_IMAGE:-ghcr.io/srcasee/tgdrive-proxy:latest}
-    pull_policy: always
+    # 南京大学中转拉镜像
+    image: ghcr.nju.edu.cn/sagernet/sing-box:v1.14.2
+    pull_policy: missing
     restart: unless-stopped
     profiles:
       - proxy
