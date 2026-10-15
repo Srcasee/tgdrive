@@ -54,5 +54,3 @@ jobs:
           rm -f .env
       - name: Build Core image
         run: docker build -t tgdrive-core-ci .
-      - name: Build proxy plugin image
-        run: docker build --build-arg SING_BOX_VERSION=1.13.19 -t tgdrive-proxy-ci ./plugins/proxy
