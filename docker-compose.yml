@@ -65,18 +65,14 @@ services:
     restart: unless-stopped
     profiles:
       - proxy
+    volumes:
+      - ./data/sing-box:/etc/sing-box
     env_file:
       - .env
-    healthcheck:
-      test:
-        - CMD
-        - python
-        - -c
-        - "import os,socket; s=socket.create_connection(('127.0.0.1', int(os.getenv('TG_PROXY_PORT', '1080'))), timeout=2); s.close()"
-      interval: 5s
-      timeout: 3s
-      retries: 12
-      start_period: 5s
+    command:
+        - c
+        - /etc/sing-box/config.json
+        - run
     networks:
       telegram-net:
         aliases:
