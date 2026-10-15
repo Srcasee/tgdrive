@@ -6,26 +6,26 @@
     {
       "type": "socks",
       "tag": "socks-in",
-      "listen": "0.0.0.0",
-      "listen_port": 0
+      "listen": "127.0.0.1",
+      "listen_port": 1080
     }
   ],
   "outbounds": [
     {
       "type": "vless",
       "tag": "proxy-out",
-      "server": "",
-      "server_port": 0,
-      "uuid": "",
+      "server": "代理IP",
+      "server_port": 443,
+      "uuid": "自行填入",
       "tls": {
         "enabled": true,
-        "server_name": ""
+        "server_name": "自行填入"
       },
       "transport": {
         "type": "ws",
-        "path": "",
+        "path": "/",
         "headers": {
-          "Host": ""
+          "Host": "自行填入"
         }
       }
     }
