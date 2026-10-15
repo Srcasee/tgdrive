@@ -23,7 +23,7 @@
           <a-col :span="isMobile ? 24 : 22">
             <a-space direction="vertical" size="large">
               <a-descriptions
-                title="用户资料"
+                title="基本信息"
                 :data="profileDetails"
                 :column="descriptionsColumn(1, 4)"
                 :align="{ label: 'right' }"
