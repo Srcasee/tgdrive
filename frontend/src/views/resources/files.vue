@@ -38,7 +38,7 @@
             <a-checkbox :model-value="currentPageAllSelected" :indeterminate="currentPageSomeSelected" :disabled="batchRunning" @change="toggleCurrentPageSelection">选择当前页</a-checkbox>
             <span>已选 {{ selectedResources.size }} 项 · {{ formatSize(selectedTotalSize) }}</span>
             <a-button size="small" :disabled="selectedResources.size === 0 || batchRunning" @click="clearSelection">清空选择</a-button>
-            <a-button size="small" type="primary" :disabled="selectedResources.size === 0 || batchRunning" @click="startBatchDownload">批量下载（并发 8）</a-button>
+            <a-button size="small" type="primary" :disabled="selectedResources.size === 0 || batchRunning" @click="startBatchDownload">批量下载（并发 {{ maxBatchConcurrency }}）</a-button>
             <a-button v-if="topicId != null" size="small" :disabled="batchRunning" @click="createTopicShare">分享话题</a-button>
             <a-button v-if="batchRunning" size="small" status="warning" @click="stopBatchDownload">停止后续任务</a-button>
             <span v-if="batchStatus" class="batch-status">{{ batchStatus }}</span>
@@ -142,7 +142,7 @@
 import { computed, onBeforeMount, onBeforeUnmount, ref } from "vue";
 import { Message } from "@arco-design/web-vue";
 import {
-  getResourcesAPI, getResourceAPI, searchResourcesAPI, getResourceTreeAPI,
+  getResourcesAPI, getResourceAPI, searchResourcesAPI, getResourceTreeAPI, getDownloadConfigAPI,
   createShareAPI, deleteShareAPI, createTopicShareAPI, deleteTopicShareAPI
 } from "@/api/modules/tgdrive";
 
@@ -229,6 +229,7 @@ const selectedTotalSize = computed(() => [...selectedResources.value.values()].r
 const batchRunning = ref(false);
 const batchStopRequested = ref(false);
 const batchStatus = ref("");
+const maxBatchConcurrency = ref(8);
 // Manual category assignment state is disabled; retained as comments.
 // const categoryOpen = ref(false);
 // const currentId = ref<number>();
@@ -473,12 +474,12 @@ const startBatchDownload = async () => {
         failed += 1;
       }
       batchStatus.value = "已发起 " + started + "/" + queue.length + " 项" + (failed ? "，发起失败 " + failed + " 项" : "") + (batchStopRequested.value ? "，正在停止" : "");
-      // Keep at most eight queue workers active and pace browser download prompts.
+      // Keep at most the configured number of queue workers active and pace browser download prompts.
       await new Promise(resolve => window.setTimeout(resolve, 250));
     }
   };
   try {
-    await Promise.all(Array.from({ length: Math.min(8, queue.length) }, () => worker()));
+    await Promise.all(Array.from({ length: Math.min(maxBatchConcurrency.value, queue.length) }, () => worker()));
     batchStatus.value = (batchStopRequested.value
       ? "已停止后续任务，已发起 " + started + "/" + queue.length + " 项"
       : "已发起全部任务，已发起 " + started + "/" + queue.length + " 项")
@@ -632,6 +633,12 @@ const detail = async (record: any) => {
 // };
 
 onBeforeMount(async () => {
+  try {
+    const response = await getDownloadConfigAPI();
+    const payload = response.data?.data ?? response.data;
+    const configured = Number(payload?.max_concurrent_downloads);
+    if (Number.isInteger(configured) && configured >= 1) maxBatchConcurrency.value = configured;
+  } catch { /* Keep the safe frontend fallback when config cannot be fetched. */ }
   keyword.value = typeof savedPageState.keyword === "string" ? savedPageState.keyword : "";
   pagination.value.current = Number.isInteger(savedPageState.currentPage) && savedPageState.currentPage > 0 ? savedPageState.currentPage : 1;
   pagination.value.pageSize = [15, 30, 50, 100].includes(savedPageState.pageSize) ? savedPageState.pageSize : 15;
