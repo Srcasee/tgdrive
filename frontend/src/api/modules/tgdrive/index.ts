@@ -45,6 +45,7 @@ export const refreshScansAPI = (sourceId?: number) =>
 export const getCategoriesAPI = () => http.get("/api/admin/categories");
 export const deleteShareAPI = (id: number) => http.delete(`/api/admin/shares/${id}`);
 
+export const getDownloadConfigAPI = () => http.get("/resources/download-config");
 export const getResourceTreeAPI = () => http.get("/catalog/tree");
 export const getResourceAPI = (id: number) => http.get(`/catalog/${id}`);
 export const getResourcesAPI = (params: { page?: number; size?: number; account_id?: number; chat_id?: number; topic_id?: number; sort?: string; order?: string }) =>
