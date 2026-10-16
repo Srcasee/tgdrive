@@ -1,7 +1,7 @@
 # tgdrive
 
 <p align="center">
-  <strong>Telegram 文件目录、检索与交付系统</strong><br>
+  <strong>基于Telegram的个人无限存储解决方案！</strong><br>
   将 Telegram 中的文件媒体整理成可搜索的资源目录，并通过 Web 界面和 HTTP API 浏览、分享与下载。
 </p>
 
@@ -60,9 +60,11 @@ Telegram 账号 / 群组 / 频道
 ### 环境要求
 
 - Linux 服务器或其他可运行 Docker 的主机
+- 生产配置1H2G即可，若选择在生产机器编译镜像，需4G及以上
 - Docker Engine 与 Docker Compose 插件
-- Telegram API 凭据：TG_API_ID、TG_API_HASH（可从 [my.telegram.org](https://my.telegram.org) 获取）
+- Telegram账号及 API 凭据：TG_API_ID、TG_API_HASH（可从 [my.telegram.org](https://my.telegram.org) 获取）
 - 能够持久化保存应用数据的磁盘空间
+此项目流量吞吐瓶颈在网络环境及带宽，已提供可选的代理配置，推荐无网络限制的高带宽服务器
 
 ### 1. 获取项目并启动
 
