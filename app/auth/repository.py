@@ -96,13 +96,53 @@ class UserRepository:
     def ensure_admin(self, username, password_hash):
         with transaction() as conn:
             with conn.cursor() as cursor:
+                # Serialize bootstrap attempts so two starting instances cannot
+                # create separate bootstrap administrators at the same time.
+                cursor.execute("SELECT pg_advisory_xact_lock(%s)", (724063901,))
+
+                # Bootstrap is only for an empty administrator table. In
+                # particular, renaming an existing admin must not recreate the
+                # old ADMIN_USERNAME on the next restart.
+                cursor.execute(
+                    "SELECT id, username FROM users WHERE role='admin' ORDER BY id LIMIT 1"
+                )
+                existing_admin = cursor.fetchone()
+                if existing_admin:
+                    return {
+                        "id": existing_admin["id"],
+                        "username": existing_admin["username"],
+                        "created": False,
+                    }
+
                 cursor.execute(
                     """
                     INSERT INTO users(username, password_hash, role, enabled)
                     VALUES(%s, %s, 'admin', TRUE)
                     ON CONFLICT (username) DO NOTHING
-                    RETURNING id
+                    RETURNING id, username
                     """,
                     (username, password_hash),
                 )
-                return cursor.fetchone()
+                created = cursor.fetchone()
+                if created:
+                    return {
+                        "id": created["id"],
+                        "username": created["username"],
+                        "created": True,
+                    }
+
+                # Never silently promote an existing non-admin account just
+                # because its username matches the configured bootstrap name.
+                cursor.execute(
+                    "SELECT id, username FROM users WHERE username=%s",
+                    (username,),
+                )
+                conflicting_user = cursor.fetchone()
+                if conflicting_user:
+                    return {
+                        "id": conflicting_user["id"],
+                        "username": conflicting_user["username"],
+                        "created": False,
+                        "username_conflict": True,
+                    }
+                return None
