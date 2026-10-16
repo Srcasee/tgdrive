@@ -86,10 +86,31 @@ class ApplicationLifecycle:
         if not settings.AUTH_SECRET:
             raise RuntimeError("AUTH_SECRET must be configured")
         if settings.ADMIN_USERNAME and settings.ADMIN_PASSWORD:
-            self.user_repository.ensure_admin(
+            result = self.user_repository.ensure_admin(
                 settings.ADMIN_USERNAME,
                 hash_password(settings.ADMIN_PASSWORD),
             )
+            if result and result.get("created"):
+                print(
+                    f"[AUTH] bootstrap administrator created: {result['username']}",
+                    flush=True,
+                )
+            elif result and result.get("username_conflict"):
+                print(
+                    "[AUTH] bootstrap skipped: ADMIN_USERNAME is already used by a non-admin account",
+                    flush=True,
+                )
+            elif result:
+                print(
+                    f"[AUTH] bootstrap skipped: existing administrator "
+                    f"{result['username']!r} found; configured credentials were not used to create or reset an account",
+                    flush=True,
+                )
+            else:
+                print(
+                    "[AUTH] bootstrap skipped: no administrator created; check the configured ADMIN_USERNAME",
+                    flush=True,
+                )
 
     async def _run_scanners(self):
         first_run = True
