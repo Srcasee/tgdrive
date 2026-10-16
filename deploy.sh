@@ -22,7 +22,7 @@ echo "[DEPLOY] building Core image without a CPU quota"
 BUILDX_NO_DEFAULT_ATTESTATIONS=1 docker buildx build \
     --load \
     --provenance=false \
-    -t tgdrive:laster \
+    -t tgdrive:latest \
     -f Dockerfile .
 
 echo "[DEPLOY] step 3/7: preparing persistent directories"
