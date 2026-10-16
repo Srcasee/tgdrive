@@ -1,34 +1,72 @@
 # tgdrive
 
-Telegram-only file catalog and delivery system.
+<p align="center">
+  <strong>Telegram 文件目录、检索与交付系统</strong><br>
+  将 Telegram 中的文件媒体整理成可搜索的资源目录，并通过 Web 界面和 HTTP API 浏览、分享与下载。
+</p>
+
+<p align="center">
+  <a href="https://github.com/Srcasee/tgdrive/releases"><img src="https://img.shields.io/github/v/release/Srcasee/tgdrive?display_name=tag" alt="GitHub Release"></a>
+  <a href="https://github.com/Srcasee/tgdrive"><img src="https://img.shields.io/github/stars/Srcasee/tgdrive?style=flat" alt="GitHub Stars"></a>
+  <a href="https://github.com/Srcasee/tgdrive/issues"><img src="https://img.shields.io/github/issues/Srcasee/tgdrive" alt="Issues"></a>
+  <a href="https://github.com/Srcasee/tgdrive/commits/main"><img src="https://img.shields.io/github/last-commit/Srcasee/tgdrive/main" alt="Last Commit"></a>
+</p>
+
+---
+
+## 📖 项目简介
+
+**tgdrive 是一个以 Telegram 为唯一文件内容后端的文件目录与交付系统。**
+
+它会发现已授权 Telegram 账号可访问的群组和频道，将管理员明确启用的数据源纳入扫描流程，把 Telegram 消息中的媒体整理为逻辑资源，再提供目录浏览、搜索、分类、分享链接和下载能力。
 
 ```text
-Telegram metadata
-      ↓
-Recognition / Ingestion
-      ↓
-Logical Resource
-      ↓
-Catalog / classification / search
-      ↓
-Resource delivery
-      ↓
-Telegram backing locations
+Telegram 账号 / 群组 / 频道
+          │
+          ▼
+   对话元数据发现
+          │
+          ▼
+   管理员选择数据源
+          │
+          ▼
+   Scanner 扫描媒体元数据
+          │
+          ▼
+   逻辑资源 / 分类 / 搜索
+          │
+          ▼
+      Web UI / HTTP API
+          │
+          ▼
+       下载与分享
 ```
 
-Telegram is the only content backend. Multiple Telegram accounts are access/redundancy paths, not storage-provider backends.
+> **设计边界：** Telegram 是唯一的文件内容后端。多个 Telegram 账号用于访问与冗余，不代表支持多个存储供应商。本项目不是 S3、WebDAV 或 Google Drive 的通用存储适配层。
 
-## Sharing links
+## ✨ 主要功能
 
-Sharing links are global to each resource. Any authenticated user can create or rotate the resource's single active link; rotating it invalidates the previous token. Administrators can revoke a link. Links are permanent by default, or may be created with an optional UTC expiration timestamp.
+- **Telegram 多账号会话**：可分别登录和管理多个 Telegram 账号。
+- **数据源由管理员显式启用**：先发现对话元数据，再由管理员选择要扫描的群组或频道。
+- **资源目录与搜索**：将媒体整理为逻辑资源，支持目录浏览、搜索和分类。
+- **资源交付**：通过 HTTP 接口下载或流式读取资源，并提供 HEAD 检查接口。
+- **分享链接**：为资源创建分享链接；重新生成会使之前的有效链接失效，管理员可撤销链接，也可设置 UTC 过期时间。
+- **Web 管理界面**：提供用户 Web UI 与管理员控制台。
+- **PostgreSQL 元数据存储**：保存资源目录、分类和数据源状态；Telegram 仍负责保存文件内容。
+- **可选代理**：可按需启用独立的 sing-box 代理服务；默认不启用。
 
-- `POST /resources/{resource_id}/share` accepts an optional JSON body such as `{"expires_at":"2027-01-01T00:00:00Z"}`. Omit the body or use `null` for a permanent link.
-- `GET /share/{token}` downloads the resource anonymously while the link is valid.
-- `DELETE /api/admin/shares/{share_id}` revokes a link (administrator only).
+## 🚀 快速部署
 
-## Quick start — fresh server
+### 环境要求
 
-For a completely new server, clone the repository and run the deployment script:
+- Linux 服务器或其他可运行 Docker 的主机
+- Docker Engine 与 Docker Compose 插件
+- Telegram API 凭据：TG_API_ID、TG_API_HASH（可从 [my.telegram.org](https://my.telegram.org) 获取）
+- 能够持久化保存应用数据的磁盘空间
+
+### 1. 获取项目并启动
+
+当前部署脚本会从本地源码构建 Core 镜像，并启动 PostgreSQL 与 Core 服务：
 
 ```bash
 git clone https://github.com/Srcasee/tgdrive.git
@@ -37,323 +75,154 @@ chmod +x deploy.sh
 ./deploy.sh
 ```
 
-`deploy.sh` performs the base infrastructure bootstrap only: Docker checks, persistent directories, `.env`, secrets, Compose validation, Core image build, and PostgreSQL + Core startup. It does **not** log in Telegram and does **not** enable the optional proxy.
+首次运行时，脚本会检查 Docker 环境、构建 Core 镜像、创建持久化目录，并在缺少 .env 时交互式收集必要配置、生成部署密钥。请妥善保存生成的管理员凭据。
 
-The Core image is built locally from the checked-out source by `deploy.sh` / `docker compose build tgdrive`. After a successful build, you may manually remove the source files if you do not need to rebuild; the local Docker image remains on that host. Restoring the source tree is required for future builds.
-
-### Fresh server deployment
-
-The complete recommended flow is:
-
-```text
-New server
-   ↓
-git clone https://github.com/Srcasee/tgdrive.git
-
-   ↓
-cd tgdrive
-   ↓
-chmod +x deploy.sh
-./deploy.sh
-   ↓
-PostgreSQL + Core healthy
-   ↓
-If Telegram needs proxy: enable TG_PROXY_ENABLED=true and config.json.example > config.json
-   ↓
-docker compose --profile proxy up -d --build
-   ↓
-Telegram login
-./login-account.sh <account-name> <phone>
-   ↓
-Core automatically refreshes Telegram dialogs
-   ↓
-Admin opens Web UI → Telegram → Dialogs
-   ↓
-Administrator enables a resource dialog
-   ↓
-Source is created/enabled and Scanner starts immediately
-   ↓
-Resources appear in the catalog / Source management
-```
-
-#### 1. Base deployment
-
-Run `./deploy.sh` on a new Docker host. When `.env` does not exist, the script creates the required persistent directories, collects required credentials, generates deployment secrets, validates Compose, builds the Core image from the checked-out source, initializes PostgreSQL and starts PostgreSQL + Core.
-
-Verify:
+检查服务状态：
 
 ```bash
 docker compose ps
 docker compose logs --tail=100 tgdrive
 ```
 
-The Core Web service is exposed on port `8080` by the default Compose configuration. The Core image is built locally from source.
+默认 Web 服务端口为 **8080**。部署完成后访问：
 
-#### 2. Optional proxy
+- 用户界面：`http://服务器IP:8080/`
+- 管理员控制台：`http://服务器IP:8080/admin`
 
-Direct Telegram connectivity is the default. **Proxy is optional and must be enabled explicitly by an administrator.** Configure it before Telegram login:
+> 当前仓库的 Compose 配置使用本机的 tgdrive:latest 镜像，deploy.sh 负责构建该镜像。不要假定 GHCR 上已经存在可直接拉取的 tgdrive Core 镜像；请以仓库发布页和后续发布配置为准。
+
+### 2. 登录 Telegram 账号
+
+在 Core 服务健康后，使用脚本登录账号：
 
 ```bash
-# Edit .env:
-# TG_PROXY_ENABLED=true
-# TG_PROXY_* = the required proxy settings
-
-docker compose --profile proxy up -d --build
+./login-account.sh default +1234567890
+# 其他账号可使用不同名称
+./login-account.sh account2 +861234567890
 ```
 
-The `proxy` profile uses `: ghcr.nju.edu.cn/sagernet/sing-box:v1.14.2` and pulls it when invoked. the same command remains the optional proxy startup path. The Core image is built locally; the optional proxy image is still pulled from GHCR. Set the `tgdrive-proxy` GHCR package to **Public** if the host should pull it without `docker login`. Wait for the `proxy` health check to pass before starting a Telegram login.
+将示例手机号替换为你自己的号码。按照 Telegram 的交互提示完成授权；不要把验证码、会话文件或账号凭据提交到 Git 仓库。
 
-The proxy service is published as a separate GHCR image. Its image contains the pinned sing-box binary, so the deployment host does not build the proxy image or download sing-box during deployment.
+登录脚本会在交互登录期间暂停正在运行的 Core，以避免 Telegram SQLite session 文件锁冲突；结束后会按原状态恢复 Core 服务。
 
-Verify:
+### 3. 启用 Telegram 数据源
+
+1. 打开 `http://服务器IP:8080/admin` 并使用管理员账号登录。
+2. 进入 **Telegram → Dialogs**，等待已授权账号的对话元数据同步。
+3. 找到需要纳入目录的群组或频道，明确执行 **Enable**。
+4. 启用后会创建或重新启用对应的 Source，Scanner 才会开始处理该数据源。
+5. 在目录/资源管理页面确认资源已出现，并按需分类、搜索、分享或下载。
+
+**对话发现本身只读取元数据，不会自动扫描所有消息文件。** 打开对话列表也不会启动扫描；只有管理员启用相应 Source 后，该数据源才会进入扫描流程。
+
+## 🌐 可选代理
+
+默认直接连接 Telegram。只有网络环境确有需要时才配置代理，并建议在 Telegram 登录之前完成设置。
+
+1. 根据 .env.example 编辑 .env，设置 TG_PROXY_ENABLED=true 并填写所需的 TG_PROXY_* 参数。
+2. 按项目提供的示例配置准备本地 config.json。
+3. 启动可选代理服务：
 
 ```bash
+docker compose --profile proxy up -d
 docker compose --profile proxy ps
 docker compose --profile proxy logs --tail=100 proxy
 ```
 
-If proxy settings change later, use the administrator reconnect operation or restart Core so Telegram clients are rebuilt with the current connectivity configuration.
+代理使用单独的 sing-box 镜像，不是 tgdrive Core 镜像。请确认主机可以访问所配置的镜像仓库；如果修改了代理配置，可按需重启 Core 或通过管理员操作重新连接 Telegram。
 
-#### 3. Telegram login
+## 🧭 使用说明与文档
 
-After Core is healthy, log in each Telegram account explicitly:
+| 文档 | 内容 |
+| --- | --- |
+| [架构说明](docs/ARCHITECTURE.md) | 项目边界、资源模型与架构约束 |
+| [项目状态](docs/PROJECT-STATUS.md) | 已实现能力、验证记录、已知问题与开发优先级 |
+| [部署脚本](deploy.sh) | 新服务器初始化流程 |
+| [Compose 配置](docker-compose.yml) | Core、PostgreSQL、登录与可选代理服务 |
+| [环境变量模板](.env.example) | Telegram、数据库、认证及代理配置项 |
+| [原始 README 归档](docs/README.md) | 本次重写前的 README 完整副本 |
 
-```bash
-./login-account.sh default +1234567890
-./login-account.sh Asada +861234567890
-```
+## 🔌 Core API
 
-Use a distinct account name for every session. The helper temporarily stops Core to avoid a SQLite session lock, performs the interactive login, then starts Core again.
+常用资源接口：
 
-After authorization, Core automatically reconciles the account and refreshes its Telegram dialog metadata. No extra command is required to trigger dialog discovery.
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | /catalog | 获取资源目录 |
+| GET | /catalog/search?q=... | 搜索资源 |
+| GET | /catalog/{resource_id} | 获取资源详情 |
+| GET | /resources/{resource_id}/download | 下载资源 |
+| HEAD | /resources/{resource_id}/download | 检查下载响应 |
+| GET | /resources/{resource_id}/stream | 流式读取资源 |
+| HEAD | /resources/{resource_id}/stream | 检查流式响应 |
+| POST | /resources/{resource_id}/share | 创建或轮换分享链接 |
 
-#### 4. Select a Telegram resource source
+创建分享链接时，可以传入可选的 UTC 过期时间：
 
-Open the Web UI at `http://<server-ip>:8080`, sign in as the administrator, then open **Telegram → Dialogs**.
-
-Only selectable Telegram resource dialogs are presented. The current UI separates management into sidebar pages:
-
-```text
-Telegram
-├── Dialogs
-│   ├── Enable
-│   ├── Disable
-│   └── Delete
-├── Source
-└── Immediate reconciliation
-```
-
-Dialog semantics:
-
-- **Enable** creates or re-enables the corresponding Telegram Source and immediately makes it eligible for Scanner processing.
-- **Disable** disables the Source and removes that source's resources from the active catalog view.
-- **Delete** removes the Dialog/Source management record, stops scanning, and removes its active resources from the catalog view.
-- **Immediate reconciliation** forces Telegram dialog reconciliation without waiting for the normal periodic reconciliation interval.
-
-The normal Telegram runtime reconciliation interval is one hour. Administrator actions that change Source state do not wait for that interval.
-
-#### 5. Verify a fresh deployment
-
-```bash
-docker compose ps
-curl -I http://127.0.0.1:8080
-```
-
-With proxy enabled:
-
-```bash
-docker compose --profile proxy ps
-```
-
-For a true zero-to-one deployment test, remove the old checkout and its test data/images as appropriate, clone the repository again, and run the sequence above. Do not rely on an existing Docker image, build cache, container, or persistent database when validating fresh-server behavior.
-
-`deploy.sh` preserves an existing `.env`. Never put real proxy credentials or Telegram secrets into the repository or `.env.example`.
-
-## Telegram Dialog discovery and Source selection
-
-The Telegram flow has a strict security/data boundary:
-
-```text
-Telegram login
-      ↓
-Automatically iterate Telegram dialogs
-      ↓
-Persist/refresh selectable resource-dialog metadata only
-      ↓
-Administrator views Dialogs
-      ↓
-Administrator explicitly enables a target dialog
-      ↓
-Telegram Source
-      ↓
-Scanner
-```
-
-**Dialog discovery is metadata-only.** It reads Telegram dialog/entity information and does not download complete file payloads. Scanner processing starts only for enabled Sources.
-
-For each authorized account, Core refreshes the cached dialog metadata during runtime reconciliation. The Web/API dialog view reads that cache; opening the view does not itself start a message scan.
-
-A Telegram dialog is represented with its Telegram numeric chat ID and entity metadata. A value such as `id=-100...` is a Telegram supergroup/channel-style identifier; `type`, `group`, and `channel` describe the entity kind exposed by Telegram. These are Telegram identity/metadata fields, not Resource IDs.
-
-## Core API
-
-```text
-GET  /catalog
-GET  /catalog/search?q=...
-GET  /catalog/{resource_id}
-GET  /resources/{resource_id}/download
-HEAD /resources/{resource_id}/download
-GET  /resources/{resource_id}/stream
-HEAD /resources/{resource_id}/stream
+```http
 POST /resources/{resource_id}/share
+Content-Type: application/json
+
+{
+  "expires_at": "2027-01-01T00:00:00Z"
+}
 ```
 
-Categories:
+不传过期时间则创建默认永久有效的链接。分享链接是每个资源的全局单一有效链接：重新创建或轮换会使旧 token 失效。匿名访问使用 GET /share/{token}；管理员可通过 DELETE /api/admin/shares/{share_id} 撤销链接。
 
-```text
-GET  /api/admin/categories
-POST /api/admin/categories
-PUT  /api/admin/categories/{category_id}
-DELETE /api/admin/categories/{category_id}
-PUT  /api/admin/resources/{resource_id}/categories
-```
+更多 Telegram 账号、对话、Source 与分类管理接口，请参考代码和 [项目状态文档](docs/PROJECT-STATUS.md)。
 
-Telegram lifecycle:
+## 🏗️ 技术栈
 
-```text
-GET  /api/telegram/accounts
-PUT  /api/telegram/accounts/{account_id}/enabled
-POST /api/telegram/reconnect
-GET  /api/telegram/accounts/{account_id}/dialogs
-GET  /api/telegram/sources
-POST /api/telegram/sources
-PUT  /api/telegram/sources/{source_id}/enabled
-DELETE /api/telegram/sources/{source_id}
-DELETE /api/telegram/accounts/{account_id}/dialogs/{telegram_chat_id}
-```
+- **后端**：Python 3.12、FastAPI、Uvicorn、Telethon
+- **前端**：Vue 3、Vite、TypeScript 生态与 pnpm
+- **数据库**：PostgreSQL
+- **部署**：Docker、Docker Compose
+- **可选网络代理**：sing-box
 
-The dialog endpoint is a cached metadata view. It does not imply Source creation or scanning.
+## 🧑‍💻 本地开发与测试
 
-## Resource model
-
-```text
-Telegram message
-      │
-      ├── account_id
-      ├── telegram_chat_id
-      ├── message_id
-      └── topic_id (when Telegram provides a topic)
-               │
-               ▼
-        physical `files` row
-               │
-          resource_id
-               ▼
-          logical Resource
-               │
-               ▼
-        categories/search
-```
-
-Physical Telegram identity is `(account_id, telegram_chat_id, message_id)`. A logical Resource may have multiple Telegram-backed physical locations. `topic_id` is additional Telegram metadata and is reserved for Topic → Category mapping.
-
-## Optional proxy
-
-Direct Telegram connectivity is the default. Configure the optional proxy **before Telegram login**:
-
-```bash
-# edit .env: TG_PROXY_ENABLED=true and TG_PROXY_*
-docker compose --profile proxy up -d --build
-```
-
-Core does not load the proxy service plugin or include sing-box. It only reads `TG_PROXY_ENABLED` and the local proxy endpoint settings to configure Telethon. The proxy image owns upstream protocol configuration and sing-box. After proxy changes, use the administrator reconnect endpoint or restart Core.
-
-## Video
-
-Video chunk caching is outside the current Core delivery path. The optional Video plugin is not a Core dependency and must not influence cataloging, scanning, Resource identity, or ordinary download delivery.
-
-## Development and CI
-
-Install the development/test dependencies before running the test suite:
+安装后端开发依赖并运行测试：
 
 ```bash
 pip install -r requirements-dev.txt
 pytest -q
 ```
 
-For a local deployment, configure `.env` and start the services:
+前端开发：
 
 ```bash
-cp .env.example .env
-# fill required values
-docker compose up -d --build
+pnpm --dir frontend install
+pnpm --dir frontend dev
 ```
 
-The production Docker image installs only `requirements.txt`; test-only dependencies such as pytest are kept in `requirements-dev.txt`. GitHub Actions installs the development/test requirements to validate PostgreSQL integration, supported Python versions, the full test suite, deployment/Compose configuration, and the Core image build. A separate publishing workflow builds and pushes only the optional proxy image to GHCR. Recent feature work has focused on Telegram Source lifecycle and administrator management; download optimization is intentionally being treated as a separate measurement-driven phase.
+构建生产前端：
 
-## Current project status
-
-### Verified on a real server
-
-- Fresh-server bootstrap: **PASS**.
-- Optional proxy deployment path: **PASS** in the previously validated deployment flow.
-- Telegram account login/session reuse: **PASS**.
-- Multiple account sessions: **PASS** .
-- Automatic dialog discovery/cache after account authorization: **PASS**.
-- Resource-dialog filtering: **IMPLEMENTED**; only selectable resource groups/channels are persisted for admin selection.
-- Source enable/disable/delete lifecycle: **IMPLEMENTED**.
-- Scanner starts immediately for an enabled Source and remains idle when no Source is enabled: **PASS**.
-- Periodic Telegram reconciliation plus administrator-triggered immediate reconciliation: **IMPLEMENTED**.
-- Resource catalog/search/category filtering: **PASS**.
-- Category create/delete: **PASS**.
-- Share-link lifecycle and shared download: **PASS**.
-- Basic Resource download: **FUNCTIONAL**, but throughput depends on network bandwidth.
-
-### Admin management status
-
-The current Web UI uses a Telegram management sidebar with separate **Dialogs** and **Source** pages. Dialog state is Source-backed: enabling a Dialog creates/re-enables its Source; disabling it stops scanning and hides resources belonging only to that source; deleting it removes the management record and associated active catalog visibility. Reconciliation can be triggered immediately from the administrator UI.
-
-### Pending
-
-- Controlled download throughput benchmark and transport optimization (Issue #21).
-- Multi-account download throughput/failover benchmark.
-- Direct versus proxy throughput comparison where applicable.
-- HTTP Range and repeated-range performance validation.
-- Complete-download SHA-256 promotion validation on a large real file.
-- Richer source health/ranking after measurements (Issue #19).
-- Telegram Topic recognition and automatic Topic → Category mapping (Issue #29).
-- Batch Resource classification (Issue #30).
-- Telegram account health/retirement administration (Issue #18).
-- Scanner/Ingestion orchestration refinement (Issue #15).
-- Internal `telegram` package namespace cleanup (Issue #22).
-- Large-file behavior above Telegram/account-specific limits.
-
-See `docs/ARCHITECTURE.md` for the architectural invariants and `docs/PROJECT-STATUS.md` for the detailed implementation/real-device matrix.
-
-
-## Admin frontend
-
-The legacy static admin frontend has been removed. The public/user-facing Web UI remains at `/`; the administrator console is the full SnowAdmin frontend under `frontend/` and is served at `/admin`.
-
-- Public Web UI: `http://<server-ip>:8080/`
-- Administrator console: `http://<server-ip>:8080/admin`
-- Local frontend: `pnpm --dir frontend install && pnpm --dir frontend dev`
-- Production: Docker builds `frontend/dist` and Core serves it from `/admin`
-- Login integration only: SnowAdmin's login calls tgdrive `/auth/login` and `/auth/me`, using the existing HttpOnly session cookie. No JWT is introduced.
-- All other SnowAdmin pages, layouts, menus, components, and demo/mock functionality remain unchanged for now.
-
-SnowAdmin is MIT licensed. See `frontend/LICENSE` for the required license notice.
-
-
-### Minimal production directory
-
-The initial setup needs a checkout (or a copy of `deploy.sh`, `docker-compose.yml`, and `login-account.sh`) to create `.env` and initialize the deployment. Once the Core image has been pulled and the services are running, the runtime only needs these items in the deployment directory:
-
-```text
-tgdrive/
-├── data/
-├── .env
-└── docker-compose.yml
+```bash
+pnpm --dir frontend install --frozen-lockfile
+pnpm --dir frontend build:prod
 ```
 
-The Compose file uses `build: .` and the local image tag `tgdrive:local`. After building successfully, the host can keep running the existing image after source files are removed, as long as the image remains on that Docker host. Do not run `docker compose build` after removing source files. Back up `data/` and `.env` together. Keep `login-account.sh` elsewhere if you want its convenience wrapper; the Compose `telegram-login` service uses the same local image.
+生产 Docker 镜像通过根目录的 Dockerfile 构建前端资源，并将其与 Python Core 一起打包。
+
+## 🔐 安全与数据备份
+
+- **不要提交敏感信息**：.env、Telegram session 文件、验证码、API Hash、管理员密码和代理凭据都应保密。
+- **保管好部署配置**：.env 包含认证和数据库连接所需的关键配置，请限制文件权限。
+- **定期备份**：至少备份 data/ 与 .env，并确保备份可恢复。
+- **谨慎开放端口**：默认 Web 服务端口为 8080；部署到公网时请结合防火墙、HTTPS 反向代理和强密码策略。
+- **先验证再升级**：升级前备份数据库与配置，并确认新版本的迁移和兼容要求。
+
+## 📌 项目状态
+
+tgdrive 正在持续开发。当前实现包括 Telegram 账号会话、对话元数据发现、Source 管理、资源目录/搜索/分类、分享链接以及基础下载交付。吞吐量基准测试、多账号下载性能与故障切换验证、Topic 到分类映射等仍有待完善。
+
+功能实现状态和验证范围会变化，请查看 [PROJECT-STATUS.md](docs/PROJECT-STATUS.md)，不要仅依据 README 中的概述判断某项能力已在所有环境下验证。
+
+## 🤝 参与贡献
+
+欢迎通过 [Issues](https://github.com/Srcasee/tgdrive/issues) 报告问题、提交功能建议，或通过 Pull Request 参与开发。提交前请尽量说明复现步骤、运行环境和相关日志，并移除所有密钥、账号信息及个人数据。
+
+## 📄 许可证
+
+请以仓库中实际提供的许可证文件为准；如仓库尚未包含明确的根目录许可证，请在使用、分发或修改前先向项目维护者确认。
