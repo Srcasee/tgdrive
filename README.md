@@ -274,14 +274,22 @@ Video chunk caching is outside the current Core delivery path. The optional Vide
 
 ## Development and CI
 
+Install the development/test dependencies before running the test suite:
+
+```bash
+pip install -r requirements-dev.txt
+pytest -q
+```
+
+For a local deployment, configure `.env` and start the services:
+
 ```bash
 cp .env.example .env
 # fill required values
 docker compose up -d --build
-pytest -q
 ```
 
-GitHub Actions validates PostgreSQL integration, supported Python versions, the full test suite, deployment/Compose configuration, and both image build paths. A separate publishing workflow builds and pushes only the optional proxy image to GHCR. Recent feature work has focused on Telegram Source lifecycle and administrator management; download optimization is intentionally being treated as a separate measurement-driven phase.
+The production Docker image installs only `requirements.txt`; test-only dependencies such as pytest are kept in `requirements-dev.txt`. GitHub Actions installs the development/test requirements to validate PostgreSQL integration, supported Python versions, the full test suite, deployment/Compose configuration, and the Core image build. A separate publishing workflow builds and pushes only the optional proxy image to GHCR. Recent feature work has focused on Telegram Source lifecycle and administrator management; download optimization is intentionally being treated as a separate measurement-driven phase.
 
 ## Current project status
 
