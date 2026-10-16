@@ -2,8 +2,9 @@ name: PostgreSQL integration
 
 on:
   push:
-    branches: [main]
+    branches-ignore: [main]
   pull_request:
+    branches-ignore: [main]
 
 jobs:
   postgres:
