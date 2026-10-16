@@ -17,7 +17,7 @@ services:
       - telegram-net
 
   tgdrive:
-    image: tgdrive:laster
+    image: tgdrive:latest
     restart: unless-stopped
     working_dir: /app
     volumes:
@@ -46,7 +46,7 @@ services:
         max-file: "3"
 
   telegram-login:
-    image: tgdrive:laster
+    image: tgdrive:latest
     working_dir: /app
     volumes:
       - ./data:/data
