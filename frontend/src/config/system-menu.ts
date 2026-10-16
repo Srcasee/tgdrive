@@ -67,40 +67,15 @@ export const systemMenu = [
     children: null
   },
   {
-    id: "05", parentId: "0", path: "/resources/categories", name: "tgdrive-categories", component: "resources/categories",
-    meta: { title: "资源分类", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], svgIcon: "classify", sort: 5, type: 2 },
-    children: null
-  },
-  {
     id: "06", parentId: "0", path: "/downloads", name: "tgdrive-downloads", component: "downloads/index",
     meta: { title: "下载记录", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], svgIcon: "data-queries", sort: 6, type: 2 },
     children: null
   },
   
-  {
-    id: "07", parentId: "0", path: "/component", name: "component", redirect: "/component/player",
-    meta: { title: "component", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], svgIcon: "more", sort: 7, type: 1 },
-    children: null
-  },
-  {
-    id: "0701", parentId: "07", path: "/component/player", name: "player", component: "component/player/player",
-    meta: { title: "player", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], svgIcon: "video", sort: 1, type: 2 },
-    children: null
-  },
-  {
-    id: "0702", parentId: "07", path: "/component/fingerprintjs2", name: "fingerprintjs2", component: "component/fingerprintjs2/fingerprintjs2",
-    meta: { title: "fingerprintjs2", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], svgIcon: "data-setting", sort: 2, type: 2 },
-    children: null
-  },
 
   {
-    id: "08", parentId: "0", path: "/system", name: "system", redirect: "/system/role",
+    id: "08", parentId: "0", path: "/system", name: "system", redirect: "/system/menu",
     meta: { title: "system", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin", "common"], svgIcon: "set", sort: 8, type: 1 },
-    children: null
-  },
-  {
-    id: "0801", parentId: "08", path: "/system/role", name: "role", component: "system/role/role",
-    meta: { title: "role", hide: false, disable: false, keepAlive: true, affix: false, link: "", iframe: false, isFull: false, roles: ["admin"], svgIcon: "user", sort: 1, type: 2 },
     children: null
   },
   {
