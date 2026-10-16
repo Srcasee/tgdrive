@@ -14,12 +14,35 @@ export default defineConfig(({ mode }) => {
     server: {
       open: true,
       proxy: {
+        // These backend routers retain their /api prefix. Keep these rules
+        // before the generic /api rule, which removes that prefix for legacy APIs.
+        "/api/telegram": {
+          target: env.VITE_APP_BASE_URL,
+          changeOrigin: true
+        },
+        "/api/admin": {
+          target: env.VITE_APP_BASE_URL,
+          changeOrigin: true
+        },
         "/api": {
           target: env.VITE_APP_BASE_URL,
           changeOrigin: true,
           rewrite: p => p.replace(/^\/api/, "")
         },
         "/auth": {
+          target: env.VITE_APP_BASE_URL,
+          changeOrigin: true
+        },
+        // The tgdrive API module calls these endpoints without the /api prefix.
+        "/catalog": {
+          target: env.VITE_APP_BASE_URL,
+          changeOrigin: true
+        },
+        "/resources": {
+          target: env.VITE_APP_BASE_URL,
+          changeOrigin: true
+        },
+        "/topics": {
           target: env.VITE_APP_BASE_URL,
           changeOrigin: true
         }
