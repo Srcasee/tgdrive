@@ -16,6 +16,9 @@ const DELETED_NAVIGATION_PATHS = [
   "/disable-menu",
   "/hide-menu",
   "/system/log",
+  "/resources/categories",
+  "/component",
+  "/system/role",
   "/component/print",
   "/component/draggable",
   "/component/editor",
@@ -80,21 +83,6 @@ const mergeRequiredNavigationEntries = (nodes: any[]): any[] => {
   const requiredEntries = menuEntries.filter((node: any) =>
     typeof node.path === "string" && node.path.startsWith("/tgdrive/") && !existingPaths.has(node.path)
   );
-
-  // 历史 localStorage 菜单可能仍是旧版本；恢复系统组件目录时，也要把它及两个子菜单补回持久化菜单树。
-  const componentRoot = menuEntries.find((node: any) => node.path === "/component");
-  if (componentRoot) {
-    const componentChildren = menuEntries.filter((node: any) => node.parentId === componentRoot.id);
-    const existingComponentRoot = merged.find((node: any) => node.path === componentRoot.path);
-    if (!existingComponentRoot) {
-      merged.push({ ...componentRoot, children: componentChildren });
-    } else {
-      const children = existingComponentRoot.children?.length ? existingComponentRoot.children : [];
-      const childPaths = new Set(children.map((node: any) => node.path));
-      children.push(...componentChildren.filter((node: any) => !childPaths.has(node.path)));
-      existingComponentRoot.children = children;
-    }
-  }
 
   return deduplicateMenuEntries([...merged, ...requiredEntries]);
 };
