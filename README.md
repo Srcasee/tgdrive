@@ -64,7 +64,7 @@ Telegram 账号 / 群组 / 频道
 - Docker Engine 与 Docker Compose 插件
 - Telegram账号及 API 凭据：TG_API_ID、TG_API_HASH（可从 [my.telegram.org](https://my.telegram.org) 获取）
 - 能够持久化保存应用数据的磁盘空间
-- 
+  
 此项目流量吞吐瓶颈依赖网络环境及带宽，已提供可选的代理配置，推荐无网络限制的高带宽服务器
 
 ### 1. 获取项目并启动
