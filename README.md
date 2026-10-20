@@ -89,7 +89,6 @@ docker compose logs --tail=100 tgdrive
 
 默认 Web 服务端口为 **8080**。部署完成后访问：
 
-- 用户界面：`http://服务器IP:8080/`
 - 管理员控制台：`http://服务器IP:8080/admin`
 
 > 当前仓库的 Compose 配置使用本机的 tgdrive:latest 镜像，deploy.sh 负责构建该镜像。不要假定 GHCR 上已经存在可直接拉取的 tgdrive Core 镜像；请以仓库发布页和后续发布配置为准。
